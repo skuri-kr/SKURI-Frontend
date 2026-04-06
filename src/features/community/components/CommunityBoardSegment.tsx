@@ -21,6 +21,7 @@ import {
 
 import {CommunityBoardPostCard} from './CommunityBoardPostCard';
 import type {CommunityBoardPostViewData} from '../model/communityViewData';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface CommunityBoardSegmentProps {
   activeSearchLabel?: string;
@@ -52,6 +53,7 @@ export const CommunityBoardSegment = ({
   refreshing,
 }: CommunityBoardSegmentProps) => {
   const showInitialLoading = loading && items.length === 0;
+  const insets = useSafeAreaInsets();
 
   const handleEndReached = React.useCallback(() => {
     if (loadingMore || !hasMore) {
@@ -157,7 +159,7 @@ export const CommunityBoardSegment = ({
         accessibilityRole="button"
         activeOpacity={0.9}
         onPress={onPressWrite}
-        style={styles.writeButton}>
+        style={[styles.writeButton, {bottom: BOTTOM_TAB_BAR_HEIGHT + insets.bottom + SPACING.sm}]}>
         <Icon color={COLORS.text.inverse} name="create-outline" size={24} />
       </TouchableOpacity>
     </View>
@@ -210,7 +212,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: COLORS.brand.primary,
     borderRadius: RADIUS.pill,
-    bottom: BOTTOM_TAB_BAR_HEIGHT + SPACING.xl,
     height: 56,
     justifyContent: 'center',
     position: 'absolute',
