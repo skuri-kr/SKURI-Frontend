@@ -77,7 +77,7 @@
 - 신규 문서:
   - 상세 크롤링(`crawlNoticeContent`) 수행 후 저장
   - 기존 Firebase 구현은 `bodyHtml`, `attachments`, `createdAt`, `updatedAt`를 저장
-  - 현재 Spring 구현은 `rssPreview`(RSS 미리보기), `bodyText`(정규화 text), `bodyHtml`, `attachments`를 함께 저장한다.
+  - 현재 Spring 구현은 `rssPreview`(RSS 미리보기), `bodyText`(정규화 text), `bodyHtml`, `thumbnailUrl`, `attachments`를 함께 저장한다.
 - 기존 문서:
   - `existing.contentHash != incoming.contentHash`일 때만 `merge set`
   - `updatedAt` 갱신
@@ -107,6 +107,19 @@
 - 실패 시:
   - `{ html: "", attachments: [] }` 반환
 
+### 2-7. 썸네일 저장 / backfill 규칙
+
+- `thumbnailUrl`은 `TEXT` 타입 `thumbnail_url` 컬럼에 저장하는 목록용 캐시다.
+- 신규/상세 refresh 성공 시점에만 `thumbnailUrl`을 갱신한다.
+  - 이미지가 없으면 `null`
+  - `img[src]`가 비어 있거나 `data:` / `blob:` / 과도하게 긴 값이면 `null`
+  - 상세 refresh를 하지 않았거나 크롤링에 실패하면 기존 값을 유지
+- 기존 적재 데이터는 `migration.plan=NOTICE_THUMBNAILS` backfill로 보정한다.
+  - 네트워크 재크롤링 금지
+  - DB `body_html`만 읽는다.
+  - keyset(`id > lastId`) batch 처리와 dry-run/apply를 지원한다.
+  - 저장 부적절한 `src`는 update 실패 대신 `null`로 정리한다.
+
 ## 3. Phase 5로 가져갈 때 권장 기준
 
 ### 3-1. 그대로 가져갈 항목
@@ -128,6 +141,11 @@
 
 3. 네트워크 안정성
 - 타임아웃/재시도/서킷브레이커 정책 명시
+
+4. 저장형 썸네일 유지
+- 목록 응답 생성 시 `bodyHtml` 파싱을 재수행하지 않고 저장된 `thumbnailUrl`만 사용
+- 기존 row 보정은 backfill plan으로 별도 수행
+- 저장 규칙은 sync/backfill 모두 동일하게 적용하고, `data:` / `blob:` / 과도하게 긴 `src`는 `null` 처리
 - 성결대학교 사이트 TLS 체인 이슈가 해결되기 전까지는 Spring 구현도 공지 수집 경로에 한해 인증서 검증 비활성화를 허용
 - 사이트 full chain이 정상화되면 `rejectUnauthorized=false`/trust-all SSL 설정은 제거 권장
 - Spring Notice 스키마는 Firebase와 달리 `summary`를 미래 AI 요약 저장용 예약 필드로 유지한다.

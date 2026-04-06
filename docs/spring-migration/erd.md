@@ -343,6 +343,7 @@ erDiagram
         datetime detail_checked_at
         longtext body_text "HTML 정규화 plain text"
         longtext body_html "크롤링된 HTML"
+        text thumbnail_url "bodyHtml 첫 이미지 URL cache, nullable"
         json attachments "첨부파일 목록"
         int view_count "DEFAULT 0"
         int like_count "DEFAULT 0"
@@ -1205,8 +1206,8 @@ CREATE INDEX idx_post_interactions_user_bookmarked ON post_interactions(user_id,
 ```sql
 -- notices
 CREATE INDEX idx_notices_category ON notices(category);
-CREATE INDEX idx_notices_posted_at ON notices(posted_at DESC);
-CREATE INDEX idx_notices_category_posted ON notices(category, posted_at DESC);
+CREATE INDEX idx_notices_posted_created ON notices(posted_at DESC, created_at DESC);
+CREATE INDEX idx_notices_category_posted_created ON notices(category, posted_at DESC, created_at DESC);
 CREATE INDEX idx_notices_content_hash ON notices(content_hash);
 
 -- notice_read_status

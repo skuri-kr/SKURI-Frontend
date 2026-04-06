@@ -344,7 +344,9 @@ Spring 서버 처리:
   - legacy 표기(예: `소프트웨어학과`)는 canonical 값으로 정규화해 저장합니다.
   - 지원하지 않는 값은 `422 VALIDATION_ERROR`를 반환합니다.
 - `realname`은 회원 생성 시 provider 이름으로 초기화되며, 이 API로 수정할 수 없습니다.
-- `photoUrl`은 `POST /v1/images`의 `PROFILE_IMAGE` 업로드 결과 URL을 그대로 재사용할 수 있습니다.
+- `photoUrl`은 `POST /v1/images`의 `PROFILE_IMAGE` 업로드 결과 URL 중 **본인이 업로드한 member-scoped URL**만 새 값으로 재사용할 수 있습니다.
+- 이미 저장된 `photoUrl`을 그대로 다시 보내는 것은 허용합니다. 이 예외는 legacy unscoped 내부 URL을 포함합니다.
+- 다른 회원의 내부 profile 업로드 URL이나 profile 컨텍스트가 아닌 내부 storage URL은 `422 VALIDATION_ERROR`를 반환합니다.
 - 프로필 사진 삭제는 `DELETE /v1/members/me/photo`를 사용합니다.
 
 **Request:**
@@ -353,7 +355,7 @@ Spring 서버 처리:
   "nickname": "새닉네임",
   "studentId": "20201234",
   "department": "컴퓨터공학과",
-  "photoUrl": "https://..."
+  "photoUrl": "https://cdn.skuri.app/uploads/profiles/dw9rPtuticbjnaYPkeiF3RGPpqk1/2026/04/06/photo.jpg"
 }
 ```
 
@@ -361,7 +363,8 @@ Spring 서버 처리:
 내 프로필 사진 삭제
 
 - `members.photo_url`을 `null`로 갱신합니다.
-- 현재 `photoUrl`이 우리 서비스가 업로드한 `PROFILE_IMAGE` URL이면, storage에서 원본 파일과 썸네일(`_thumb`)도 함께 정리합니다.
+- 현재 `photoUrl`이 요청 회원 본인 소유로 검증된 member-scoped `PROFILE_IMAGE` URL이면, storage에서 원본 파일과 썸네일(`_thumb`)도 함께 정리합니다.
+- legacy unscoped 내부 `PROFILE_IMAGE` URL은 소유권을 증명할 수 없으므로 storage cleanup 없이 DB만 `null` 처리합니다.
 - 외부 URL(소셜 provider URL 포함)이거나 이미 `photoUrl`이 `null`이면 DB만 안전하게 정리하고 storage 삭제는 시도하지 않습니다.
 - storage 정리는 best-effort이며, 파일이 이미 없거나 일부 삭제가 실패해도 프로필 사진 삭제 자체는 성공으로 처리합니다.
 
@@ -4683,7 +4686,7 @@ data: {
 **저장 경로 규칙**
 - `POST_IMAGE` → `posts/YYYY/MM/DD/{uuid}.{ext}`
 - `CHAT_IMAGE` → `chat/YYYY/MM/DD/{uuid}.{ext}`
-- `PROFILE_IMAGE` → `profiles/YYYY/MM/DD/{uuid}.{ext}`
+- `PROFILE_IMAGE` → `profiles/{memberId}/YYYY/MM/DD/{uuid}.{ext}`
 - `INQUIRY_IMAGE` → `inquiries/YYYY/MM/DD/{uuid}.{ext}`
 - `APP_NOTICE_IMAGE` → `app-notices/YYYY/MM/DD/{uuid}.{ext}`
 - `CAMPUS_BANNER_IMAGE` → `campus-banners/YYYY/MM/DD/{uuid}.{ext}`
@@ -4779,7 +4782,7 @@ data: {
     │      └─ Response: { url, ... }
     │
     └─ 2. PATCH /v1/members/me
-           { "photoUrl": "https://..." }
+           { "photoUrl": "https://cdn.skuri.app/uploads/profiles/{memberId}/YYYY/MM/DD/{uuid}.{ext}" }
 ```
 
 프로필 사진을 제거할 때는 아래 흐름을 사용합니다.
@@ -7212,7 +7215,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 > - 2026-02-19: Image API 추가 (§11, 방식 A - 서버 경유 업로드)
 > - 2026-02-19: 채팅 메시지 전송 경로 WebSocket으로 통일 (§4.3~4.5), Public API 목록 명확화 (§1.2)
 > - 2026-02-19: Admin API 추가 (§12 — 앱 공지/버전 관리, 학교 공지 동기화, 학식/학사일정/강의 관리)
-> - 2026-04-06: Member profile photo delete API 추가 — `DELETE /v1/members/me/photo`를 추가하고, PATCH의 `photoUrl: null`은 no-op로 유지하면서 내부 `PROFILE_IMAGE` 원본/썸네일 정리 정책을 문서화
+> - 2026-04-06: Member profile photo ownership 검증 반영 — `PROFILE_IMAGE` 업로드 경로를 `profiles/{memberId}/...`로 고정하고, `PATCH /v1/members/me`의 내부 `photoUrl`은 본인 소유 member-scoped URL만 허용하며, `DELETE /v1/members/me/photo` cleanup도 본인 소유로 검증된 파일에만 수행하도록 동기화
 > - 2026-03-05: Phase 3 구현 반영 — 채팅 커서 페이지네이션(`cursorCreatedAt`,`cursorId`) 명시, `lastReadAt` 단조 증가/미읽음 경계(`createdAt > lastReadAt`) 확정, STOMP 경로를 `/app/chat/{chatRoomId}`·`/topic/chat/{chatRoomId}`로 동기화
 > - 2026-04-06: Admin Chat read API 반영 — `GET /v1/admin/chat-rooms`, `GET /v1/admin/chat-rooms/{chatRoomId}`, `GET /v1/admin/chat-rooms/{chatRoomId}/messages`, `GET /v1/admin/parties/{partyId}/messages` 계약과 관리자 고정 필드/멤버십 우회 정책을 문서화
 > - 2026-03-05: Chat 계약 동기화 — `lastMessage.createdAt`/`accountData` 필드로 통일, 비공개 채팅방 접근 정책(REST/WS) 및 STOMP 에러 포맷(`/user/queue/errors`) 명시

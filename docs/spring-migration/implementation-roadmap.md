@@ -203,7 +203,7 @@ com.skuri.skuri_backend
 | `POST` | `/v1/members` | 회원 가입 (ID Token에서 정보 추출, 멱등) |
 | `GET` | `/v1/members/me` | 내 프로필 조회 (lastLogin 갱신) |
 | `PATCH` | `/v1/members/me` | 프로필 부분 수정 (닉네임, 학번, 학과, photoUrl) |
-| `DELETE` | `/v1/members/me/photo` | 프로필 사진 제거 (내부 PROFILE_IMAGE면 storage 원본/썸네일 정리) |
+| `DELETE` | `/v1/members/me/photo` | 프로필 사진 제거 (본인 소유 member-scoped PROFILE_IMAGE면 storage 원본/썸네일 정리) |
 | `PUT` | `/v1/members/me/bank-account` | 계좌 정보 수정 |
 | `PATCH` | `/v1/members/me/notification-settings` | 알림 설정 부분 수정 |
 | `GET` | `/v1/members/{id}` | 특정 회원 공개 프로필 조회 |
@@ -939,6 +939,7 @@ SSE 운영 제약:
 - 1차 런타임 범위는 **이미지(image)** 업로드이며, video/audio 등 일반 media 확장은 storage/context 설계를 먼저 열어 두고 후속 범위로 둔다.
 - context enum은 `POST_IMAGE`, `CHAT_IMAGE`, `APP_NOTICE_IMAGE`, `CAMPUS_BANNER_IMAGE`, `PROFILE_IMAGE`, `INQUIRY_IMAGE`로 확정한다.
 - 권한 정책은 `POST_IMAGE`, `CHAT_IMAGE`, `PROFILE_IMAGE`, `INQUIRY_IMAGE`는 인증 사용자, `APP_NOTICE_IMAGE`, `CAMPUS_BANNER_IMAGE`는 관리자 전용으로 운영한다.
+- `PROFILE_IMAGE` 저장 경로는 소유권 검증을 위해 `profiles/{memberId}/YYYY/MM/DD/{uuid}.{ext}` member-scoped 패턴을 사용한다.
 - 기존 Board/Chat/AppNotice/Profile 계약과의 호환성을 우선하며, URL 직접 입력 경로는 유지한다.
 - 기본 storage provider는 **LOCAL 파일시스템**이며, `StorageRepository` 인터페이스를 통해 `FIREBASE` provider를 포함한 cloud provider(S3/OCI/Firebase 등) 구현체를 교체 가능하게 둔다.
 
