@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +15,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {invalidateData} from '@/app/data-freshness/dataInvalidation';
 import {BOARD_MUTATION_INVALIDATION_KEYS} from '@/app/data-freshness/invalidationKeys';
 import {
+  ComposeScreenSkeleton,
   StateCard,
 } from '@/shared/design-system/components';
 import {COLORS} from '@/shared/design-system/tokens';
@@ -195,9 +195,7 @@ export const BoardEditScreen = () => {
         />
 
         {loading ? (
-          <View style={styles.centeredState}>
-            <ActivityIndicator color={COLORS.brand.primary} size="large" />
-          </View>
+          <ComposeScreenSkeleton />
         ) : error || !post ? (
           <View style={styles.centeredState}>
             <StateCard

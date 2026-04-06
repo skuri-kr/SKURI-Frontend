@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +12,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 
 import {type CampusStackParamList} from '@/app/navigation/types';
 import {
+  LegalDocumentScreenSkeleton,
   StackHeader,
   StateCard,
 } from '@/shared/design-system/components';
@@ -50,11 +50,7 @@ export const LegalDocumentScreen = ({
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}>
         {loading && !data ? (
-          <StateCard
-            description="문서 정보를 준비하고 있습니다."
-            icon={<ActivityIndicator color={COLORS.brand.primary} />}
-            title="문서를 불러오는 중"
-          />
+          <LegalDocumentScreenSkeleton />
         ) : null}
 
         {error && !data ? (

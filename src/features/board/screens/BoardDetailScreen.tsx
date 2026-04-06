@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Keyboard,
   KeyboardAvoidingView,
@@ -28,6 +27,7 @@ import {
   DetailBodyBlocks,
   DetailCommentCard,
   DetailComposer,
+  ArticleDetailSkeleton,
   DetailNotFoundState,
   DetailReactionChip,
   DetailTitleHeader,
@@ -544,9 +544,7 @@ export const BoardDetailScreen = () => {
     <SafeAreaView style={styles.container} edges={['left', 'right']}>
       <Animated.View style={[styles.screen, screenAnimatedStyle]}>
         {loading && !data ? (
-          <View style={[styles.centeredState, {paddingTop: headerOffset}]}>
-            <ActivityIndicator color={COLORS.brand.primary} size="large" />
-          </View>
+          <ArticleDetailSkeleton headerOffset={headerOffset} />
         ) : notFound && !data ? (
           <View style={[styles.centeredState, {paddingTop: headerOffset}]}>
             <DetailNotFoundState

@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,6 +13,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 
 import type {CampusStackParamList} from '@/app/navigation/types';
 import {
+  ArticleDetailSkeleton,
   StackHeader,
   StateCard,
 } from '@/shared/design-system/components';
@@ -49,13 +49,7 @@ export const AppNoticeDetailScreen = () => {
   const hasGallery = (data?.galleryImages.length ?? 0) > 0;
 
   const renderLoadingState = () => (
-    <View style={styles.stateContainer}>
-      <StateCard
-        description="앱 공지사항 상세 내용을 준비하고 있습니다."
-        icon={<ActivityIndicator color={COLORS.brand.primary} />}
-        title="앱 공지사항을 불러오는 중"
-      />
-    </View>
+    <ArticleDetailSkeleton showCommentCard={false} />
   );
 
   const renderErrorState = () => (

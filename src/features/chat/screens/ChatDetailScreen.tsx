@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Clipboard,
   KeyboardAvoidingView,
@@ -22,6 +21,7 @@ import type {CommunityStackParamList} from '@/app/navigation/types';
 import {useReportRepository} from '@/di';
 import type {ReportCategory} from '@/features/report';
 import {
+  ChatDetailSkeleton,
   DetailNotFoundState,
   StateCard,
 } from '@/shared/design-system/components';
@@ -418,9 +418,7 @@ export const ChatDetailScreen = () => {
         )}
 
         {loading ? (
-          <View style={styles.centeredState}>
-            <ActivityIndicator color={COLORS.brand.primary} size="large" />
-          </View>
+          <ChatDetailSkeleton />
         ) : notFound ? (
           <View style={styles.centeredState}>
             <DetailNotFoundState

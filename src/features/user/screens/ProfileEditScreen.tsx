@@ -18,6 +18,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import {type CampusStackParamList} from '@/app/navigation/types';
 import {
   DefaultProfileAvatar,
+  ProfileScreenSkeleton,
   SelectionDropdown,
   SkeletonImage,
   StackHeader,
@@ -279,11 +280,7 @@ export const ProfileEditScreen = () => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         {loading && !data ? (
-          <StateCard
-            description="프로필 수정 화면을 준비하고 있습니다."
-            icon={<ActivityIndicator color={COLORS.brand.primary} />}
-            title="프로필 수정을 불러오는 중"
-          />
+          <ProfileScreenSkeleton />
         ) : null}
 
         {error && !data ? (

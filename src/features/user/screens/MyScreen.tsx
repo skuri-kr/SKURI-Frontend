@@ -17,6 +17,7 @@ import {type CampusStackParamList} from '@/app/navigation/types';
 import {useAuth} from '@/features/auth';
 import {
   DefaultProfileAvatar,
+  ProfileScreenSkeleton,
   SkeletonImage,
   StackHeader,
   StateCard,
@@ -178,12 +179,7 @@ export const MyScreen = () => {
           ]}
           showsVerticalScrollIndicator={false}>
           {loading && !data ? (
-            <StateCard
-              description="마이페이지를 준비하고 있습니다."
-              icon={<ActivityIndicator color={COLORS.brand.primary} />}
-              style={styles.stateCard}
-              title="마이페이지를 불러오는 중"
-            />
+            <ProfileScreenSkeleton />
           ) : null}
 
           {error && !data ? (

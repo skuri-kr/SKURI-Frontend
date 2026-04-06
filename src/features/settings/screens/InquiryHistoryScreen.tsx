@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,7 +11,11 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 import {type CampusStackParamList} from '@/app/navigation/types';
-import {StackHeader, StateCard} from '@/shared/design-system/components';
+import {
+  InquiryHistoryScreenSkeleton,
+  StackHeader,
+  StateCard,
+} from '@/shared/design-system/components';
 import {
   COLORS,
   RADIUS,
@@ -34,15 +37,7 @@ export const InquiryHistoryScreen = () => {
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
       <StackHeader onPressBack={() => navigation.goBack()} title="내 문의 내역" />
 
-      {loading && !data ? (
-        <View style={styles.stateWrap}>
-          <StateCard
-            description="문의 내역을 준비하고 있습니다."
-            icon={<ActivityIndicator color={COLORS.brand.primary} />}
-            title="문의 내역을 불러오는 중"
-          />
-        </View>
-      ) : null}
+      {loading && !data ? <InquiryHistoryScreenSkeleton /> : null}
 
       {error && !data ? (
         <View style={styles.stateWrap}>
