@@ -7,7 +7,10 @@ import type {
   NoticeHomeNoticeItemViewData,
 } from '../model/noticeHomeViewData';
 import {NoticeListItem} from './NoticeListItem';
-import {StateCard} from '@/shared/design-system/components';
+import {
+  NoticeListSkeleton,
+  StateCard,
+} from '@/shared/design-system/components';
 import {
   COLORS,
   RADIUS,
@@ -24,7 +27,6 @@ interface NoticeHomeListProps {
   loadingMore: boolean;
   onPressNotice: (noticeId: string) => void;
   onRefresh: () => void;
-  userJoinedAtLoaded: boolean;
 }
 
 export const NoticeHomeList = ({
@@ -36,20 +38,14 @@ export const NoticeHomeList = ({
   loadingMore,
   onPressNotice,
   onRefresh,
-  userJoinedAtLoaded,
 }: NoticeHomeListProps) => {
-  const showLoadingState = (loading && items.length === 0) || !userJoinedAtLoaded;
+  const showLoadingState = loading && items.length === 0;
   const hasFooter = loadingMore || !hasMore;
 
   return (
     <View style={styles.card}>
       {showLoadingState ? (
-        <StateCard
-          description="공지사항을 불러오는 중입니다."
-          icon={<ActivityIndicator color={COLORS.brand.primary} />}
-          style={styles.embeddedStateCard}
-          title="공지사항 준비 중"
-        />
+        <NoticeListSkeleton />
       ) : null}
 
       {!showLoadingState && error && items.length === 0 ? (

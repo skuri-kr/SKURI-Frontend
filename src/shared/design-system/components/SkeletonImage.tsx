@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Animated,
   Image,
+  type ImageLoadEventData,
   type ImageErrorEventData,
   StyleSheet,
   View,
@@ -17,8 +18,13 @@ import LinearGradient from 'react-native-linear-gradient';
 import {COLORS} from '../tokens';
 
 interface SkeletonImageProps
-  extends Omit<ImageProps, 'source' | 'style' | 'onError' | 'onLoadEnd' | 'onLoadStart'> {
+  extends Omit<
+    ImageProps,
+    'source' | 'style' | 'onError' | 'onLoad' | 'onLoadEnd' | 'onLoadStart'
+  > {
+  disableSkeleton?: boolean;
   onError?: ImageProps['onError'];
+  onLoad?: ImageProps['onLoad'];
   onLoadEnd?: ImageProps['onLoadEnd'];
   onLoadStart?: ImageProps['onLoadStart'];
   source: ImageSourcePropType;
@@ -26,6 +32,7 @@ interface SkeletonImageProps
 }
 
 const SHIMMER_DURATION_MS = 1100;
+const MAX_AUTO_RETRY_COUNT = 1;
 
 const resolveSourceKey = (source: ImageSourcePropType) => {
   if (typeof source === 'number') {
@@ -45,8 +52,28 @@ const resolveSourceKey = (source: ImageSourcePropType) => {
   return '';
 };
 
+const resolveSourceUri = (source: ImageSourcePropType) => {
+  if (Array.isArray(source)) {
+    for (const item of source) {
+      if (item && 'uri' in item && item.uri) {
+        return item.uri;
+      }
+    }
+
+    return null;
+  }
+
+  if (source && typeof source !== 'number' && 'uri' in source) {
+    return source.uri ?? null;
+  }
+
+  return null;
+};
+
 export const SkeletonImage = ({
+  disableSkeleton = false,
   onError,
+  onLoad,
   onLoadEnd,
   onLoadStart,
   resizeMode = 'cover',
@@ -55,14 +82,19 @@ export const SkeletonImage = ({
   ...rest
 }: SkeletonImageProps) => {
   const sourceKey = React.useMemo(() => resolveSourceKey(source), [source]);
+  const sourceUri = React.useMemo(() => resolveSourceUri(source), [source]);
   const shimmerProgress = React.useRef(new Animated.Value(0)).current;
   const [containerWidth, setContainerWidth] = React.useState(0);
   const [isLoading, setLoading] = React.useState(true);
   const [hasLoadError, setLoadError] = React.useState(false);
+  const [retryCount, setRetryCount] = React.useState(0);
+  const [retryNonce, setRetryNonce] = React.useState(0);
 
   React.useEffect(() => {
     setLoading(true);
     setLoadError(false);
+    setRetryCount(0);
+    setRetryNonce(0);
   }, [sourceKey]);
 
   React.useEffect(() => {
@@ -106,6 +138,15 @@ export const SkeletonImage = ({
     [onLoadStart],
   );
 
+  const handleLoad = React.useCallback<NonNullable<ImageProps['onLoad']>>(
+    (event: NativeSyntheticEvent<ImageLoadEventData>) => {
+      setLoadError(false);
+      setLoading(false);
+      onLoad?.(event);
+    },
+    [onLoad],
+  );
+
   const handleLoadEnd = React.useCallback<NonNullable<ImageProps['onLoadEnd']>>(
     () => {
       setLoading(false);
@@ -116,32 +157,41 @@ export const SkeletonImage = ({
 
   const handleError = React.useCallback(
     (event: NativeSyntheticEvent<ImageErrorEventData>) => {
+      if (sourceUri && retryCount < MAX_AUTO_RETRY_COUNT) {
+        setRetryCount(currentCount => currentCount + 1);
+        setLoadError(false);
+        setLoading(true);
+        setRetryNonce(currentNonce => currentNonce + 1);
+        return;
+      }
+
       setLoadError(true);
       setLoading(false);
       onError?.(event);
     },
-    [onError],
+    [onError, retryCount, sourceUri],
   );
 
   const shimmerTranslateX = shimmerProgress.interpolate({
     inputRange: [0, 1],
     outputRange: [-containerWidth, containerWidth],
   });
-  const showSkeleton = isLoading || hasLoadError;
+  const showSkeleton = !disableSkeleton && isLoading;
+  const showFallback = !disableSkeleton && hasLoadError;
 
   return (
     <View onLayout={handleLayout} style={[styles.container, style]}>
-      {!hasLoadError ? (
-        <Image
-          {...rest}
-          onError={handleError}
-          onLoadEnd={handleLoadEnd}
-          onLoadStart={handleLoadStart}
-          resizeMode={resizeMode}
-          source={source}
-          style={styles.image}
-        />
-      ) : null}
+      <Image
+        {...rest}
+        key={`${sourceKey}:${retryNonce}`}
+        onError={handleError}
+        onLoad={handleLoad}
+        onLoadEnd={handleLoadEnd}
+        onLoadStart={handleLoadStart}
+        resizeMode={resizeMode}
+        source={source}
+        style={styles.image}
+      />
 
       {showSkeleton ? (
         <View pointerEvents="none" style={styles.placeholder}>
@@ -168,6 +218,8 @@ export const SkeletonImage = ({
           ) : null}
         </View>
       ) : null}
+
+      {showFallback ? <View pointerEvents="none" style={styles.placeholder} /> : null}
     </View>
   );
 };

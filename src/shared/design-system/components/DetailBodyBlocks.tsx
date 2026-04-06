@@ -15,6 +15,7 @@ interface DetailBodyBlocksProps {
 
 const IMAGE_ASPECT_RATIO_FALLBACK = 16 / 9;
 const imageAspectRatioCache = new Map<string, number>();
+const prefetchedImageUrlCache = new Set<string>();
 
 const DETAIL_TABLE_HTML = (tableHtml: string) => `
 <!doctype html>
@@ -205,6 +206,9 @@ export const DetailBodyBlocks = ({blocks}: DetailBodyBlocksProps) => {
   const [resolvedAspectRatios, setResolvedAspectRatios] = React.useState<
     Record<string, number>
   >({});
+  const [prefetchedImages, setPrefetchedImages] = React.useState<
+    Record<string, boolean>
+  >({});
 
   React.useEffect(() => {
     let isCancelled = false;
@@ -250,6 +254,39 @@ export const DetailBodyBlocks = ({blocks}: DetailBodyBlocksProps) => {
         resolvedAspectRatios[block.id] ||
         imageAspectRatioCache.has(block.imageUrl)
       ) {
+        if (prefetchedImageUrlCache.has(block.imageUrl)) {
+          setPrefetchedImages(previousImages => {
+            if (previousImages[block.id]) {
+              return previousImages;
+            }
+
+            return {
+              ...previousImages,
+              [block.id]: true,
+            };
+          });
+        } else {
+          Image.prefetch(block.imageUrl)
+            .then(success => {
+              if (isCancelled || !success) {
+                return;
+              }
+
+              prefetchedImageUrlCache.add(block.imageUrl);
+              setPrefetchedImages(previousImages => {
+                if (previousImages[block.id]) {
+                  return previousImages;
+                }
+
+                return {
+                  ...previousImages,
+                  [block.id]: true,
+                };
+              });
+            })
+            .catch(() => undefined);
+        }
+
         return;
       }
 
@@ -272,6 +309,26 @@ export const DetailBodyBlocks = ({blocks}: DetailBodyBlocksProps) => {
               [block.id]: nextAspectRatio,
             };
           });
+
+          Image.prefetch(block.imageUrl)
+            .then(success => {
+              if (isCancelled || !success) {
+                return;
+              }
+
+              prefetchedImageUrlCache.add(block.imageUrl);
+              setPrefetchedImages(previousImages => {
+                if (previousImages[block.id]) {
+                  return previousImages;
+                }
+
+                return {
+                  ...previousImages,
+                  [block.id]: true,
+                };
+              });
+            })
+            .catch(() => undefined);
         },
         () => undefined,
       );
@@ -336,6 +393,8 @@ export const DetailBodyBlocks = ({blocks}: DetailBodyBlocksProps) => {
             block.aspectRatio ??
             resolvedAspectRatios[block.id] ??
             IMAGE_ASPECT_RATIO_FALLBACK;
+          const disableSkeleton =
+            prefetchedImages[block.id] || prefetchedImageUrlCache.has(block.imageUrl);
 
           return (
             <TouchableOpacity
@@ -349,6 +408,7 @@ export const DetailBodyBlocks = ({blocks}: DetailBodyBlocksProps) => {
               style={!isLast ? styles.blockSpacing : null}>
               <SkeletonImage
                 accessibilityLabel={block.alt}
+                disableSkeleton={disableSkeleton}
                 resizeMode="cover"
                 source={{uri: block.imageUrl}}
                 style={[

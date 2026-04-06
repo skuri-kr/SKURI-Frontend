@@ -57,7 +57,6 @@ export const NoticeScreen = () => {
     selectCategory,
     updateDetail,
     updateMaster,
-    userJoinedAtLoaded,
   } = useNoticeHomeData();
 
   React.useEffect(() => {
@@ -188,7 +187,6 @@ export const NoticeScreen = () => {
               loadingMore={loadingMore}
               onPressNotice={handleOpenNotice}
               onRefresh={handleRefresh}
-              userJoinedAtLoaded={userJoinedAtLoaded}
             />
           </ScrollView>
         </View>
