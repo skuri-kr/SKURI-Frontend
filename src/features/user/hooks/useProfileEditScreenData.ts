@@ -49,14 +49,43 @@ export const useProfileEditScreenData = () => {
       try {
         setSaving(true);
 
-        const nextSource = await profileEditRepository.saveProfileEdit(draft);
-        applySource(nextSource);
-        await refreshCurrentUser();
+        const trimmedDraft = {
+          department: draft.department.trim(),
+          displayName: draft.displayName.trim(),
+          studentId: draft.studentId.trim(),
+        };
+
+        const hasTextChanges =
+          !data ||
+          data.department !== trimmedDraft.department ||
+          data.displayName !== trimmedDraft.displayName ||
+          data.studentId !== trimmedDraft.studentId;
+
+        let nextSource: ProfileEditSource | undefined;
+
+        if (hasTextChanges) {
+          nextSource = await profileEditRepository.saveProfileEdit(trimmedDraft);
+        }
+
+        if (draft.photoChange?.type === 'upload') {
+          nextSource = await profileEditRepository.uploadProfilePhoto(
+            draft.photoChange.image,
+          );
+        }
+
+        if (draft.photoChange?.type === 'remove') {
+          nextSource = await profileEditRepository.removeProfilePhoto();
+        }
+
+        if (nextSource) {
+          applySource(nextSource);
+          await refreshCurrentUser();
+        }
       } finally {
         setSaving(false);
       }
     },
-    [applySource, profileEditRepository, refreshCurrentUser],
+    [applySource, data, profileEditRepository, refreshCurrentUser],
   );
 
   const uploadPhoto = React.useCallback(

@@ -26,7 +26,8 @@ describe('SpringProfileEditRepository', () => {
         lastLogin: null,
         nickname: '스쿠리',
         notificationSetting: null,
-        photoUrl: 'https://cdn.skuri.app/uploads/profiles/profile.jpg',
+        photoUrl:
+          'https://cdn.skuri.app/uploads/profiles/member-1/2026/04/06/profile.jpg',
         realname: null,
         studentId: '20210001',
       }),
@@ -36,8 +37,9 @@ describe('SpringProfileEditRepository', () => {
       height: 512,
       mime: 'image/png',
       size: 120000,
-      thumbUrl: 'https://cdn.skuri.app/uploads/profiles/profile_thumb.jpg',
-      url: 'https://cdn.skuri.app/uploads/profiles/profile.jpg',
+      thumbUrl:
+        'https://cdn.skuri.app/uploads/profiles/member-1/2026/04/06/profile_thumb.jpg',
+      url: 'https://cdn.skuri.app/uploads/profiles/member-1/2026/04/06/profile.jpg',
       width: 512,
     });
 
@@ -52,7 +54,8 @@ describe('SpringProfileEditRepository', () => {
     ).resolves.toMatchObject({
       avatarLabel: '스',
       displayName: '스쿠리',
-      photoUrl: 'https://cdn.skuri.app/uploads/profiles/profile.jpg',
+      photoUrl:
+        'https://cdn.skuri.app/uploads/profiles/member-1/2026/04/06/profile.jpg',
     });
 
     expect(mockedUploadImage).toHaveBeenCalledWith({
@@ -62,13 +65,15 @@ describe('SpringProfileEditRepository', () => {
       uri: 'file:///profile.png',
     });
     expect(memberRepository.updateMyProfile).toHaveBeenCalledWith({
-      photoUrl: 'https://cdn.skuri.app/uploads/profiles/profile.jpg',
+      photoUrl:
+        'https://cdn.skuri.app/uploads/profiles/member-1/2026/04/06/profile.jpg',
     });
   });
 
-  it('프로필 사진 삭제 시 photoUrl을 null로 저장한다', async () => {
+  it('프로필 사진 삭제 시 전용 삭제 API 호출 후 최신 프로필을 다시 불러온다', async () => {
     const memberRepository = {
-      updateMyProfile: jest.fn().mockResolvedValue({
+      deleteMyProfilePhoto: jest.fn().mockResolvedValue(undefined),
+      getMyMemberProfile: jest.fn().mockResolvedValue({
         bankAccount: null,
         department: '컴퓨터공학과',
         email: 'user@skuniv.ac.kr',
@@ -90,8 +95,7 @@ describe('SpringProfileEditRepository', () => {
       photoUrl: null,
     });
 
-    expect(memberRepository.updateMyProfile).toHaveBeenCalledWith({
-      photoUrl: null,
-    });
+    expect(memberRepository.deleteMyProfilePhoto).toHaveBeenCalledTimes(1);
+    expect(memberRepository.getMyMemberProfile).toHaveBeenCalledTimes(1);
   });
 });

@@ -2,7 +2,6 @@ import React from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Keyboard,
   ScrollView,
   StyleSheet,
@@ -20,44 +19,42 @@ import {type CampusStackParamList} from '@/app/navigation/types';
 import {
   DefaultProfileAvatar,
   SelectionDropdown,
+  SkeletonImage,
   StackHeader,
   StateCard,
 } from '@/shared/design-system/components';
-import {COLORS, RADIUS, SPACING} from '@/shared/design-system/tokens';
+import {
+  COLORS,
+  RADIUS,
+  SHADOWS,
+  SPACING,
+} from '@/shared/design-system/tokens';
 import {useScreenView} from '@/shared/hooks/useScreenView';
 import {pickImageAsset} from '@/shared/lib/media/pickImageAsset';
 
 import {useProfileEditScreenData} from '../hooks/useProfileEditScreenData';
+import type {ProfilePhotoUploadInput} from '../model/profileEditSource';
 
 const PROFILE_EDIT_SCREEN_TITLE = '프로필 수정';
 const PROFILE_EDIT_SAVE_LABEL = '저장하기';
-const ALLOWED_PROFILE_IMAGE_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-] as const;
 
 export const ProfileEditScreen = () => {
   useScreenView();
 
   const navigation =
     useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
-  const {
-    data,
-    error,
-    loading,
-    reload,
-    removePhoto,
-    saveChanges,
-    saving,
-    uploadPhoto,
-  } =
+  const {data, error, loading, reload, saveChanges, saving} =
     useProfileEditScreenData();
 
   const [displayName, setDisplayName] = React.useState('');
   const [studentId, setStudentId] = React.useState('');
   const [department, setDepartment] = React.useState('');
   const [isDropdownOpen, setDropdownOpen] = React.useState(false);
+  const [pendingPhoto, setPendingPhoto] =
+    React.useState<ProfilePhotoUploadInput | null>(null);
+  const [isPhotoMarkedForRemoval, setPhotoMarkedForRemoval] =
+    React.useState(false);
+  const allowExitRef = React.useRef(false);
 
   React.useEffect(() => {
     if (!data) {
@@ -67,27 +64,117 @@ export const ProfileEditScreen = () => {
     setDisplayName(data.displayName);
     setStudentId(data.studentId);
     setDepartment(data.department);
+    setPendingPhoto(null);
+    setPhotoMarkedForRemoval(false);
   }, [data]);
+
+  const avatarUri = pendingPhoto?.uri ?? (isPhotoMarkedForRemoval ? null : data?.photoUrl ?? null);
+  const hasPhoto =
+    Boolean(pendingPhoto) || Boolean(data?.photoUrl && !isPhotoMarkedForRemoval);
+  const hasTextChanges =
+    !!data &&
+    (displayName.trim() !== data.displayName.trim() ||
+      studentId.trim() !== data.studentId.trim() ||
+      department.trim() !== data.department.trim());
+  const hasPhotoChanges =
+    Boolean(pendingPhoto) || Boolean(data?.photoUrl && isPhotoMarkedForRemoval);
+  const hasUnsavedChanges = hasTextChanges || hasPhotoChanges;
 
   const closeDropdown = React.useCallback(() => {
     setDropdownOpen(false);
   }, []);
 
+  const proceedBack = React.useCallback(
+    (action?: Parameters<typeof navigation.dispatch>[0]) => {
+      allowExitRef.current = true;
+
+      if (action) {
+        navigation.dispatch(action);
+        return;
+      }
+
+      navigation.goBack();
+    },
+    [navigation],
+  );
+
+  const showDiscardChangesAlert = React.useCallback(
+    (onConfirm: () => void) => {
+      Alert.alert(
+        '변경 사항이 저장되지 않았습니다',
+        '저장하지 않고 나가면 변경된 내용이 사라집니다.',
+        [
+          {text: '계속 수정', style: 'cancel'},
+          {
+            text: '나가기',
+            style: 'destructive',
+            onPress: onConfirm,
+          },
+        ],
+      );
+    },
+    [],
+  );
+
+  const handleRequestBack = React.useCallback(() => {
+    if (saving) {
+      return;
+    }
+
+    if (!hasUnsavedChanges) {
+      proceedBack();
+      return;
+    }
+
+    showDiscardChangesAlert(() => {
+      proceedBack();
+    });
+  }, [hasUnsavedChanges, proceedBack, saving, showDiscardChangesAlert]);
+
+  React.useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', event => {
+      if (allowExitRef.current) {
+        return;
+      }
+
+      if (saving) {
+        event.preventDefault();
+        return;
+      }
+
+      if (!hasUnsavedChanges) {
+        return;
+      }
+
+      event.preventDefault();
+      showDiscardChangesAlert(() => {
+        proceedBack(event.data.action);
+      });
+    });
+
+    return unsubscribe;
+  }, [
+    hasUnsavedChanges,
+    navigation,
+    proceedBack,
+    saving,
+    showDiscardChangesAlert,
+  ]);
+
   const handlePressPhoto = React.useCallback(async () => {
     try {
-      const image = await pickImageAsset({
-        allowedMimeTypes: ALLOWED_PROFILE_IMAGE_MIME_TYPES,
-      });
+      const image = await pickImageAsset();
 
       if (!image) {
         return;
       }
 
-      await uploadPhoto({
+      setPendingPhoto({
         fileName: image.fileName,
         mimeType: image.mimeType,
         uri: image.uri,
       });
+      setPhotoMarkedForRemoval(false);
     } catch (caughtError) {
       console.error('프로필 사진 업로드 실패', caughtError);
       const message =
@@ -96,33 +183,25 @@ export const ProfileEditScreen = () => {
           : '프로필 사진을 변경하지 못했습니다.';
       Alert.alert('오류', message);
     }
-  }, [uploadPhoto]);
+  }, []);
 
   const handleRemovePhoto = React.useCallback(() => {
-    Alert.alert('프로필 사진 삭제', '현재 프로필 사진을 삭제하시겠습니까?', [
-      {text: '취소', style: 'cancel'},
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await removePhoto();
-          } catch (caughtError) {
-            console.error('프로필 사진 삭제 실패', caughtError);
-            const message =
-              caughtError instanceof Error && caughtError.message.trim()
-                ? caughtError.message
-                : '프로필 사진을 삭제하지 못했습니다.';
-            Alert.alert('오류', message);
-          }
-        },
-      },
-    ]);
-  }, [removePhoto]);
+    if (!hasPhoto) {
+      return;
+    }
+
+    setPendingPhoto(null);
+    setPhotoMarkedForRemoval(Boolean(data?.photoUrl));
+  }, [data?.photoUrl, hasPhoto]);
 
   const handleSave = React.useCallback(async () => {
+    if (!data) {
+      return;
+    }
+
     const trimmedDisplayName = displayName.trim();
     const trimmedStudentId = studentId.trim();
+    const trimmedDepartment = department.trim();
 
     if (!trimmedDisplayName) {
       Alert.alert('입력 필요', '닉네임을 입력해주세요.');
@@ -139,22 +218,34 @@ export const ProfileEditScreen = () => {
       return;
     }
 
-    if (!department.trim()) {
+    if (!trimmedDepartment) {
       Alert.alert('입력 필요', '학과를 선택해주세요.');
       return;
     }
 
     try {
       await saveChanges({
-        department: department.trim(),
+        department: trimmedDepartment,
         displayName: trimmedDisplayName,
+        photoChange: pendingPhoto
+          ? {
+              image: pendingPhoto,
+              type: 'upload',
+            }
+          : data.photoUrl && isPhotoMarkedForRemoval
+            ? {
+                type: 'remove',
+              }
+            : undefined,
         studentId: trimmedStudentId,
       });
 
       Alert.alert('저장 완료', '프로필이 저장되었습니다.', [
         {
           text: '확인',
-          onPress: () => navigation.goBack(),
+          onPress: () => {
+            proceedBack();
+          },
         },
       ]);
     } catch (caughtError) {
@@ -165,12 +256,21 @@ export const ProfileEditScreen = () => {
           : '프로필을 저장하지 못했습니다.';
       Alert.alert('오류', message);
     }
-  }, [department, displayName, navigation, saveChanges, studentId]);
+  }, [
+    data,
+    department,
+    displayName,
+    isPhotoMarkedForRemoval,
+    pendingPhoto,
+    proceedBack,
+    saveChanges,
+    studentId,
+  ]);
 
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
       <StackHeader
-        onPressBack={() => navigation.goBack()}
+        onPressBack={handleRequestBack}
         title={PROFILE_EDIT_SCREEN_TITLE}
       />
 
@@ -208,15 +308,37 @@ export const ProfileEditScreen = () => {
           <>
             <View style={styles.avatarSection}>
               <View style={styles.avatarFrame}>
-                {data.photoUrl ? (
-                  <Image source={{uri: data.photoUrl}} style={styles.avatarImage} />
-                ) : (
-                  <DefaultProfileAvatar
-                    iconSize={42}
-                    size={96}
-                    style={styles.avatarFallback}
+                {avatarUri ? (
+                  <SkeletonImage
+                    source={{uri: avatarUri}}
+                    style={styles.avatarCircle}
                   />
+                ) : (
+                  <View style={styles.avatarCircle}>
+                    <DefaultProfileAvatar
+                      backgroundColor={COLORS.background.subtle}
+                      iconSize={42}
+                      size={96}
+                      style={styles.avatarFallback}
+                    />
+                  </View>
                 )}
+
+                {hasPhoto ? (
+                  <TouchableOpacity
+                    accessibilityLabel="프로필 사진 제거"
+                    accessibilityRole="button"
+                    activeOpacity={0.86}
+                    disabled={saving}
+                    onPress={handleRemovePhoto}
+                    style={styles.removePhotoFloatingButton}>
+                    <Icon
+                      color={COLORS.status.danger}
+                      name="close"
+                      size={14}
+                    />
+                  </TouchableOpacity>
+                ) : null}
 
                 <TouchableOpacity
                   accessibilityRole="button"
@@ -233,17 +355,6 @@ export const ProfileEditScreen = () => {
                   />
                 </TouchableOpacity>
               </View>
-
-              {data.photoUrl ? (
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  activeOpacity={0.82}
-                  disabled={saving}
-                  onPress={handleRemovePhoto}
-                  style={styles.removePhotoButton}>
-                  <Text style={styles.removePhotoLabel}>사진 삭제</Text>
-                </TouchableOpacity>
-              ) : null}
             </View>
 
             <View style={styles.formSection}>
@@ -337,13 +448,29 @@ const styles = StyleSheet.create({
   avatarFrame: {
     position: 'relative',
   },
-  avatarImage: {
+  avatarCircle: {
+    alignItems: 'center',
+    backgroundColor: COLORS.background.subtle,
     borderRadius: 9999,
     height: 96,
+    justifyContent: 'center',
+    overflow: 'hidden',
     width: 96,
   },
   avatarFallback: {
     flexShrink: 0,
+  },
+  removePhotoFloatingButton: {
+    alignItems: 'center',
+    backgroundColor: COLORS.background.surface,
+    borderRadius: 9999,
+    height: 28,
+    justifyContent: 'center',
+    left: -4,
+    position: 'absolute',
+    top: -4,
+    width: 28,
+    ...SHADOWS.card,
   },
   cameraButton: {
     alignItems: 'center',
@@ -355,15 +482,6 @@ const styles = StyleSheet.create({
     right: 0,
     position: 'absolute',
     width: 32,
-  },
-  removePhotoButton: {
-    marginTop: 14,
-  },
-  removePhotoLabel: {
-    color: COLORS.text.muted,
-    fontSize: 12,
-    lineHeight: 16,
-    textDecorationLine: 'underline',
   },
   formSection: {
   },

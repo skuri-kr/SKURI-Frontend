@@ -39,6 +39,10 @@ export class MemberApiClient {
     >('/v1/members/me', data);
   }
 
+  deleteMyProfilePhoto() {
+    return httpClient.delete<ApiSuccessResponse<null>>('/v1/members/me/photo');
+  }
+
   updateMyBankAccount(data: UpdateMemberBankAccountRequestDto) {
     return httpClient.put<
       ApiSuccessResponse<MemberResponseDto>,

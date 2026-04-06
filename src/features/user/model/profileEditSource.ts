@@ -8,9 +8,19 @@ export interface ProfileEditSource {
   studentId: string;
 }
 
+export type ProfilePhotoChange =
+  | {
+      type: 'remove';
+    }
+  | {
+      image: ProfilePhotoUploadInput;
+      type: 'upload';
+    };
+
 export interface ProfileEditDraft {
   department: string;
   displayName: string;
+  photoChange?: ProfilePhotoChange;
   studentId: string;
 }
 

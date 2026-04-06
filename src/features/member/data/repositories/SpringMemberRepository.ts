@@ -25,6 +25,10 @@ export class SpringMemberRepository implements IMemberRepository {
     return mapMemberResponseDto(response.data);
   }
 
+  async deleteMyProfilePhoto() {
+    await this.apiClient.deleteMyProfilePhoto();
+  }
+
   async updateMyBankAccount(account: UpdateMemberBankAccountInput) {
     const response = await this.apiClient.updateMyBankAccount(account);
     return mapMemberResponseDto(response.data);

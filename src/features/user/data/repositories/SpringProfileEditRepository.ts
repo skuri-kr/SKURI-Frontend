@@ -68,9 +68,8 @@ export class SpringProfileEditRepository implements IProfileEditRepository {
   }
 
   async removeProfilePhoto(): Promise<ProfileEditSource> {
-    const memberProfile = await this.memberRepository.updateMyProfile({
-      photoUrl: null,
-    });
+    await this.memberRepository.deleteMyProfilePhoto();
+    const memberProfile = await this.memberRepository.getMyMemberProfile();
 
     return toProfileEditSource(memberProfile);
   }

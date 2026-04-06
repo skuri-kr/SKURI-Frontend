@@ -24,11 +24,15 @@ export const getCurrentProfileEditMock = (): ProfileEditSource => ({
 });
 
 export const saveProfileEditMockData = (draft: ProfileEditDraft) => {
+  const {department, displayName, studentId} = draft;
+
   profileEditProfileState = {
     ...profileEditProfileState,
-    ...draft,
+    department,
+    displayName,
+    studentId,
     avatarLabel:
-      draft.displayName.trim().slice(0, 1) ||
+      displayName.trim().slice(0, 1) ||
       profileEditProfileState.avatarLabel,
   };
 };

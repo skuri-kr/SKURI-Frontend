@@ -13,6 +13,8 @@ export interface IMemberRepository {
 
   updateMyProfile(profile: UpdateMemberProfileInput): Promise<MemberProfile>;
 
+  deleteMyProfilePhoto(): Promise<void>;
+
   updateMyBankAccount(
     account: UpdateMemberBankAccountInput,
   ): Promise<MemberProfile>;

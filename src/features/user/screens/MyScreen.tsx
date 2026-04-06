@@ -2,7 +2,6 @@ import React from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,6 +17,7 @@ import {type CampusStackParamList} from '@/app/navigation/types';
 import {useAuth} from '@/features/auth';
 import {
   DefaultProfileAvatar,
+  SkeletonImage,
   StackHeader,
   StateCard,
 } from '@/shared/design-system/components';
@@ -209,7 +209,7 @@ export const MyScreen = () => {
             <>
               <View style={styles.profileSection}>
                 {data.profile.photoUrl ? (
-                  <Image
+                  <SkeletonImage
                     source={{uri: data.profile.photoUrl}}
                     style={styles.avatarImage}
                   />
