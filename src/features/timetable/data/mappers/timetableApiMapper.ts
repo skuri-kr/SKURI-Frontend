@@ -34,10 +34,16 @@ const FALLBACK_TONE_ORDER: TimetableCourseToneId[] = [
   'red',
 ];
 
-const hashString = (value: string) =>
-  Array.from(value).reduce((hash, char) => {
-    return Math.abs(hash * 31 + char.charCodeAt(0));
-  }, 0);
+const hashStringToPaletteIndex = (value: string, paletteSize: number) => {
+  let hash = 0;
+
+  for (const char of value) {
+    // Keep the accumulator bounded so UUID-sized ids do not overflow JS numbers.
+    hash = (hash * 31 + char.charCodeAt(0)) % paletteSize;
+  }
+
+  return hash;
+};
 
 const toWeekdayId = (dayOfWeek: number): TimetableWeekdayId => {
   return WEEKDAY_BY_NUMBER[dayOfWeek] ?? 'mon';
@@ -67,7 +73,7 @@ const toToneId = ({
   }
 
   return FALLBACK_TONE_ORDER[
-    hashString(courseId) % FALLBACK_TONE_ORDER.length
+    hashStringToPaletteIndex(courseId, FALLBACK_TONE_ORDER.length)
   ];
 };
 

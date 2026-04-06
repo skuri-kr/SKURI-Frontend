@@ -109,4 +109,100 @@ describe('buildTimetableSemesterRecord', () => {
       toneId: 'red',
     });
   });
+
+  it('UUID 기반 course id도 기본 색상이 한 가지로 쏠리지 않는다', () => {
+    const record = buildTimetableSemesterRecord({
+      catalogCourses: [],
+      semesterId: '2026-1',
+      timetable: {
+        id: 'timetable-uuid-colors',
+        semester: '2026-1',
+        courseCount: 4,
+        totalCredits: 12,
+        courses: [
+          {
+            id: '03cf4707-ed31-44d9-a187-65963cca657d',
+            code: '21651',
+            division: '001',
+            name: '기독교로의초대',
+            professor: '교수1',
+            location: '영401',
+            category: '교양필수',
+            credits: 3,
+            isOnline: false,
+            schedule: [
+              {
+                dayOfWeek: 1,
+                startPeriod: 1,
+                endPeriod: 2,
+              },
+            ],
+          },
+          {
+            id: '3060ecd8-bfc6-4f3b-94fa-677674edfcee',
+            code: '21179',
+            division: '001',
+            name: '도시빅데이터',
+            professor: '교수2',
+            location: '영402',
+            category: '전공선택',
+            credits: 3,
+            isOnline: false,
+            schedule: [
+              {
+                dayOfWeek: 2,
+                startPeriod: 3,
+                endPeriod: 4,
+              },
+            ],
+          },
+          {
+            id: '48981e6a-e64a-445b-88ba-8f73af121fd9',
+            code: '19737',
+            division: '001',
+            name: '기초글쓰기',
+            professor: '교수3',
+            location: '영403',
+            category: '교양선택',
+            credits: 3,
+            isOnline: false,
+            schedule: [
+              {
+                dayOfWeek: 3,
+                startPeriod: 5,
+                endPeriod: 6,
+              },
+            ],
+          },
+          {
+            id: '76a9b161-4906-4bc6-b6d7-bf2bd6fea273',
+            code: '20056',
+            division: '001',
+            name: '도시의이해',
+            professor: '교수4',
+            location: '영404',
+            category: '전공선택',
+            credits: 3,
+            isOnline: false,
+            schedule: [
+              {
+                dayOfWeek: 4,
+                startPeriod: 7,
+                endPeriod: 8,
+              },
+            ],
+          },
+        ],
+        slots: [],
+      },
+      toneMap: {},
+    });
+
+    expect(record.courses.map(course => course.toneId)).toEqual([
+      'red',
+      'orange',
+      'purple',
+      'pink',
+    ]);
+  });
 });
