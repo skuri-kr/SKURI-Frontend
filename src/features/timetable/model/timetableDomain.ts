@@ -34,6 +34,12 @@ export interface TimetableSemesterRecord {
   courses: TimetableCourseRecord[];
 }
 
+export interface TimetableCatalogCourseSearchPage {
+  hasNext: boolean;
+  items: TimetableCatalogCourseRecord[];
+  page: number;
+}
+
 export interface TimetableManualCourseDraft {
   credits: number;
   day: TimetableWeekdayId;

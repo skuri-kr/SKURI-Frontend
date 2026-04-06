@@ -134,13 +134,13 @@ export const buildTimetableSemesterRecord = ({
   timetable,
   toneMap,
 }: {
-  catalogCourses: CourseSummaryDto[];
+  catalogCourses?: CourseSummaryDto[];
   semesterId: string;
   semesterLabel?: string;
   timetable: UserTimetableDto;
   toneMap: Record<string, TimetableCourseToneId>;
 }): TimetableSemesterRecord => ({
-  catalogCourses: catalogCourses.map(course =>
+  catalogCourses: (catalogCourses ?? []).map(course =>
     mapCourseSummaryDtoToCatalogCourseRecord({
       course,
       toneMap,

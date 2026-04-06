@@ -63,11 +63,13 @@ export const TimetableDetailScreen = () => {
     closeCourseDetail,
     data,
     error,
+    loadMoreCatalogCourses,
     loading,
     openAddSheet,
     openCourseDetail,
     reload,
     removeSelectedCourse,
+    retryCatalogCourseSearch,
     selectColor,
     selectMode,
     selectSemester,
@@ -246,6 +248,12 @@ export const TimetableDetailScreen = () => {
         {data ? (
           <TimetableAddCourseSheet
             data={data.addCourseSheet}
+            onLoadMoreSearchResults={() => {
+              loadMoreCatalogCourses().catch(() => undefined);
+            }}
+            onRetrySearch={() => {
+              retryCatalogCourseSearch().catch(() => undefined);
+            }}
             onAddCatalogCourse={courseId => {
               addCatalogCourse(courseId).catch(() => undefined);
             }}

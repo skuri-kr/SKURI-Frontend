@@ -119,6 +119,10 @@ export interface TimetableManualStepperViewData {
 
 export interface TimetableSearchTabViewData {
   emptyLabel?: string;
+  errorLabel?: string;
+  hasNext: boolean;
+  isLoading: boolean;
+  isLoadingMore: boolean;
   items: TimetableCatalogCourseViewData[];
   placeholder: string;
   query: string;

@@ -6,7 +6,12 @@ import {
   type BottomSheetBackdropProps,
   type BottomSheetModalProps,
 } from '@gorhom/bottom-sheet';
-import {StyleSheet, type StyleProp, type ViewStyle} from 'react-native';
+import {
+  StyleSheet,
+  useWindowDimensions,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
@@ -29,7 +34,12 @@ export const TimetableBottomSheet = ({
   keyboardBehavior = 'interactive',
 }: TimetableBottomSheetProps) => {
   const insets = useSafeAreaInsets();
+  const {height: windowHeight} = useWindowDimensions();
   const modalRef = React.useRef<BottomSheetModal>(null);
+  const maxSheetHeight = Math.max(
+    0,
+    windowHeight - insets.top,
+  );
 
   const renderBackdrop = React.useCallback(
     (props: BottomSheetBackdropProps) => (
@@ -76,11 +86,13 @@ export const TimetableBottomSheet = ({
       handleStyle={styles.handle}
       keyboardBehavior={keyboardBehavior}
       keyboardBlurBehavior="restore"
+      maxDynamicContentSize={maxSheetHeight}
       onDismiss={handleDismiss}
       ref={modalRef}
       snapPoints={snapPoints}
       stackBehavior="replace"
-      style={styles.sheet}>
+      style={styles.sheet}
+      topInset={insets.top}>
       <BottomSheetView
         style={[
           styles.content,

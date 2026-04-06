@@ -5,6 +5,7 @@ import {
   BottomSheetTextInput,
 } from '@gorhom/bottom-sheet';
 import {
+  ActivityIndicator,
   ListRenderItem,
   StyleSheet,
   Text,
@@ -14,6 +15,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 
 import {
+  SkeletonBlock,
   ToggleSwitch,
 } from '@/shared/design-system/components';
 import {COLORS, RADIUS} from '@/shared/design-system/tokens';
@@ -34,6 +36,8 @@ interface TimetableAddCourseSheetProps {
   data: TimetableAddCourseSheetViewData;
   onAddCatalogCourse: (courseId: string) => void;
   onClose: () => void;
+  onLoadMoreSearchResults: () => void;
+  onRetrySearch: () => void;
   onSelectColor: (colorId: TimetableCourseToneId) => void;
   onSelectCredits: (credits: number) => void;
   onSelectDay: (day: TimetableManualDayOptionViewData['id']) => void;
@@ -149,6 +153,8 @@ export const TimetableAddCourseSheet = ({
   data,
   onAddCatalogCourse,
   onClose,
+  onLoadMoreSearchResults,
+  onRetrySearch,
   onSelectColor,
   onSelectCredits,
   onSelectDay,
@@ -211,19 +217,80 @@ export const TimetableAddCourseSheet = ({
   );
 
   const renderSearchEmpty = React.useCallback(
-    () =>
-      data.search.emptyLabel ? (
+    () => {
+      if (data.search.isLoading) {
+        return (
+          <View style={styles.skeletonList}>
+            {Array.from({length: 4}).map((_, index) => (
+              <View key={`catalog-skeleton-${index + 1}`} style={styles.catalogCard}>
+                <View style={styles.catalogCopy}>
+                  <SkeletonBlock style={styles.catalogTitleSkeleton} />
+                  <SkeletonBlock style={styles.catalogSupplementarySkeleton} />
+                  <SkeletonBlock style={styles.catalogMetaSkeleton} />
+                  <SkeletonBlock style={styles.catalogCodeSkeleton} />
+                </View>
+                <SkeletonBlock style={styles.catalogActionSkeleton} />
+              </View>
+            ))}
+          </View>
+        );
+      }
+
+      if (data.search.errorLabel) {
+        return (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyLabel}>{data.search.errorLabel}</Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              activeOpacity={0.88}
+              onPress={onRetrySearch}
+              style={styles.retryButton}>
+              <Text style={styles.retryButtonLabel}>다시 시도</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      }
+
+      return data.search.emptyLabel ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyLabel}>{data.search.emptyLabel}</Text>
         </View>
-      ) : null,
-    [data.search.emptyLabel],
+      ) : null;
+    },
+    [data.search.emptyLabel, data.search.errorLabel, data.search.isLoading, onRetrySearch],
   );
 
   const renderCatalogCourseSeparator = React.useCallback(
     () => <View style={styles.catalogSeparator} />,
     [],
   );
+
+  const renderSearchFooter = React.useCallback(() => {
+    if (data.search.errorLabel && data.search.items.length > 0) {
+      return (
+        <View style={styles.searchFooter}>
+          <Text style={styles.footerErrorLabel}>{data.search.errorLabel}</Text>
+          <TouchableOpacity
+            accessibilityRole="button"
+            activeOpacity={0.88}
+            onPress={onRetrySearch}
+            style={styles.footerRetryButton}>
+            <Text style={styles.footerRetryButtonLabel}>다시 시도</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (!data.search.isLoadingMore) {
+      return <View style={styles.searchFooterSpacer} />;
+    }
+
+    return (
+      <View style={styles.searchFooter}>
+        <ActivityIndicator color={COLORS.brand.primary} size="small" />
+      </View>
+    );
+  }, [data.search.errorLabel, data.search.isLoadingMore, data.search.items.length, onRetrySearch]);
 
   return (
     <TimetableBottomSheet
@@ -278,7 +345,10 @@ export const TimetableAddCourseSheet = ({
             keyboardShouldPersistTaps="handled"
             keyExtractor={item => item.courseId}
             ListEmptyComponent={renderSearchEmpty}
+            ListFooterComponent={renderSearchFooter}
             maxToRenderPerBatch={16}
+            onEndReached={onLoadMoreSearchResults}
+            onEndReachedThreshold={0.45}
             removeClippedSubviews
             renderItem={renderCatalogCourseItem}
             showsVerticalScrollIndicator={false}
@@ -664,6 +734,35 @@ const styles = StyleSheet.create({
   searchContent: {
     paddingBottom: 8,
   },
+  searchFooter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 12,
+    paddingTop: 4,
+  },
+  footerErrorLabel: {
+    color: COLORS.text.muted,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  footerRetryButton: {
+    alignItems: 'center',
+    backgroundColor: COLORS.background.subtle,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  footerRetryButtonLabel: {
+    color: COLORS.text.primary,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
+  },
+  searchFooterSpacer: {
+    height: 4,
+  },
   searchSection: {
     flex: 1,
   },
@@ -754,6 +853,30 @@ const styles = StyleSheet.create({
   catalogActionDisabled: {
     backgroundColor: COLORS.background.subtle,
   },
+  catalogActionSkeleton: {
+    borderRadius: RADIUS.pill,
+    height: 32,
+    width: 32,
+  },
+  catalogCodeSkeleton: {
+    height: 14,
+    marginTop: 2,
+    width: '34%',
+  },
+  catalogMetaSkeleton: {
+    height: 16,
+    marginTop: 2,
+    width: '78%',
+  },
+  catalogSupplementarySkeleton: {
+    height: 16,
+    marginTop: 3,
+    width: '62%',
+  },
+  catalogTitleSkeleton: {
+    height: 20,
+    width: '86%',
+  },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 32,
@@ -762,6 +885,24 @@ const styles = StyleSheet.create({
     color: COLORS.text.muted,
     fontSize: 14,
     lineHeight: 20,
+    textAlign: 'center',
+  },
+  retryButton: {
+    alignItems: 'center',
+    backgroundColor: COLORS.background.subtle,
+    borderRadius: RADIUS.md,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  retryButtonLabel: {
+    color: COLORS.text.primary,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  skeletonList: {
+    rowGap: 8,
   },
   manualContent: {
     paddingBottom: 8,

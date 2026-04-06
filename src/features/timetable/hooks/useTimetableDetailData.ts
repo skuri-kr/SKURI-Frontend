@@ -54,6 +54,7 @@ const CATEGORY_SHORT_LABELS: Record<string, string> = {
   교양필수: '교필',
   교양선택: '교선',
 };
+const CATALOG_COURSE_PAGE_SIZE = 30;
 
 const DEFAULT_MANUAL_DRAFT: TimetableManualCourseDraft = {
   credits: 3,
@@ -65,6 +66,26 @@ const DEFAULT_MANUAL_DRAFT: TimetableManualCourseDraft = {
   professor: '',
   startPeriod: 1,
   toneId: 'green',
+};
+
+const buildCatalogSearchKey = (semesterId: string, query: string) =>
+  `${semesterId}::${query.trim()}`;
+
+const mergeCatalogCourses = (
+  currentCourses: TimetableCatalogCourseRecord[],
+  nextCourses: TimetableCatalogCourseRecord[],
+) => {
+  const mergedCourses = new Map<string, TimetableCatalogCourseRecord>();
+
+  for (const course of currentCourses) {
+    mergedCourses.set(course.id, course);
+  }
+
+  for (const course of nextCourses) {
+    mergedCourses.set(course.id, course);
+  }
+
+  return Array.from(mergedCourses.values());
 };
 
 const createPeriodViewData = (): TimetablePeriodViewData[] =>
@@ -282,6 +303,11 @@ const buildAddCourseSheetViewData = ({
   courses,
   manualDraft,
   query,
+  searchError,
+  searchHasNext,
+  searchLoading,
+  searchLoadingMore,
+  searchPending,
   selectedToneId,
 }: {
   activeTab: 'manual' | 'search';
@@ -289,24 +315,15 @@ const buildAddCourseSheetViewData = ({
   courses: TimetableCourseRecord[];
   manualDraft: TimetableManualCourseDraft;
   query: string;
+  searchError: string | null;
+  searchHasNext: boolean;
+  searchLoading: boolean;
+  searchLoadingMore: boolean;
+  searchPending: boolean;
   selectedToneId: TimetableCourseToneId;
 }): TimetableAddCourseSheetViewData => {
-  const normalizedQuery = query.trim().toLowerCase();
   const addedCourseIds = new Set(courses.map(course => course.id));
-
-  const filteredCatalogCourses = normalizedQuery
-    ? catalogCourses.filter(course =>
-        [
-          course.name,
-          course.professor,
-          course.code,
-          course.locationLabel ?? '',
-        ]
-          .join(' ')
-          .toLowerCase()
-          .includes(normalizedQuery),
-      )
-    : catalogCourses;
+  const isSearchLoading = searchLoading || searchPending;
 
   return {
     activeTab,
@@ -345,8 +362,17 @@ const buildAddCourseSheetViewData = ({
       },
     },
     search: {
-      emptyLabel: filteredCatalogCourses.length === 0 ? '검색 결과가 없습니다.' : undefined,
-      items: filteredCatalogCourses.map(course => {
+      emptyLabel:
+        !isSearchLoading && !searchError && catalogCourses.length === 0
+          ? query.trim().length > 0
+            ? '검색 결과가 없습니다.'
+            : '등록 가능한 강의를 찾지 못했습니다.'
+          : undefined,
+      errorLabel: searchError ?? undefined,
+      hasNext: searchHasNext,
+      isLoading: isSearchLoading,
+      isLoadingMore: searchLoadingMore,
+      items: catalogCourses.map(course => {
         const categoryLabel = formatCatalogCourseCategoryLabel(course);
         const gradeLabel = formatCatalogCourseGradeLabel(course);
         const scheduleLabel = formatCatalogCourseScheduleLabel(course);
@@ -370,27 +396,19 @@ const buildAddCourseSheetViewData = ({
 
 const buildScreenViewData = ({
   activeMode,
-  activeTab,
   courses,
   currentDay,
-  manualDraft,
-  query,
   record,
   selectedCourseId,
-  selectedToneId,
   showNightClasses,
 }: {
   activeMode: TimetableDetailViewMode;
-  activeTab: 'manual' | 'search';
   courses: TimetableCourseRecord[];
   currentDay: TimetableWeekdayId;
-  manualDraft: TimetableManualCourseDraft;
-  query: string;
   record: TimetableSemesterRecord;
   selectedCourseId?: string;
-  selectedToneId: TimetableCourseToneId;
   showNightClasses: boolean;
-}): TimetableDetailScreenViewData => {
+}): Omit<TimetableDetailScreenViewData, 'addCourseSheet' | 'semesterOptions'> => {
   const isSunday = new Date().getDay() === 0;
   const periods = PERIOD_VIEW_DATA;
   const allViewPeriods = periods.filter(period => period.periodNumber <= 9);
@@ -509,14 +527,6 @@ const buildScreenViewData = ({
 
   return {
     activeMode,
-    addCourseSheet: buildAddCourseSheetViewData({
-      activeTab,
-      catalogCourses: record.catalogCourses,
-      courses,
-      manualDraft,
-      query,
-      selectedToneId,
-    }),
     allView: {
       blocks: courses
         .flatMap(course =>
@@ -580,7 +590,6 @@ const buildScreenViewData = ({
     },
     selectedCourse: buildSelectedCourseDetail(selectedCourse),
     semesterLabel: record.label,
-    semesterOptions: [],
     totalCreditsLabel: `총 ${courses.reduce((sum, course) => sum + course.credits, 0)}학점`,
     todayView: {
       collapsed: !showExpandedToday,
@@ -620,8 +629,21 @@ export const useTimetableDetailData = (
   const [semesterOptions, setSemesterOptions] = React.useState<
     {id: string; label: string}[]
   >([]);
+  const [searchCatalogCourses, setSearchCatalogCourses] = React.useState<
+    TimetableCatalogCourseRecord[]
+  >([]);
+  const [searchError, setSearchError] = React.useState<string | null>(null);
+  const [searchHasNext, setSearchHasNext] = React.useState(false);
+  const [searchLoading, setSearchLoading] = React.useState(false);
+  const [searchLoadingMore, setSearchLoadingMore] = React.useState(false);
+  const [searchPage, setSearchPage] = React.useState(0);
+  const [searchResultKey, setSearchResultKey] = React.useState<string>();
   const [showNightClasses, setShowNightClasses] = React.useState(false);
+  const searchRequestIdRef = React.useRef(0);
   const selectedSemesterIdRef = React.useRef<string | undefined>(undefined);
+  const currentSearchKey = selectedSemesterId
+    ? buildCatalogSearchKey(selectedSemesterId, query)
+    : undefined;
 
   const loadSemester = React.useCallback(async (semesterId?: string) => {
     setLoading(true);
@@ -635,6 +657,9 @@ export const useTimetableDetailData = (
       }));
       const nextSemesterId =
         semesterId ?? selectedSemesterIdRef.current ?? semesters[0]?.id;
+      const nextSemesterOption = nextSemesterId
+        ? options.find(option => option.id === nextSemesterId)
+        : undefined;
 
       setSemesterOptions(options);
 
@@ -648,6 +673,7 @@ export const useTimetableDetailData = (
 
       const nextRecord = await timetableRepository.getSemesterRecord(
         nextSemesterId,
+        nextSemesterOption?.label ?? `${nextSemesterId}학기`,
       );
 
       selectedSemesterIdRef.current = nextSemesterId;
@@ -666,9 +692,104 @@ export const useTimetableDetailData = (
     }
   }, [timetableRepository]);
 
+  const loadCatalogCoursesPage = React.useCallback(
+    async ({
+      page,
+      reset,
+    }: {
+      page: number;
+      reset: boolean;
+    }) => {
+      if (!selectedSemesterId) {
+        return;
+      }
+
+      const nextQuery = query.trim();
+      const nextSearchKey = buildCatalogSearchKey(selectedSemesterId, nextQuery);
+      const requestId = ++searchRequestIdRef.current;
+
+      if (reset) {
+        setSearchLoading(true);
+        setSearchLoadingMore(false);
+        setSearchError(null);
+        setSearchCatalogCourses([]);
+        setSearchHasNext(false);
+        setSearchPage(0);
+      } else {
+        setSearchLoadingMore(true);
+      }
+
+      try {
+        const response = await timetableRepository.searchCatalogCourses({
+          page,
+          query: nextQuery.length > 0 ? nextQuery : undefined,
+          semesterId: selectedSemesterId,
+          size: CATALOG_COURSE_PAGE_SIZE,
+        });
+
+        if (requestId !== searchRequestIdRef.current) {
+          return;
+        }
+
+        setSearchCatalogCourses(previousCourses =>
+          reset
+            ? response.items
+            : mergeCatalogCourses(previousCourses, response.items),
+        );
+        setSearchError(null);
+        setSearchHasNext(response.hasNext);
+        setSearchPage(response.page);
+        setSearchResultKey(nextSearchKey);
+      } catch (catalogLoadError) {
+        if (requestId !== searchRequestIdRef.current) {
+          return;
+        }
+
+        console.error(catalogLoadError);
+        if (reset) {
+          setSearchCatalogCourses([]);
+          setSearchHasNext(false);
+          setSearchPage(0);
+        }
+        setSearchError('강의 목록을 불러오지 못했습니다.');
+        setSearchResultKey(nextSearchKey);
+      } finally {
+        if (requestId === searchRequestIdRef.current) {
+          setSearchLoading(false);
+          setSearchLoadingMore(false);
+        }
+      }
+    },
+    [query, selectedSemesterId, timetableRepository],
+  );
+
   React.useEffect(() => {
     loadSemester().catch(() => undefined);
   }, [loadSemester]);
+
+  React.useEffect(() => {
+    if (
+      !addSheetVisible ||
+      activeTab !== 'search' ||
+      !selectedSemesterId ||
+      !currentSearchKey
+    ) {
+      return;
+    }
+
+    if (searchResultKey === currentSearchKey) {
+      return;
+    }
+
+    loadCatalogCoursesPage({page: 0, reset: true}).catch(() => undefined);
+  }, [
+    activeTab,
+    addSheetVisible,
+    currentSearchKey,
+    loadCatalogCoursesPage,
+    searchResultKey,
+    selectedSemesterId,
+  ]);
 
   const resetManualDraft = React.useCallback(() => {
     setManualDraft(previousDraft => ({
@@ -696,6 +817,44 @@ export const useTimetableDetailData = (
     setAddSheetVisible(true);
   }, [record]);
 
+  const loadMoreCatalogCourses = React.useCallback(async () => {
+    if (
+      !addSheetVisible ||
+      activeTab !== 'search' ||
+      !currentSearchKey ||
+      searchLoading ||
+      searchLoadingMore ||
+      !searchHasNext ||
+      searchResultKey !== currentSearchKey
+    ) {
+      return;
+    }
+
+    await loadCatalogCoursesPage({
+      page: searchPage + 1,
+      reset: false,
+    });
+  }, [
+    activeTab,
+    addSheetVisible,
+    currentSearchKey,
+    loadCatalogCoursesPage,
+    searchHasNext,
+    searchLoading,
+    searchLoadingMore,
+    searchPage,
+    searchResultKey,
+  ]);
+
+  const retryCatalogCourseSearch = React.useCallback(async () => {
+    if (!selectedSemesterId) {
+      return;
+    }
+
+    setSearchResultKey(undefined);
+    await loadCatalogCoursesPage({page: 0, reset: true});
+  }, [loadCatalogCoursesPage, selectedSemesterId]);
+
   const closeCourseDetail = React.useCallback(() => {
     setSelectedCourseId(undefined);
   }, []);
@@ -708,13 +867,29 @@ export const useTimetableDetailData = (
     setRecord(nextRecord);
   }, []);
 
+  const visibleCatalogCourses = React.useMemo(() => {
+    if (!currentSearchKey || searchResultKey !== currentSearchKey) {
+      return [];
+    }
+
+    return searchCatalogCourses;
+  }, [currentSearchKey, searchCatalogCourses, searchResultKey]);
+
+  const searchPending = React.useMemo(() => {
+    if (!currentSearchKey) {
+      return false;
+    }
+
+    return searchResultKey !== currentSearchKey;
+  }, [currentSearchKey, searchResultKey]);
+
   const addCatalogCourse = React.useCallback(
     async (courseId: string) => {
       if (!record || !selectedSemesterId) {
         return;
       }
 
-      const targetCourse = record.catalogCourses.find(course => course.id === courseId);
+      const targetCourse = visibleCatalogCourses.find(course => course.id === courseId);
 
       if (!targetCourse) {
         return;
@@ -770,6 +945,7 @@ export const useTimetableDetailData = (
 
         refreshRecord({
           ...nextRecord,
+          label: previousRecord.label,
           courses: nextRecord.courses.map(course =>
             course.id === courseId
               ? {...course, toneId: selectedToneId}
@@ -803,6 +979,7 @@ export const useTimetableDetailData = (
       selectedSemesterId,
       selectedToneId,
       timetableRepository,
+      visibleCatalogCourses,
     ],
   );
 
@@ -883,6 +1060,7 @@ export const useTimetableDetailData = (
 
       refreshRecord({
         ...nextRecord,
+        label: record.label,
         courses: nextCourses,
       });
       invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
@@ -890,7 +1068,10 @@ export const useTimetableDetailData = (
       return;
     }
 
-    refreshRecord(nextRecord);
+    refreshRecord({
+      ...nextRecord,
+      label: record.label,
+    });
     invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
     closeAddSheet();
   }, [
@@ -954,7 +1135,10 @@ export const useTimetableDetailData = (
             }
 
             if (nextRecord) {
-              refreshRecord(nextRecord);
+              refreshRecord({
+                ...nextRecord,
+                label: previousRecord.label,
+              });
             } else {
               await loadSemester(selectedSemesterId);
             }
@@ -995,36 +1179,62 @@ export const useTimetableDetailData = (
     await Share.share({message});
   }, [record]);
 
-  const data = React.useMemo(() => {
+  const addCourseSheetData = React.useMemo(() => {
     if (!record) {
+      return undefined;
+    }
+
+    return buildAddCourseSheetViewData({
+      activeTab,
+      catalogCourses: visibleCatalogCourses,
+      courses: record.courses,
+      manualDraft,
+      query,
+      searchError,
+      searchHasNext,
+      searchLoading,
+      searchLoadingMore,
+      searchPending,
+      selectedToneId,
+    });
+  }, [
+    activeTab,
+    manualDraft,
+    query,
+    record,
+    searchError,
+    searchHasNext,
+    searchLoading,
+    searchLoadingMore,
+    searchPending,
+    selectedToneId,
+    visibleCatalogCourses,
+  ]);
+
+  const data = React.useMemo(() => {
+    if (!record || !addCourseSheetData) {
       return undefined;
     }
 
     const viewData = buildScreenViewData({
       activeMode,
-      activeTab,
       courses: record.courses,
       currentDay: record.currentDay,
-      manualDraft,
-      query,
       record,
       selectedCourseId,
-      selectedToneId,
       showNightClasses,
     });
 
     return {
+      addCourseSheet: addCourseSheetData,
       ...viewData,
       semesterOptions,
     };
   }, [
+    addCourseSheetData,
     activeMode,
-    activeTab,
-    manualDraft,
-    query,
     record,
     selectedCourseId,
-    selectedToneId,
     semesterOptions,
     showNightClasses,
   ]);
@@ -1038,11 +1248,13 @@ export const useTimetableDetailData = (
     closeCourseDetail,
     data,
     error,
+    loadMoreCatalogCourses,
     loading,
     openAddSheet,
     openCourseDetail,
     reload: () => loadSemester(selectedSemesterId),
     removeSelectedCourse,
+    retryCatalogCourseSearch,
     selectColor: (colorId: TimetableCourseToneId) => {
       setSelectedToneId(colorId);
       setManualDraft(previousDraft => ({
