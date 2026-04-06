@@ -171,8 +171,8 @@ export const TaxiScreen = () => {
   }, [data?.parties, expandedPartyId]);
   const fitToCoordinatesPadding = React.useMemo<EdgePadding>(
     () => ({
-      top: insets.top + SPACING.xxl * 3,
-      bottom: SPACING.xxl * 2,
+      top: insets.top + SPACING.xxl,
+      bottom: SPACING.lg * 2,
       left: SPACING.xxl,
       right: SPACING.xxl,
     }),
