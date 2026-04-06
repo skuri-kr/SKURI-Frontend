@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,6 +18,7 @@ import type {CampusStackParamList} from '@/app/navigation/types';
 import {
   SegmentedControl,
   StateCard,
+  TimetableDetailSkeleton,
   type SegmentedControlItem,
 } from '@/shared/design-system/components';
 import {COLORS, SPACING} from '@/shared/design-system/tokens';
@@ -142,12 +142,7 @@ export const TimetableDetailScreen = () => {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}>
           {loading && !data ? (
-            <StateCard
-              description="이번 학기 시간표를 준비하고 있습니다."
-              icon={<ActivityIndicator color={COLORS.brand.primary} />}
-              style={styles.stateCard}
-              title="시간표를 불러오는 중"
-            />
+            <TimetableDetailSkeleton />
           ) : null}
 
           {error && !data ? (
@@ -248,16 +243,16 @@ export const TimetableDetailScreen = () => {
         {data ? (
           <TimetableAddCourseSheet
             data={data.addCourseSheet}
+            onAddCatalogCourse={courseId => {
+              addCatalogCourse(courseId).catch(() => undefined);
+            }}
+            onClose={closeAddSheet}
             onLoadMoreSearchResults={() => {
               loadMoreCatalogCourses().catch(() => undefined);
             }}
             onRetrySearch={() => {
               retryCatalogCourseSearch().catch(() => undefined);
             }}
-            onAddCatalogCourse={courseId => {
-              addCatalogCourse(courseId).catch(() => undefined);
-            }}
-            onClose={closeAddSheet}
             onSelectColor={selectColor}
             onSelectCredits={setManualCredits}
             onSelectDay={setManualDay}
