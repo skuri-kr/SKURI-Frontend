@@ -53,6 +53,7 @@ export const NoticeScreen = () => {
     noticeSettings,
     noticeSettingsSaving,
     refresh,
+    refreshSilently,
     selectCategory,
     updateDetail,
     updateMaster,
@@ -126,7 +127,7 @@ export const NoticeScreen = () => {
 
   useRefetchOnFocus({
     invalidationKey: NOTICE_LIST_INVALIDATION_KEY,
-    refetch: refresh,
+    refetch: refreshSilently,
   });
 
   return (

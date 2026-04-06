@@ -64,6 +64,7 @@ export const CommunityScreen = () => {
     handleOpenPost,
     handleOpenWrite,
     handleRefresh: handleBoardRefresh,
+    handleSilentRefresh: handleBoardSilentRefresh,
     hasMore,
     items: boardItems,
     loadMore,
@@ -119,9 +120,7 @@ export const CommunityScreen = () => {
 
   useRefetchOnFocus({
     invalidationKey: COMMUNITY_BOARD_LIST_INVALIDATION_KEY,
-    refetch: async () => {
-      handleBoardRefresh();
-    },
+    refetch: handleBoardSilentRefresh,
   });
 
   const handleSetSegmentByIndex = React.useCallback((nextIndex: number) => {

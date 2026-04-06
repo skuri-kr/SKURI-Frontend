@@ -90,7 +90,10 @@ export const useCommunityBoardData = () => {
     Boolean(searchFilters.searchText) || Boolean(searchFilters.category);
 
   const fetchBoardPage = React.useCallback(
-    async (mode: 'initial' | 'refresh' | 'loadMore', cursor?: unknown) => {
+    async (
+      mode: 'initial' | 'refresh' | 'silent' | 'loadMore',
+      cursor?: unknown,
+    ) => {
       const currentRequestId = requestIdRef.current + 1;
       requestIdRef.current = currentRequestId;
 
@@ -137,7 +140,7 @@ export const useCommunityBoardData = () => {
 
         setError(getErrorMessage(fetchError));
 
-        if (mode !== 'loadMore') {
+        if (mode === 'initial' || mode === 'refresh') {
           setItems([]);
           setFeaturedPost(undefined);
           setNextCursor(undefined);
@@ -160,7 +163,11 @@ export const useCommunityBoardData = () => {
   }, [fetchBoardPage]);
 
   const handleRefresh = React.useCallback(() => {
-    fetchBoardPage('refresh').catch(() => undefined);
+    return fetchBoardPage('refresh');
+  }, [fetchBoardPage]);
+
+  const handleSilentRefresh = React.useCallback(() => {
+    return fetchBoardPage('silent');
   }, [fetchBoardPage]);
 
   const handleOpenPost = React.useCallback(
@@ -202,6 +209,7 @@ export const useCommunityBoardData = () => {
     handleOpenPost,
     handleOpenWrite,
     handleRefresh,
+    handleSilentRefresh,
     hasMore: Boolean(nextCursor),
     items,
     loadMore,

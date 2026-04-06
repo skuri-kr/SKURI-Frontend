@@ -21,6 +21,7 @@ export interface UseNoticesResult {
   markAllAsRead: () => Promise<void>;
   loadMore: () => Promise<void>;
   refresh: () => Promise<void>;
+  refreshSilently: () => Promise<void>;
   refreshReadStatus: () => Promise<void>;
   userJoinedAt: unknown;
   userJoinedAtLoaded: boolean;
@@ -88,7 +89,11 @@ export function useNotices(
   }, []);
 
   const loadFirstPage = useCallback(
-    async (catKey: string, options?: {useCache?: boolean}) => {
+    async (
+      catKey: string,
+      options?: {silent?: boolean; useCache?: boolean},
+    ) => {
+      const silent = options?.silent ?? false;
       const useCache = options?.useCache ?? true;
       const cached = categoryCacheRef.current[catKey];
 
@@ -102,7 +107,9 @@ export function useNotices(
         return;
       }
 
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       setError(null);
       const requestId = firstPageRequestIdRef.current + 1;
       firstPageRequestIdRef.current = requestId;
@@ -182,6 +189,11 @@ export function useNotices(
     await loadFirstPage(catKey, {useCache: false});
   }, [loadFirstPage, selectedCategory]);
 
+  const refreshSilently = useCallback(async () => {
+    const catKey = selectedCategory || '전체';
+    await loadFirstPage(catKey, {silent: true, useCache: false});
+  }, [loadFirstPage, selectedCategory]);
+
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore || !cursorRef.current) {
       return;
@@ -247,6 +259,7 @@ export function useNotices(
     markAllAsRead,
     loadMore,
     refresh,
+    refreshSilently,
     refreshReadStatus,
     userJoinedAt,
     userJoinedAtLoaded,

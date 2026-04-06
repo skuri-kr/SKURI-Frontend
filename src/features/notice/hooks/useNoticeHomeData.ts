@@ -104,6 +104,7 @@ export const useNoticeHomeData = () => {
     notices,
     readStatus,
     refresh,
+    refreshSilently,
     userJoinedAt,
     userJoinedAtLoaded,
   } = useNotices(selectedCategoryId);
@@ -190,6 +191,7 @@ export const useNoticeHomeData = () => {
     noticeSettingsLoading,
     noticeSettingsSaving,
     refresh,
+    refreshSilently,
     selectCategory: setSelectedCategoryId,
     updateDetail,
     updateMaster,

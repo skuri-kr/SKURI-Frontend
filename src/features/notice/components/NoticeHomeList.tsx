@@ -38,23 +38,21 @@ export const NoticeHomeList = ({
   onRefresh,
   userJoinedAtLoaded,
 }: NoticeHomeListProps) => {
-  const showLoadingState = loading || !userJoinedAtLoaded;
+  const showLoadingState = (loading && items.length === 0) || !userJoinedAtLoaded;
   const hasFooter = loadingMore || !hasMore;
 
   return (
     <View style={styles.card}>
       {showLoadingState ? (
-        <View style={styles.stateContainer}>
-          <StateCard
-            description="공지사항을 불러오는 중입니다."
-            icon={<ActivityIndicator color={COLORS.brand.primary} />}
-            style={styles.embeddedStateCard}
-            title="공지사항 준비 중"
-          />
-        </View>
+        <StateCard
+          description="공지사항을 불러오는 중입니다."
+          icon={<ActivityIndicator color={COLORS.brand.primary} />}
+          style={styles.embeddedStateCard}
+          title="공지사항 준비 중"
+        />
       ) : null}
 
-      {!showLoadingState && error ? (
+      {!showLoadingState && error && items.length === 0 ? (
         <View style={styles.stateContainer}>
           <StateCard
             actionLabel="새로고침"
