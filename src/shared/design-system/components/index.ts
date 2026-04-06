@@ -19,6 +19,7 @@ export {SelectionDropdown} from './SelectionDropdown';
 export {SettingsRow} from './SettingsRow';
 export {SettingsSection} from './SettingsSection';
 export {SegmentedControl, type SegmentedControlItem} from './SegmentedControl';
+export {SkeletonImage} from './SkeletonImage';
 export {StackHeader} from './StackHeader';
 export {StateCard} from './StateCard';
 export {ToggleSwitch} from './ToggleSwitch';

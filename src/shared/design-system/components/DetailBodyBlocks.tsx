@@ -7,6 +7,7 @@ import type {ContentDetailBodyBlockViewData} from '@/shared/types/contentDetailV
 
 import {COLORS, RADIUS, SPACING} from '../tokens';
 import {ImageLightboxModal, type ImageLightboxItem} from './ImageLightboxModal';
+import {SkeletonImage} from './SkeletonImage';
 
 interface DetailBodyBlocksProps {
   blocks: ContentDetailBodyBlockViewData[];
@@ -346,7 +347,7 @@ export const DetailBodyBlocks = ({blocks}: DetailBodyBlocksProps) => {
                 handlePressImage(block.id);
               }}
               style={!isLast ? styles.blockSpacing : null}>
-              <Image
+              <SkeletonImage
                 accessibilityLabel={block.alt}
                 resizeMode="cover"
                 source={{uri: block.imageUrl}}

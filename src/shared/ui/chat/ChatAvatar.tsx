@@ -1,7 +1,10 @@
 import React from 'react';
-import {Image, StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, Text, View} from 'react-native';
 
-import {DefaultProfileAvatar} from '@/shared/design-system/components';
+import {
+  DefaultProfileAvatar,
+  SkeletonImage,
+} from '@/shared/design-system/components';
 import {RADIUS} from '@/shared/design-system/tokens';
 
 import type {ChatAvatarViewData} from './types';
@@ -21,7 +24,7 @@ export const ChatAvatar = ({
 
   if (avatar.kind === 'image') {
     return (
-      <Image
+      <SkeletonImage
         source={{uri: avatar.uri}}
         style={[styles.avatarImage, {borderRadius: size / 2, height: size, width: size}]}
       />

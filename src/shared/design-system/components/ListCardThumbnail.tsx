@@ -1,7 +1,8 @@
 import React from 'react';
-import {Image, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {COLORS, RADIUS} from '../tokens';
+import {SkeletonImage} from './SkeletonImage';
 
 const DEFAULT_SIZE = 76;
 
@@ -25,7 +26,7 @@ export const ListCardThumbnail = ({
           width: size,
         },
       ]}>
-      <Image
+      <SkeletonImage
         accessibilityLabel={accessibilityLabel}
         resizeMode="cover"
         source={{uri}}

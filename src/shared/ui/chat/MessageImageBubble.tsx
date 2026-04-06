@@ -8,6 +8,7 @@ import {
 
 import {
   ImageLightboxModal,
+  SkeletonImage,
   type ImageLightboxItem,
 } from '@/shared/design-system/components';
 import {COLORS, RADIUS} from '@/shared/design-system/tokens';
@@ -73,7 +74,7 @@ export const MessageImageBubble = ({
         onPress={() => {
           setViewerVisible(true);
         }}>
-        <Image
+        <SkeletonImage
           resizeMode="cover"
           source={{uri}}
           style={[

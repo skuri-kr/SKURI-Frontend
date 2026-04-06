@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -8,7 +7,10 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 
-import {StateCard} from '@/shared/design-system/components';
+import {
+  SkeletonImage,
+  StateCard,
+} from '@/shared/design-system/components';
 import {
   COLORS,
   RADIUS,
@@ -57,7 +59,7 @@ export const AppNoticeFeedList = ({
           onPress={() => onPressItem(item.id)}
           style={styles.card}>
           {item.previewImage ? (
-            <Image source={item.previewImage} style={styles.heroImage} />
+            <SkeletonImage source={item.previewImage} style={styles.heroImage} />
           ) : null}
 
           <View style={styles.content}>

@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   FlatList,
-  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -15,6 +14,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 
 import {
   ImageLightboxModal,
+  SkeletonImage,
   type ImageLightboxItem,
 } from '@/shared/design-system/components';
 import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
@@ -72,7 +72,7 @@ export const AppNoticeHeroCarousel = ({images}: AppNoticeHeroCarouselProps) => {
               setViewerIndex(index);
               setViewerVisible(true);
             }}>
-            <Image source={item} style={[styles.image, {width}]} />
+            <SkeletonImage source={item} style={[styles.image, {width}]} />
           </TouchableOpacity>
         )}
         showsHorizontalScrollIndicator={false}
