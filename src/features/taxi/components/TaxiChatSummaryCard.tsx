@@ -18,6 +18,16 @@ interface TaxiChatSummaryCardProps {
   summary: TaxiChatSummaryViewData;
 }
 
+const formatTagLabel = (tag: string) => {
+  const trimmed = tag.trim();
+
+  if (!trimmed) {
+    return '';
+  }
+
+  return trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+};
+
 const renderStatusCopy = (status: TaxiChatSummaryViewData['partyStatus']) => {
   switch (status) {
     case 'closed':
@@ -76,9 +86,27 @@ export const TaxiChatSummaryCard = ({
           </View>
 
           <View style={styles.tagPill}>
-            <Text style={styles.tagLabel}>{summary.tagLabel}</Text>
+            <Text style={styles.tagLabel}>{`예상 N빵요금 : ${summary.estimatedFareLabel}`}</Text>
           </View>
         </View>
+
+        {summary.tags.length > 0 ? (
+          <View style={styles.tagsRow}>
+            {summary.tags.map(tag => {
+              const formattedTag = formatTagLabel(tag);
+
+              if (!formattedTag) {
+                return null;
+              }
+
+              return (
+                <View key={formattedTag} style={styles.secondaryTagPill}>
+                  <Text style={styles.secondaryTagLabel}>{formattedTag}</Text>
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
 
         <View style={styles.statusRow}>
           <View style={styles.statusPill}>
@@ -197,6 +225,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 18,
     marginLeft: 'auto',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+  },
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+    marginTop: SPACING.sm,
+  },
+  secondaryTagLabel: {
+    color: COLORS.text.secondary,
+    fontSize: 10,
+    fontWeight: '500',
+    lineHeight: 14,
+  },
+  secondaryTagPill: {
+    alignItems: 'center',
+    backgroundColor: COLORS.background.page,
+    borderColor: COLORS.border.subtle,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 18,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 2,
   },

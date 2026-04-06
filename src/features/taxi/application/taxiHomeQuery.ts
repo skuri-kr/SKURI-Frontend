@@ -18,12 +18,14 @@ import type {
 import type {
   TaxiHomeFilterId,
   TaxiHomeAvatarViewData,
+  TaxiHomePartyCoordinate,
   TaxiHomeFilterDefinition,
   TaxiHomePartyCardViewData,
   TaxiHomeSortDefinition,
   TaxiHomeSourceData,
 } from '../model/taxiHomeViewData';
 import {ALL_TAXI_HOME_FILTER_ID} from '../model/taxiHomeViewData';
+import {formatEstimatedTaxiFareLabel} from '../model/taxiFareEstimator';
 
 const TAXI_HOME_SORTS: TaxiHomeSortDefinition[] = [
   {
@@ -213,6 +215,28 @@ const buildParticipantAvatar = (
 const normalizePartyTags = (tags?: string[] | null) =>
   tags?.map(tag => tag.trim()).filter(Boolean) ?? [];
 
+const toPartyCoordinate = (
+  location: PartySummaryResponseDto['departure'],
+): TaxiHomePartyCoordinate | undefined => {
+  const {lat, lng} = location;
+
+  if (
+    typeof lat !== 'number' ||
+    typeof lng !== 'number' ||
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    Math.abs(lat) > 90 ||
+    Math.abs(lng) > 180
+  ) {
+    return undefined;
+  }
+
+  return {
+    latitude: lat,
+    longitude: lng,
+  };
+};
+
 const buildAcceptancePendingSeedFromPartyCard = (
   party: Pick<
     TaxiHomePartyCardViewData,
@@ -346,12 +370,22 @@ const buildBasePartyCard = (
     },
     createdAt: party.createdAt,
     currentMemberCount: party.currentMembers,
+    departureCoordinate: toPartyCoordinate(party.departure),
     detail,
     departureAt: party.departureTime,
     departureLabel: party.departure.name,
     departureTimeLabel,
     destinationLabel: party.destination.name,
-    estimatedFareLabel: '미정',
+    estimatedFareLabel: formatEstimatedTaxiFareLabel({
+      currentMemberCount: party.currentMembers,
+      departureLabel: party.departure.name,
+      destinationLabel: party.destination.name,
+      maxMemberCount: party.maxMembers,
+      splitStrategy:
+        activePartyId === party.id
+          ? 'current-members-only'
+          : 'anticipate-next-passenger',
+    }),
     filterIds: buildFilterIds(party.departure.name),
     id: party.id,
     leaderAvatar: buildLeaderAvatar({

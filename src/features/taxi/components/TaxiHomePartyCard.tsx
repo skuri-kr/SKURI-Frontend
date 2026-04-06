@@ -372,7 +372,7 @@ export const TaxiHomePartyCard = ({
           </View>
 
           <View style={styles.priceGroup}>
-            <Text style={styles.priceCaption}>예상 요금</Text>
+            <Text style={styles.priceCaption}>예상 N빵 요금</Text>
             <Text style={styles.priceLabel}>{party.estimatedFareLabel}</Text>
           </View>
         </View>

@@ -378,12 +378,13 @@ export const buildTaxiChatViewData = ({
       detail: partyChat.detail,
       destinationLabel: partyChat.destinationLocation.name,
       destinationLocation: partyChat.destinationLocation,
+      estimatedFareLabel: partyChat.estimatedFareLabel,
       management,
       memberSummaryLabel: `${partyChat.memberCount}/${partyChat.maxMembers}명`,
       members,
       partyStatus: partyChat.partyStatus,
       settlementNotice,
-      tagLabel: partyChat.tagLabel,
+      tags: partyChat.tags,
     },
   };
 };

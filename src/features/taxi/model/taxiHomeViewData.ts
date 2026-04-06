@@ -54,11 +54,17 @@ export interface TaxiHomePartyJoinActionViewData {
   state: TaxiHomePartyJoinActionState;
 }
 
+export interface TaxiHomePartyCoordinate {
+  latitude: number;
+  longitude: number;
+}
+
 export interface TaxiHomePartyCardViewData {
   acceptancePendingSeed?: TaxiAcceptancePendingSeed;
   currentMemberCount: number;
   id: string;
   departureAt: string;
+  departureCoordinate?: TaxiHomePartyCoordinate;
   createdAt: string;
   detail?: string;
   departureTimeLabel: string;

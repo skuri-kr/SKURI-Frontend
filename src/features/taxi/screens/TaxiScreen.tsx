@@ -75,6 +75,27 @@ const DEPARTURE_COORDINATES_BY_LABEL = DEPARTURE_OPTIONS.flatMap(
   {},
 );
 
+const isValidMapCoordinate = (
+  coordinate: MapCoordinate | null | undefined,
+): coordinate is MapCoordinate =>
+  Boolean(
+    coordinate &&
+      Number.isFinite(coordinate.latitude) &&
+      Number.isFinite(coordinate.longitude) &&
+      Math.abs(coordinate.latitude) <= 90 &&
+      Math.abs(coordinate.longitude) <= 180,
+  );
+
+const resolvePartyDepartureCoordinate = (
+  party: Pick<TaxiHomePartyCardViewData, 'departureCoordinate' | 'departureLabel'>,
+): MapCoordinate | null => {
+  if (isValidMapCoordinate(party.departureCoordinate)) {
+    return party.departureCoordinate;
+  }
+
+  return DEPARTURE_COORDINATES_BY_LABEL[party.departureLabel] ?? null;
+};
+
 const TaxiScreenState = ({
   actionLabel,
   description,
@@ -147,7 +168,7 @@ export const TaxiScreen = () => {
     (): DepartureMarker[] =>
       (data?.parties ?? [])
         .map(party => ({
-          coordinate: DEPARTURE_COORDINATES_BY_LABEL[party.departureLabel],
+          coordinate: resolvePartyDepartureCoordinate(party),
           id: party.id,
           title: party.departureLabel,
         }))
@@ -167,7 +188,7 @@ export const TaxiScreen = () => {
       return null;
     }
 
-    return DEPARTURE_COORDINATES_BY_LABEL[selectedParty.departureLabel] ?? null;
+    return resolvePartyDepartureCoordinate(selectedParty);
   }, [data?.parties, expandedPartyId]);
   const fitToCoordinatesPadding = React.useMemo<EdgePadding>(
     () => ({

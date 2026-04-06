@@ -72,12 +72,13 @@ export interface TaxiChatSummaryViewData {
   detail?: string;
   destinationLabel: string;
   destinationLocation: PartyLocation;
+  estimatedFareLabel: string;
   management: TaxiChatSummaryManagementViewData;
   memberSummaryLabel: string;
   members: TaxiChatSettlementMemberViewData[];
   partyStatus: TaxiChatPartyStatus;
   settlementNotice?: TaxiChatSettlementNoticeViewData;
-  tagLabel: string;
+  tags: string[];
 }
 
 export interface TaxiChatSourceParticipant {
@@ -145,6 +146,7 @@ export interface TaxiChatSourceData {
   departureTimeISO: string;
   detail?: string;
   destinationLocation: PartyLocation;
+  estimatedFareLabel: string;
   id: string;
   latestAccountData?: TaxiChatSourceAccountData;
   leaderId: string;
@@ -155,7 +157,7 @@ export interface TaxiChatSourceData {
   participants: TaxiChatSourceParticipant[];
   partyStatus: TaxiChatPartyStatus;
   settlement?: TaxiChatSourceSettlement;
-  tagLabel: string;
+  tags: string[];
   title: string;
 }
 

@@ -2,6 +2,7 @@ import {format} from 'date-fns';
 import {ko} from 'date-fns/locale';
 import {COLORS} from '@/shared/design-system/tokens';
 
+import {formatEstimatedTaxiFareLabel} from '../../model/taxiFareEstimator';
 import type {PartyDetailResponseDto} from '../dto/taxiHomeDto';
 import {mapPartyStatusDto} from './taxiPartyMapper';
 import type {
@@ -32,6 +33,9 @@ const formatDepartureTimeLabel = (value: string) => {
 
   return format(date, 'M월 d일 a hh:mm', {locale: ko});
 };
+
+const normalizePartyTags = (tags?: string[] | null) =>
+  tags?.map(tag => tag.trim()).filter(Boolean) ?? [];
 
 const mapAccountData = (
   accountData?: ChatAccountDataResponseDto | null,
@@ -224,6 +228,7 @@ export const buildTaxiChatSourceData = ({
       settledAt: memberSettlement.settledAt ?? undefined,
     }));
   const memberCount = participants.length;
+  const tags = normalizePartyTags(party.tags);
   const mappedMessages = [...messages].reverse().map(mapTaxiChatMessageDto);
   const latestAccountData =
     [...mappedMessages]
@@ -245,6 +250,13 @@ export const buildTaxiChatSourceData = ({
       lng: party.destination.lng,
       name: party.destination.name,
     },
+    estimatedFareLabel: formatEstimatedTaxiFareLabel({
+      currentMemberCount: memberCount,
+      departureLabel: party.departure.name,
+      destinationLabel: party.destination.name,
+      maxMemberCount: party.maxMembers,
+      splitStrategy: 'current-members-only',
+    }),
     id: party.id,
     latestAccountData,
     leaderId: party.leaderId,
@@ -266,7 +278,7 @@ export const buildTaxiChatSourceData = ({
           taxiFare: party.settlement.taxiFare ?? undefined,
         }
       : undefined,
-    tagLabel: party.tags?.[0] ?? '#택시팟',
+    tags,
     title:
       room.name ||
       formatPartyTitle(party.departure.name, party.destination.name),
