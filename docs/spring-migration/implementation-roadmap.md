@@ -1,6 +1,6 @@
 # SKURI 백엔드 구현 로드맵
 
-> 최종 수정일: 2026-04-01
+> 최종 수정일: 2026-04-02
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [ERD](./erd.md) | [API 명세](./api-specification.md) | [기술 전략](./tech-strategy.md) | [역할 정의](./role-definition.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 > 보조 참고: 채팅 Firestore → MySQL 이관 참고는 백엔드 레포 `docs/chat-firestore-to-mysql-migration-reference.md`, 마인크래프트 상세 설계/이력은 백엔드 레포 `docs/minecraft-spring-migration-plan.md`
 
@@ -23,6 +23,9 @@
 - `docs/` 아래의 공유 계약 문서(`api-specification.md`, `domain-analysis.md`, `erd.md`, `implementation-roadmap.md`, `role-definition.md`)는 백엔드 레포 최신본을 기준으로 유지하고, 프론트 레포 대응 문서에도 즉시 동일 내용으로 동기화한다.
 - 채팅 Firestore → MySQL 이관 참고사항은 백엔드 레포 `docs/chat-firestore-to-mysql-migration-reference.md`에 누적 관리한다.
 - 데이터 마이그레이션 관련 신규 발견사항(컬렉션 구조, ID 매핑, seed 충돌 가능성, 요약 필드 재계산 규칙 등)이 생기면 위 참고 문서를 먼저 갱신하고, 필요 시 `api-specification.md`, `domain-analysis.md`, `erd.md`에도 함께 반영한다.
+- Firebase/RTDB export -> MySQL 적재는 `infra/migration`의 스프링 1회성 배치 러너로 수행한다. 공지 이관은 `plan=NOTICES`, 사용자/시간표/마인크래프트 컷오버는 `plan=CUTOVER`를 사용하며, 둘 다 운영 app 컨테이너와 분리된 별도 실행을 기본으로 한다.
+- 운영에서 migration을 실행할 때는 `migration.enabled=true`, `spring.main.web-application-type=none`을 사용해 웹 서버를 띄우지 않고 종료형 배치로 돌린다. 공지 스케줄러와 충돌 가능성이 있는 시간대에는 `NOTICE_SYNC_SCHEDULER_ENABLED=false`로 잠시 비활성화한 뒤 dry-run/apply를 순차 실행한다.
+- cutover 시간표 이관은 live MySQL `courses`에 존재하는 학기만 관리 대상으로 본다. live MySQL에 없는 학기(예: 새 DB에서 관리하지 않는 이전 학기)와 users export에 없는 `userId`의 시간표는 적재하지 않고 `timetable-skips.json`으로만 남긴다.
 - 프론트/백엔드 구현 에이전트의 최종 보고에는 “상대 레포의 동일 문서를 바로 동기화하라”는 문구를 반드시 포함한다.
 
 ## 1.2 완료 작업: OpenAPI Show Schema 전수 보강
@@ -200,6 +203,7 @@ com.skuri.skuri_backend
 | `POST` | `/v1/members` | 회원 가입 (ID Token에서 정보 추출, 멱등) |
 | `GET` | `/v1/members/me` | 내 프로필 조회 (lastLogin 갱신) |
 | `PATCH` | `/v1/members/me` | 프로필 부분 수정 (닉네임, 학번, 학과, photoUrl) |
+| `DELETE` | `/v1/members/me/photo` | 프로필 사진 제거 (내부 PROFILE_IMAGE면 storage 원본/썸네일 정리) |
 | `PUT` | `/v1/members/me/bank-account` | 계좌 정보 수정 |
 | `PATCH` | `/v1/members/me/notification-settings` | 알림 설정 부분 수정 |
 | `GET` | `/v1/members/{id}` | 특정 회원 공개 프로필 조회 |
@@ -379,8 +383,12 @@ SSE 운영 제약:
 | WebSocket | `SUBSCRIBE /user/queue/chat-rooms` | 내 채팅방 목록 요약 실시간 수신 |
 | WebSocket | `SUBSCRIBE /topic/chat/{chatRoomId}` | 채팅방 상세 메시지 실시간 수신 |
 | WebSocket | `SEND /app/chat/{chatRoomId}` | 채팅방 메시지 전송 |
+| `GET` | `/v1/admin/chat-rooms` | 공개 채팅방 전체 목록 조회 (관리자, public non-party) |
+| `GET` | `/v1/admin/chat-rooms/{id}` | 공개 채팅방 상세 조회 (관리자, public non-party) |
+| `GET` | `/v1/admin/chat-rooms/{id}/messages` | 공개 채팅방 메시지 조회 (관리자, membership 불필요) |
 | `POST` | `/v1/admin/chat-rooms` | 공개 채팅방 생성 (관리자) |
 | `DELETE` | `/v1/admin/chat-rooms/{chatRoomId}` | 공개 채팅방 삭제 (관리자) |
+| `GET` | `/v1/admin/parties/{partyId}/messages` | 파티 채팅 메시지 조회 (관리자, membership 불필요) |
 
 #### 3-4. 완료 기준
 
@@ -392,7 +400,9 @@ SSE 운영 제약:
 - [x] 파티 채팅 특수 메시지 (계좌, 도착, 종료) 동작
 - [x] 공개 일반 채팅방의 joined/not joined 목록/상세 정책 및 join/leave/create REST 계약 동작
 - [x] 공개방 seed/backfill과 학과 변경 membership 제거 정책 동작
-- [x] 관리자 공개 채팅방 API (`POST/DELETE /v1/admin/chat-rooms`) + `ADMIN_REQUIRED` 권한 정책 동작
+- [x] 관리자 공개 채팅방 조회 API (`GET /v1/admin/chat-rooms`, `GET /v1/admin/chat-rooms/{chatRoomId}`, `GET /v1/admin/chat-rooms/{chatRoomId}/messages`)가 join 여부와 무관하게 public non-party room을 조회
+- [x] 관리자 파티 채팅 조회 API (`GET /v1/admin/parties/{partyId}/messages`)가 party membership 없이 cursor pagination 계약을 재사용
+- [x] 관리자 공개 채팅방 쓰기 API (`POST/DELETE /v1/admin/chat-rooms`) + `ADMIN_REQUIRED` 권한 정책 동작
 
 ---
 
@@ -414,7 +424,7 @@ SSE 운영 제약:
 
 | 로직 | 설명 |
 |------|------|
-| 익명 처리 | `anonId` = `{postId}:{userId}`, `anonymousOrder` 서버 계산 (글 단위 순번) |
+| 익명 처리 | `anonId`는 `{scopeId}:{userId}` 기반 짧은 안정 해시(`ac:` prefix)로 생성하고, `anonymousOrder`는 글 단위 순번으로 재사용/부여 |
 | 좋아요/북마크 | `PostInteraction` 단일 테이블, 등록/취소 방식 |
 | 카운트 관리 | `viewCount`, `likeCount`, `commentCount`, `bookmarkCount` 동기화 |
 | 댓글 좋아요 | `comment_likes` 저장 + `comments.likeCount` 동기화, 목록/생성/수정 응답에 `isLiked` 합성 |
@@ -438,7 +448,7 @@ SSE 운영 제약:
 | `GET` | `/v1/posts/bookmarked` | 북마크한 게시글 목록 |
 | `GET` | `/v1/posts/{postId}/comments` | 댓글 목록 |
 | `POST` | `/v1/posts/{postId}/comments` | 댓글 작성 |
-| `PATCH` | `/v1/comments/{commentId}` | 댓글 부분 수정 |
+| `PATCH` | `/v1/comments/{commentId}` | 댓글 부분 수정 (`content`, optional `isAnonymous`) |
 | `POST` | `/v1/comments/{commentId}/like` | 댓글 좋아요 등록 |
 | `DELETE` | `/v1/comments/{commentId}/like` | 댓글 좋아요 취소 |
 | `DELETE` | `/v1/comments/{commentId}` | 댓글 삭제 |
@@ -482,8 +492,9 @@ SSE 운영 제약:
 | contentHash | 링크를 제외한 실제 내용 + 상세 본문/첨부 기반 SHA1 해시로 dedup |
 | detail 재검증 | 신규/메타 변경/`detailHash` 없음/24시간 초과 시 재크롤링 |
 | 공지 ID | `Base64(link).replace(/=+$/, '').slice(0, 120)` — 링크 기반 안정 ID |
-| 저장 구조 | `rssPreview`(RSS 미리보기), `bodyHtml`(원문 HTML), `bodyText`(정규화 text), `summary`(향후 AI 요약 예약) |
-| 공지 댓글 수정 정책 | `PATCH /v1/notice-comments/{id}`는 `content`만 수정 가능하고 익명 여부는 유지 |
+| 저장 구조 | `rssPreview`(RSS 미리보기), `bodyHtml`(원문 HTML), `bodyText`(정규화 text), `thumbnailUrl`(`TEXT` 목록용 첫 이미지 URL 캐시), `summary`(향후 AI 요약 예약) |
+| 목록 조회 최적화 | `/v1/notices`는 목록 전용 projection으로 필요한 컬럼만 select하고, `thumbnailUrl` 저장 컬럼을 그대로 사용한다. 목록 경로에서는 `bodyHtml/bodyText/attachments`를 select하지 않는다. |
+| 공지 댓글 수정 정책 | `PATCH /v1/notice-comments/{id}`는 `content`와 optional `isAnonymous`를 지원하며, 익명 전환 시 기존 번호 재사용/신규 부여 정책을 따른다 |
 | 공지 댓글 좋아요 | `notice_comment_likes` 저장 + `notice_comments.likeCount` 동기화, 목록/생성/수정 응답에 `isLiked` 합성 |
 | 공지 북마크 저장 모델 | `NoticeLike`와 분리된 `notice_bookmarks` 테이블, 등록/취소는 idempotent |
 
@@ -500,7 +511,7 @@ SSE 운영 제약:
 | `DELETE` | `/v1/notices/{id}/bookmark` | 북마크 취소 |
 | `GET` | `/v1/notices/{noticeId}/comments` | 공지 댓글 목록 |
 | `POST` | `/v1/notices/{noticeId}/comments` | 공지 댓글 작성 |
-| `PATCH` | `/v1/notice-comments/{id}` | 공지 댓글 본문 수정 |
+| `PATCH` | `/v1/notice-comments/{id}` | 공지 댓글 부분 수정 (`content`, optional `isAnonymous`) |
 | `POST` | `/v1/notice-comments/{id}/like` | 공지 댓글 좋아요 등록 |
 | `DELETE` | `/v1/notice-comments/{id}/like` | 공지 댓글 좋아요 취소 |
 | `DELETE` | `/v1/notice-comments/{id}` | 공지 댓글 삭제 |
@@ -544,6 +555,8 @@ SSE 운영 제약:
 
 - `summary` 컬럼은 추후 AI가 생성한 공지 요약 저장용으로 예약한다.
 - `bodyText`는 `bodyHtml`을 정규화한 plain text로 저장하고, 추후 chunking/embedding의 원본으로 사용한다.
+- `thumbnailUrl`은 상세 HTML의 첫 번째 `img[src]`를 sync 시점에 추출해 저장하고, 기존 row는 `migration.plan=NOTICE_THUMBNAILS` backfill로 보정한다.
+- `data:` / `blob:` / 과도하게 긴 `img[src]`는 저장하지 않고 `null`로 정리한다.
 - `contentHash`가 변하면 기존 AI 요약/임베딩은 재생성 대상으로 간주한다.
 - 공지 챗봇(RAG)은 `title`, `category`, `postedAt`, `link`를 citation 메타데이터로 사용한다.
 - `bodyHtml`은 RN 앱의 웹형 렌더링 요구 때문에 유지한다. AI/RAG는 `bodyText`를 기준으로 처리한다.
@@ -1075,6 +1088,7 @@ Phase 1/3/8 ── 연동 ──→ Phase 13 (마인크래프트 Spring 전환)
 ---
 
 > **문서 이력**
+> - 2026-04-06: Admin Chat read API 구현 반영 — 공개 채팅방 관리자 목록/상세/메시지 조회와 관리자 파티 메시지 조회를 Phase 3/Phase 2 운영 API 및 완료 기준에 추가
 > - 2026-04-01: Phase 13 구현 반영 완료 상태로 갱신 — 마인크래프트 public/internal API, public SSE, bridge outbox, IMAGE placeholder, notification policy, 테스트/문서 완료 기준을 체크 상태로 동기화
 > - 2026-03-30: Phase 13 마인크래프트 Spring 전환 계획 추가 — public/internal API, SSE bridge, whitelist/검증 이관 범위, PR 분리 기준, 완료 기준을 문서화
 > - 2026-02-26: 초안 작성

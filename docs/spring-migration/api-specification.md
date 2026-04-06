@@ -131,8 +131,8 @@ Authorization: Bearer <firebase_id_token>
 
 ## 2. Member API
 
-> 구현 상태 (2026-03-09):
-> - 구현 완료: `POST /v1/members`, `GET /v1/members/me`, `PATCH /v1/members/me`, `PUT /v1/members/me/bank-account`, `PATCH /v1/members/me/notification-settings`, `DELETE /v1/members/me`, `GET /v1/members/{id}`, `POST/DELETE /v1/members/me/fcm-tokens`
+> 구현 상태 (2026-04-06):
+> - 구현 완료: `POST /v1/members`, `GET /v1/members/me`, `PATCH /v1/members/me`, `DELETE /v1/members/me/photo`, `PUT /v1/members/me/bank-account`, `PATCH /v1/members/me/notification-settings`, `DELETE /v1/members/me`, `GET /v1/members/{id}`, `POST/DELETE /v1/members/me/fcm-tokens`
 > - 계정 라이프사이클 정책: [Member 탈퇴 정책](./member-withdrawal-policy.md)
 
 ### 2.1 인증 및 로그인 플로우
@@ -338,12 +338,14 @@ Spring 서버 처리:
 
 - 부분 업데이트 API입니다.
 - 요청 본문에 포함되지 않은 필드는 기존 값을 유지합니다.
+- JSON `null`도 런타임에서는 "변경 없음"으로 해석합니다. 특히 `photoUrl: null`은 삭제가 아니라 기존 값을 유지합니다.
 - `nickname`은 `members.nickname`을 수정합니다.
 - `department`는 서버가 지원하는 학과 카탈로그 기준으로만 허용합니다.
   - legacy 표기(예: `소프트웨어학과`)는 canonical 값으로 정규화해 저장합니다.
   - 지원하지 않는 값은 `422 VALIDATION_ERROR`를 반환합니다.
 - `realname`은 회원 생성 시 provider 이름으로 초기화되며, 이 API로 수정할 수 없습니다.
 - `photoUrl`은 `POST /v1/images`의 `PROFILE_IMAGE` 업로드 결과 URL을 그대로 재사용할 수 있습니다.
+- 프로필 사진 삭제는 `DELETE /v1/members/me/photo`를 사용합니다.
 
 **Request:**
 ```json
@@ -352,6 +354,22 @@ Spring 서버 처리:
   "studentId": "20201234",
   "department": "컴퓨터공학과",
   "photoUrl": "https://..."
+}
+```
+
+#### DELETE /v1/members/me/photo
+내 프로필 사진 삭제
+
+- `members.photo_url`을 `null`로 갱신합니다.
+- 현재 `photoUrl`이 우리 서비스가 업로드한 `PROFILE_IMAGE` URL이면, storage에서 원본 파일과 썸네일(`_thumb`)도 함께 정리합니다.
+- 외부 URL(소셜 provider URL 포함)이거나 이미 `photoUrl`이 `null`이면 DB만 안전하게 정리하고 storage 삭제는 시도하지 않습니다.
+- storage 정리는 best-effort이며, 파일이 이미 없거나 일부 삭제가 실패해도 프로필 사진 삭제 자체는 성공으로 처리합니다.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": null
 }
 ```
 
@@ -1829,7 +1847,7 @@ Authorization:Bearer <firebase_id_token>
 | `GET` | `/v1/posts/bookmarked` | 내 북마크 게시글 목록 |
 | `GET` | `/v1/posts/{postId}/comments` | 댓글 목록 조회 (flat list, 무제한 depth) |
 | `POST` | `/v1/posts/{postId}/comments` | 댓글/대댓글 작성 |
-| `PATCH` | `/v1/comments/{commentId}` | 댓글 수정 (작성자) |
+| `PATCH` | `/v1/comments/{commentId}` | 댓글 수정 (작성자, optional `isAnonymous` 지원) |
 | `DELETE` | `/v1/comments/{commentId}` | 댓글 삭제 (작성자, placeholder soft delete) |
 | `GET` | `/v1/members/me/posts` | 내가 작성한 게시글 목록 |
 | `GET` | `/v1/members/me/bookmarks` | 내가 북마크한 게시글 목록 |
@@ -1978,8 +1996,8 @@ Authorization:Bearer <firebase_id_token>
 
 - 댓글은 `parentId` self-reference 기반으로 무제한 대댓글을 허용한다.
 - 익명 규칙:
-  - `anonId = "{postId}:{userId}"`
-  - 게시글 단위로 기존 `anonId`가 있으면 기존 `anonymousOrder` 재사용
+  - `anonId`는 `{postId}:{userId}` 기반 SHA-256 짧은 안정 식별자(`ac:` prefix 포함 최대 35자)다.
+  - 게시글 단위로 같은 사용자의 기존 익명 댓글이 있으면 기존 `anonymousOrder` 재사용
   - 없으면 `max(anonymousOrder)+1` 부여
   - 삭제 후에도 순번 재계산 없음
 
@@ -2020,6 +2038,47 @@ Authorization:Bearer <firebase_id_token>
 - 좋아요하지 않은 상태에서 `DELETE`해도 현재 상태를 반환한다.
 
 #### PATCH /v1/comments/{commentId}
+
+```json
+{
+  "content": "수정된 댓글 내용",
+  "isAnonymous": true
+}
+```
+
+- `isAnonymous`를 생략하면 기존 값을 유지한다.
+- `false -> true`
+  - 같은 게시글 안에서 해당 사용자에게 이미 부여된 익명 번호가 있으면 재사용한다.
+  - 없으면 `max(anonymousOrder)+1`을 새로 부여한다.
+- `true -> false`
+  - 실명 댓글로 전환하며 `anonId`, `anonymousOrder`를 정리한다.
+- `true -> true`, `false -> false`
+  - 기존 익명 메타데이터를 유지한 채 본문만 수정한다.
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "comment_uuid",
+    "parentId": "root_comment_uuid",
+    "depth": 2,
+    "content": "수정된 댓글 내용",
+    "authorId": null,
+    "authorName": "익명1",
+    "authorProfileImage": null,
+    "isAnonymous": true,
+    "anonymousOrder": 1,
+    "isAuthor": true,
+    "isPostAuthor": false,
+    "likeCount": 3,
+    "isLiked": true,
+    "isDeleted": false,
+    "createdAt": "2026-02-03T12:00:00",
+    "updatedAt": "2026-02-03T12:30:00"
+  }
+}
+```
+
 #### DELETE /v1/comments/{commentId}
 #### POST /v1/comments/{commentId}/like
 #### DELETE /v1/comments/{commentId}/like
@@ -2280,7 +2339,7 @@ Authorization:Bearer <firebase_id_token>
 | 파라미터 | 타입 | 설명 |
 |---------|------|------|
 | `category` | string | 카테고리 (새소식, 학사, 학생 등) |
-| `search` | string | 제목/요약 검색 |
+| `search` | string | 기존 검색어 의미 유지 (`title`, `rssPreview`, `summary`, 내부 `bodyText` 포함) |
 | `page` | number | 페이지 번호 (기본 0) |
 | `size` | number | 페이지 크기 (기본 20, 최대 100) |
 
@@ -2327,7 +2386,8 @@ Authorization:Bearer <firebase_id_token>
 - `bookmarkCount`는 공지 누적 북마크 수이고, `isBookmarked`는 현재 인증 사용자의 북마크 여부다.
 - `isLiked`는 현재 인증 사용자의 공지 좋아요 여부다.
 - `isCommentedByMe`는 현재 사용자가 삭제되지 않은 공지 댓글 또는 대댓글을 1개 이상 작성한 경우에만 `true`다.
-- `thumbnailUrl`은 `body_html`에서 첫 번째 `<img>` 태그의 `src`를 추출한 값이며, 이미지가 없으면 `null`이다.
+- `thumbnailUrl`은 sync/backfill 시 서버가 `TEXT` 타입 `thumbnail_url` 컬럼에 저장한 목록용 첫 이미지 URL이며, 이미지가 없거나 `data:` / `blob:` / 과도하게 긴 `src`는 `null`이다.
+- 목록 조회는 전용 projection으로 필요한 컬럼만 select 하며, 응답 생성 시 `bodyHtml/bodyText/attachments`를 읽거나 파싱하지 않는다.
 
 #### GET /v1/notices/{noticeId}
 공지사항 상세
@@ -2369,6 +2429,8 @@ Authorization:Bearer <firebase_id_token>
 - `rssPreview`는 RSS에서 받은 미리보기 텍스트이며, 일부 공지는 원문 2~3줄 수준에서 잘려 들어올 수 있다.
 - `bodyHtml`은 상세 페이지에서 크롤링한 HTML 원문이며, 클라이언트가 공지 웹 구조(`h*`, `table`, `br` 등)를 최대한 유지해서 렌더링할 수 있도록 그대로 저장한다.
 - `bodyText`는 `bodyHtml`에서 태그를 제거해 정규화한 내부 저장용 텍스트이며, 검색/AI 요약/RAG 용도로 사용한다. 현재 공개 API에는 노출하지 않는다.
+- `thumbnail_url`은 상세 refresh 성공 시 `bodyHtml`의 첫 번째 `img[src]`를 추출해 저장하며, 기존 row는 DB `bodyHtml`만 읽는 backfill로 보정한다.
+- 저장 규칙은 sync/backfill 공통으로 적용하며, `data:` / `blob:` / 과도하게 긴 `img[src]`는 저장하지 않고 `null`로 정리한다.
 - `summary` 컬럼은 추후 AI 생성 공지 요약을 저장하기 위한 예약 필드이며, 현재 공개 API에는 노출하지 않는다.
 - 상세 조회는 조회수만 증가시키며, 읽음 상태를 저장하지 않는다.
 - 읽음 상태 저장은 `POST /v1/notices/{noticeId}/read`로만 처리한다.
@@ -2533,8 +2595,8 @@ Authorization:Bearer <firebase_id_token>
 **댓글 정책:**
 - 댓글은 `parentId` self-reference 기반으로 무제한 대댓글을 허용한다.
 - 익명 규칙:
-  - `anonId = "{noticeId}:{userId}"`
-  - 공지 단위로 기존 `anonId`가 있으면 기존 `anonymousOrder` 재사용
+  - `anonId`는 `{noticeId}:{userId}` 기반 SHA-256 짧은 안정 식별자(`ac:` prefix 포함 최대 35자)다.
+  - 공지 단위로 같은 사용자의 기존 익명 댓글이 있으면 기존 `anonymousOrder` 재사용
   - 없으면 `max(anonymousOrder)+1` 부여
   - 삭제 후에도 순번 재계산 없음
 - 부모 댓글 삭제 시 하드 삭제하지 않고 `isDeleted=true`, `content="삭제된 댓글입니다"` placeholder 처리하며 자식은 유지한다.
@@ -2550,7 +2612,8 @@ Authorization:Bearer <firebase_id_token>
 **Request:**
 ```json
 {
-  "content": "수정된 댓글 내용"
+  "content": "수정된 댓글 내용",
+  "isAnonymous": true
 }
 ```
 
@@ -2563,10 +2626,10 @@ Authorization:Bearer <firebase_id_token>
     "parentId": null,
     "depth": 0,
     "content": "수정된 댓글 내용",
-    "authorId": "user_uuid",
-    "authorName": "홍길동",
-    "isAnonymous": false,
-    "anonymousOrder": null,
+    "authorId": null,
+    "authorName": "익명1",
+    "isAnonymous": true,
+    "anonymousOrder": 1,
     "isAuthor": true,
     "likeCount": 5,
     "isLiked": true,
@@ -2579,7 +2642,14 @@ Authorization:Bearer <firebase_id_token>
 
 **수정 정책:**
 - 댓글 작성자만 본문을 수정할 수 있다.
-- `content`만 수정 가능하며 `parentId`, `isAnonymous`, `anonymousOrder`는 생성 시점 값을 유지한다.
+- `isAnonymous`를 생략하면 기존 값을 유지한다.
+- `false -> true`
+  - 같은 공지 안에서 해당 사용자에게 이미 부여된 익명 번호가 있으면 재사용한다.
+  - 없으면 `max(anonymousOrder)+1`을 새로 부여한다.
+- `true -> false`
+  - 실명 댓글로 전환하며 `anonId`, `anonymousOrder`를 정리한다.
+- `true -> true`, `false -> false`
+  - 기존 익명 메타데이터를 유지한 채 본문만 수정한다.
 - 이미 삭제된 댓글은 `409 COMMENT_ALREADY_DELETED`를 반환한다.
 
 #### DELETE /v1/notice-comments/{commentId}
@@ -4712,6 +4782,15 @@ data: {
            { "photoUrl": "https://..." }
 ```
 
+프로필 사진을 제거할 때는 아래 흐름을 사용합니다.
+
+```
+클라이언트
+    │
+    └─ DELETE /v1/members/me/photo
+           └─ Response: { "success": true, "data": null }
+```
+
 #### 문의 첨부 이미지
 
 ```
@@ -4734,6 +4813,7 @@ Spring 서버는 `StorageRepository` 인터페이스로 storage provider를 추�
 interface StorageRepository {
     StoredObject store(String relativePath, byte[] data, String contentType);
     void delete(String relativePath);
+    Optional<String> resolveRelativePath(String publicUrl);
 
     record StoredObject(String relativePath, String publicUrl) {}
 }
@@ -5491,6 +5571,109 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 공개 채팅방(UNIVERSITY, DEPARTMENT 등)은 사용자가 직접 생성할 수 없으며, 관리자만 생성/삭제합니다.
 파티 채팅방은 파티 생성 시 서버 내부에서 자동으로 생성됩니다.
 
+관리자 조회 API 정책:
+
+- `GET /v1/admin/chat-rooms*`는 현재 관리자 계정의 join 여부와 무관하게 `isPublic=true && type!=PARTY` 공개 채팅방만 조회합니다.
+- `DEPARTMENT` 타입도 관리자에게는 학과 제한 없이 모두 노출합니다.
+- 기존 사용자 DTO를 재사용하므로 관리자 응답의 개인 상태 필드는 아래 고정값을 사용합니다.
+  - summary/detail: `joined=false`, `unreadCount=0`, `isMuted=false`
+  - detail: `lastReadAt=null`
+- 관리자 조회(`GET`) API는 read-only 운영 API이며 `admin_audit_logs` 적재 대상에 포함하지 않습니다.
+
+#### GET /v1/admin/chat-rooms
+관리자 공개 채팅방 목록 조회
+
+운영 화면 `/chat-rooms`의 전체 공개방 목록/필터용 API다.
+
+**Query Parameters:**
+
+| 파라미터 | 타입 | 설명 |
+|---|---|---|
+| `type` | string | optional. `UNIVERSITY`, `DEPARTMENT`, `GAME`, `CUSTOM`, `PARTY` |
+
+정책 메모:
+
+- 반환 대상은 항상 `isPublic=true && type!=PARTY`다.
+- `type=PARTY`를 요청해도 빈 목록을 반환한다.
+- `joined` 필터는 관리자 API에서 제공하지 않는다.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "public:university",
+      "type": "UNIVERSITY",
+      "name": "성결대학교 전체 채팅방",
+      "description": "성결대학교 학생 전체 공개 채팅방",
+      "isPublic": true,
+      "memberCount": 153,
+      "joined": false,
+      "unreadCount": 0,
+      "lastMessage": {
+        "type": "TEXT",
+        "text": "안녕하세요!",
+        "senderName": "홍길동",
+        "createdAt": "2026-04-06T18:20:00"
+      },
+      "lastMessageAt": "2026-04-06T18:20:00",
+      "isMuted": false
+    },
+    {
+      "id": "public:department:computer",
+      "type": "DEPARTMENT",
+      "name": "컴퓨터공학과 채팅방",
+      "description": "학과 공지와 잡담을 나누는 공간",
+      "isPublic": true,
+      "memberCount": 41,
+      "joined": false,
+      "unreadCount": 0,
+      "lastMessage": null,
+      "lastMessageAt": null,
+      "isMuted": false
+    }
+  ]
+}
+```
+
+#### GET /v1/admin/chat-rooms/{chatRoomId}
+관리자 공개 채팅방 상세 조회
+
+운영 화면 `/chat-rooms`의 상세 패널/모달 조회용 API다.
+
+정책 메모:
+
+- `isPublic=true && type!=PARTY` 방만 조회할 수 있다.
+- `PARTY` 타입, 비공개 방, 존재하지 않는 방은 모두 `404 CHAT_ROOM_NOT_FOUND`로 숨긴다.
+- 개인 상태 필드는 관리자 의미가 없으므로 `joined=false`, `unreadCount=0`, `isMuted=false`, `lastReadAt=null`을 사용한다.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "public:department:computer",
+    "type": "DEPARTMENT",
+    "name": "컴퓨터공학과 채팅방",
+    "description": "학과 공지와 잡담을 나누는 공간",
+    "isPublic": true,
+    "memberCount": 41,
+    "joined": false,
+    "unreadCount": 0,
+    "lastMessage": {
+      "type": "TEXT",
+      "text": "스터디 인원 구합니다.",
+      "senderName": "김성결",
+      "createdAt": "2026-04-06T17:40:00"
+    },
+    "lastMessageAt": "2026-04-06T17:40:00",
+    "isMuted": false,
+    "lastReadAt": null
+  }
+}
+```
+
 #### POST /v1/admin/chat-rooms
 공개 채팅방 생성
 
@@ -5535,6 +5718,62 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 {
   "success": true,
   "data": null
+}
+```
+
+#### GET /v1/admin/chat-rooms/{chatRoomId}/messages
+관리자 공개 채팅방 메시지 조회
+
+관리자가 공개 채팅방 메시지 이력을 멤버십 없이 조회하는 API다.
+
+정책 메모:
+
+- 대상은 `isPublic=true && type!=PARTY` 공개 채팅방만 허용한다.
+- 사용자용 `GET /v1/chat-rooms/{chatRoomId}/messages`와 달리 join 여부를 요구하지 않는다.
+- `PARTY` 타입, 비공개 방, 존재하지 않는 방은 모두 `404 CHAT_ROOM_NOT_FOUND`다.
+- 응답 shape와 커서 규칙은 사용자용 메시지 조회와 동일하다.
+
+**Query Parameters:**
+
+| 파라미터 | 타입 | 설명 |
+|---|---|---|
+| `cursorCreatedAt` | datetime | 다음 페이지 시작 기준 createdAt (nullable, `cursorId`와 쌍) |
+| `cursorId` | string | 다음 페이지 시작 기준 messageId (nullable, `cursorCreatedAt`와 쌍) |
+| `size` | int | 페이지 크기 (기본 50, 최대 100) |
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "messages": [
+      {
+        "id": "chat-message-2",
+        "chatRoomId": "public:department:computer",
+        "senderId": "member-2",
+        "senderName": "김성결",
+        "senderPhotoUrl": null,
+        "type": "TEXT",
+        "text": "스터디 인원 구합니다.",
+        "createdAt": "2026-04-06T17:40:00"
+      },
+      {
+        "id": "chat-message-1",
+        "chatRoomId": "public:department:computer",
+        "senderId": "member-3",
+        "senderName": "박스쿠리",
+        "senderPhotoUrl": "https://cdn.skuri.app/profiles/member-3.png",
+        "type": "TEXT",
+        "text": "오늘 저녁에 모집할게요.",
+        "createdAt": "2026-04-06T17:20:00"
+      }
+    ],
+    "nextCursor": {
+      "cursorCreatedAt": "2026-04-06T17:20:00",
+      "cursorId": "chat-message-1"
+    },
+    "hasNext": true
+  }
 }
 ```
 
@@ -6284,6 +6523,63 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 }
 ```
 
+#### GET /v1/admin/parties/{partyId}/messages
+택시 파티 채팅 메시지 조회 (관리자)
+
+운영 화면 `/parties` 상세에서 해당 파티 채팅 이력을 조회하는 API다.
+
+정책 메모:
+
+- `partyId`가 존재해야 하며, 없으면 `404 PARTY_NOT_FOUND`다.
+- 메시지 조회 대상 chat room은 canonical id `party:{partyId}`를 사용한다.
+- 관리자 계정이 파티 멤버가 아니어도 조회할 수 있다.
+- 파티는 존재하지만 연결된 채팅방이 없으면 `404 CHAT_ROOM_NOT_FOUND`다.
+- 응답 shape와 커서 규칙은 `GET /v1/chat-rooms/{chatRoomId}/messages`와 동일하다.
+
+**Query Parameters:**
+
+| 파라미터 | 타입 | 설명 |
+|---|---|---|
+| `cursorCreatedAt` | datetime | 다음 페이지 시작 기준 createdAt (nullable, `cursorId`와 쌍) |
+| `cursorId` | string | 다음 페이지 시작 기준 messageId (nullable, `cursorCreatedAt`와 쌍) |
+| `size` | int | 페이지 크기 (기본 50, 최대 100) |
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "messages": [
+      {
+        "id": "party-message-3",
+        "chatRoomId": "party:party-20260304-001",
+        "senderId": "member-2",
+        "senderName": "김철수",
+        "senderPhotoUrl": null,
+        "type": "TEXT",
+        "text": "정문 앞 도착했습니다.",
+        "createdAt": "2026-03-04T20:55:00"
+      },
+      {
+        "id": "party-message-2",
+        "chatRoomId": "party:party-20260304-001",
+        "senderId": "system",
+        "senderName": "시스템",
+        "senderPhotoUrl": null,
+        "type": "SYSTEM",
+        "text": "김철수님이 입장했어요.",
+        "createdAt": "2026-03-04T20:50:00"
+      }
+    ],
+    "nextCursor": {
+      "cursorCreatedAt": "2026-03-04T20:50:00",
+      "cursorId": "party-message-2"
+    },
+    "hasNext": true
+  }
+}
+```
+
 #### PATCH /v1/admin/parties/{partyId}/status
 택시 파티 상태 변경 (관리자)
 
@@ -6916,7 +7212,9 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 > - 2026-02-19: Image API 추가 (§11, 방식 A - 서버 경유 업로드)
 > - 2026-02-19: 채팅 메시지 전송 경로 WebSocket으로 통일 (§4.3~4.5), Public API 목록 명확화 (§1.2)
 > - 2026-02-19: Admin API 추가 (§12 — 앱 공지/버전 관리, 학교 공지 동기화, 학식/학사일정/강의 관리)
+> - 2026-04-06: Member profile photo delete API 추가 — `DELETE /v1/members/me/photo`를 추가하고, PATCH의 `photoUrl: null`은 no-op로 유지하면서 내부 `PROFILE_IMAGE` 원본/썸네일 정리 정책을 문서화
 > - 2026-03-05: Phase 3 구현 반영 — 채팅 커서 페이지네이션(`cursorCreatedAt`,`cursorId`) 명시, `lastReadAt` 단조 증가/미읽음 경계(`createdAt > lastReadAt`) 확정, STOMP 경로를 `/app/chat/{chatRoomId}`·`/topic/chat/{chatRoomId}`로 동기화
+> - 2026-04-06: Admin Chat read API 반영 — `GET /v1/admin/chat-rooms`, `GET /v1/admin/chat-rooms/{chatRoomId}`, `GET /v1/admin/chat-rooms/{chatRoomId}/messages`, `GET /v1/admin/parties/{partyId}/messages` 계약과 관리자 고정 필드/멤버십 우회 정책을 문서화
 > - 2026-03-05: Chat 계약 동기화 — `lastMessage.createdAt`/`accountData` 필드로 통일, 비공개 채팅방 접근 정책(REST/WS) 및 STOMP 에러 포맷(`/user/queue/errors`) 명시
 > - 2026-03-05: Chat 명세 보완 — 채팅방 요약 `lastMessage.senderName` 예시 추가, STOMP 메시지 `NON_NULL` 직렬화 정책 명시
 > - 2026-03-28: Chat 메시지 계약 확장 — 일반/파티 채팅 REST + STOMP payload에 `senderPhotoUrl` 추가, 기본 source of truth를 `members.photo_url`로 두고 `null` 직렬화 정책을 명시

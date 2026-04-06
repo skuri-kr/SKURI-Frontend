@@ -348,6 +348,9 @@ Hooks:
     - `DEPARTMENT`: 본인 학과와 일치하는 방만 노출
     - 회원 `department`는 서버 카탈로그 기준 canonical 값으로 정규화하고 legacy 학과명은 alias 매핑으로 흡수
   - 미참여 공개방도 목록/상세 조회는 가능하지만, 메시지 조회/읽음/mute는 참여자만 가능
+  - 관리자 운영 조회는 별도 admin read API로 제공한다.
+    - `GET /v1/admin/chat-rooms*`: `isPublic=true && type!=PARTY` 공개 채팅방 전체를 membership/학과 제한 없이 조회
+    - 개인 상태 필드(`joined`, `unreadCount`, `isMuted`, `lastReadAt`)는 기존 DTO를 재사용하되 고정값/`null`로 내려간다
   - 공개방 참여/나가기/커스텀방 생성은 REST(`POST /v1/chat-rooms`, `POST /v1/chat-rooms/{id}/join`, `DELETE /v1/chat-rooms/{id}/members/me`)로 처리
   - 공개방 create/join은 가입 완료된 active member만 가능하며, 미가입 UID는 `MEMBER_NOT_FOUND`
   - 커스텀 공개방 생성자는 자동으로 joined 상태가 되며, join 시 초기 unread는 0으로 시작한다
@@ -454,7 +457,7 @@ Hooks:
     - isPinned, isHidden, isDeleted, images[], createdAt, updatedAt
   - Comment
     - id, postId, content, authorId, authorName, authorProfileImage
-    - isAnonymous, anonId (= "{postId}:{userId}", 글 단위 익명 식별자)
+    - isAnonymous, anonId (`{postId}:{userId}` 기반 SHA-256 짧은 안정 식별자)
     - anonymousOrder (서버 계산, 아래 규칙 참조)
     - parentId (self-reference), likeCount, isHidden, isDeleted
     - depth 제한 없음 (무제한 self-reference)
@@ -465,11 +468,16 @@ Hooks:
     - 댓글 좋아요 중복 방지 및 comment.likeCount 동기화 용도
 
   anonymousOrder 계산 규칙:
-    - 게시글(postId) 단위로 Map<anonId, order> 관리
-    - 댓글 작성 시 anonId가 Map에 없으면 → 새 순번 부여 (현재 Map.size() + 1)
-    - 이미 Map에 있으면 → 기존 순번 재사용
+    - 게시글(postId) 단위로 같은 작성자의 익명 댓글에 동일 번호를 유지
+    - 댓글 작성/익명 전환 시 같은 작성자의 기존 익명 댓글이 있으면 → 기존 순번 재사용
+    - 없으면 → 새 순번 부여 (`max(anonymousOrder) + 1`)
     - 댓글 삭제 후 순번 재계산 없음 (삭제된 댓글도 번호 영구 보존)
     - isAnonymous = false이면 anonymousOrder = null
+  댓글 수정 정책:
+    - `PATCH /v1/comments/{commentId}`는 `content`와 optional `isAnonymous`를 지원
+    - `isAnonymous` 생략 시 기존 값을 유지
+    - `false -> true`: 같은 게시글에서 기존 익명 번호가 있으면 재사용, 없으면 새 번호 부여
+    - `true -> false`: 실명 댓글로 전환하며 `anonId`, `anonymousOrder`를 정리
   - PostInteraction
     - userId, postId, isLiked, isBookmarked
     - 좋아요/북마크 카운트 동기화는 Post aggregate와 같은 트랜잭션에서 처리
@@ -544,13 +552,13 @@ Hooks:
     - rssFingerprint (레거시 링크/날짜 기반 변경 감지용)
     - detailHash (상세 HTML/첨부 변경 감지용)
     - contentHash (실제 내용 기반 dedup용)
-    - bodyText (plain text), bodyHtml (HTML), attachments[]
+    - bodyText (plain text), bodyHtml (HTML), thumbnailUrl (첫 이미지 URL cache), attachments[]
     - detailCheckedAt (상세 재검증 시각)
     - viewCount, likeCount, commentCount, bookmarkCount
   - NoticeComment
     - id, noticeId, userId, userDisplayName
-    - content, isAnonymous, anonId (= "{noticeId}:{userId}")
-    - anonymousOrder (서버 계산: Board Comment의 anonymousOrder 계산 규칙과 동일, noticeId 단위 Map 관리)
+    - content, isAnonymous, anonId (`{noticeId}:{userId}` 기반 SHA-256 짧은 안정 식별자)
+    - anonymousOrder (서버 계산: Board Comment의 anonymousOrder 계산 규칙과 동일, noticeId 단위로 같은 작성자 번호 유지)
     - parentId, likeCount, isDeleted
     - depth 제한 없음 (무제한 self-reference)
     - 조회 응답은 Board Comment와 동일하게 flat list + `parentId` + `depth` + `likeCount` + `isLiked`
@@ -577,6 +585,7 @@ Hooks:
   - 목록 item은 공개 Notice API와 naming parity를 유지하기 위해 `rssPreview`, `postedAt`를 그대로 사용
   - 북마크 등록/취소는 `NoticeLike`와 별도 저장 모델을 사용하며 idempotent 하게 처리
   - 공개 Notice 목록/상세는 `bookmarkCount`와 현재 사용자 기준 `isBookmarked`를 함께 반환
+  - 공개 Notice 목록은 projection query로 필요한 컬럼만 읽고, 저장된 `thumbnailUrl`을 그대로 사용한다. 목록 경로에서는 `bodyHtml`, `bodyText`, `attachments`를 select하지 않는다.
 
 동기화 정책:
   - 스케줄: 평일 08:00~19:50, 10분 주기, Asia/Seoul
@@ -588,6 +597,9 @@ Hooks:
   - `summary`는 추후 AI가 생성한 공지 요약을 저장하기 위한 예약 필드다. 현재 공개 API에는 노출하지 않는다.
   - `bodyHtml`은 상세 페이지 `.view-con`에서 수집한 HTML 원문이며, RN 앱이 웹 구조를 최대한 유지해 렌더링할 수 있도록 그대로 저장한다.
   - `bodyText`는 `bodyHtml`에서 태그를 제거하고 줄바꿈/표 셀 구분을 정규화한 내부 텍스트다.
+  - `thumbnailUrl`은 `TEXT` 타입 `thumbnail_url` 컬럼에 저장하며, 상세 크롤링 성공 시 `bodyHtml`의 첫 번째 `img[src]`를 추출해 저장한다.
+  - `img[src]`가 비어 있거나 `data:` / `blob:` / 과도하게 긴 값이면 `thumbnailUrl`은 `null`로 저장한다. 상세를 refresh하지 않으면 기존 값을 유지한다.
+  - 기존 row의 `thumbnailUrl`은 네트워크 재크롤링 없이 DB `bodyHtml`만 읽는 `NOTICE_THUMBNAILS` backfill plan으로 보정하고, 저장 부적절한 `src`는 `null`로 정리한다.
   - 성결대학교 사이트의 TLS 체인 이슈로 인해, 현재 Spring 구현은 공지 RSS/상세 크롤링 경로에서만 TLS 인증서 검증을 비활성화한다.
   - 개별 공지 저장 실패는 전체 동기화를 중단하지 않고 `failed`로 집계한 뒤 다음 공지 처리를 계속한다.
   - 상세 재크롤링 조건:
@@ -603,8 +615,10 @@ Hooks:
   - `NoticeCommentLike`, `NoticeLike`, `NoticeBookmark`, `NoticeReadStatus`는 탈퇴 회원 기준으로 정리
 
 댓글 수정 정책:
-  - `PATCH /v1/notice-comments/{commentId}`는 `content`만 수정 가능
-  - `isAnonymous`, `parentId`, `anonymousOrder`는 생성 시점 값을 유지
+  - `PATCH /v1/notice-comments/{commentId}`는 `content`와 optional `isAnonymous`를 지원
+  - `isAnonymous` 생략 시 기존 값을 유지
+  - `false -> true`: 같은 공지에서 기존 익명 번호가 있으면 재사용, 없으면 새 번호 부여
+  - `true -> false`: 실명 댓글로 전환하며 `anonId`, `anonymousOrder`를 정리
 
 향후 확장 준비:
   - AI 요약은 `summary` 컬럼에 저장하고, `contentHash`가 바뀌면 기존 AI 요약을 무효화한다.
@@ -1596,6 +1610,7 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
   - 도착 처리 → 정산 snapshot이 포함된 `ARRIVED` 메시지 생성
   - 리더 취소/종료/탈퇴 종료 → `END` 메시지 생성
 - 위 서버 생성 메시지는 모두 `GET /v1/chat-rooms/{chatRoomId}/messages`와 `/topic/chat/{chatRoomId}`의 동일 계약으로 전달된다.
+- 관리자 파티 상세는 `GET /v1/admin/parties/{partyId}/messages`로 party membership 없이 동일 메시지 page 계약을 조회한다.
 - 파티 상태 변경과 서버 생성 채팅 메시지는 같은 트랜잭션 안에서 저장하고, WebSocket 브로드캐스트는 커밋 후 수행한다.
 
 ---
@@ -1657,6 +1672,7 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
 ---
 
 > **문서 이력**
+> - 2026-04-06: Admin Chat read API 반영 — 관리자 공개 채팅방 목록/상세/메시지 조회와 관리자 파티 채팅 메시지 조회 책임, membership 우회 범위를 Chat/TaxiParty 협력 규칙에 추가
 > - 2026-03-30: Minecraft 도메인 분석 추가 — 별도 도메인 분리 결정, public/internal API, whitelist/서버 상태/bridge outbox 설계를 반영
 > - 2026-02-03: 초안 작성 (도메인 분석 완료)
 > - 2026-03-05: Board 도메인 구현 반영 — 댓글 depth 1 제한, 부모 placeholder soft delete 정책(B), 내 게시글/북마크 조회 책임 추가
