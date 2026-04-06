@@ -125,6 +125,7 @@ export interface BoardCreateCommentRequestDto {
 
 export interface BoardUpdateCommentRequestDto {
   content: string;
+  isAnonymous?: boolean;
 }
 
 export interface BoardImageUploadResponseDto {

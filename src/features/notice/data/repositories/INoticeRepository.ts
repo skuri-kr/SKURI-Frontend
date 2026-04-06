@@ -70,6 +70,7 @@ export interface INoticeRepository {
     noticeId: string,
     commentId: string,
     content: string,
+    isAnonymous?: boolean,
   ): Promise<void>;
   deleteComment(noticeId: string, commentId: string): Promise<void>;
   incrementViewCount(noticeId: string): Promise<void>;

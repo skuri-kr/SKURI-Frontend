@@ -8,6 +8,7 @@ import {
   BOARD_MUTATION_INVALIDATION_KEYS,
 } from '@/app/data-freshness/invalidationKeys';
 import {useAuth} from '@/features/auth';
+import {useCommentAnonymousPreference} from '@/shared/hooks';
 import {formatKoreanAbsoluteWithRelativeTime} from '@/shared/lib/date';
 import type {
   ContentDetailCommentViewData,
@@ -109,6 +110,8 @@ const toCommentItems = (
     isDeleted: Boolean(comment.isDeleted),
     isEditable: Boolean(comment.isAuthor && !comment.isDeleted),
     isLiked: Boolean(comment.isLiked),
+    isMine: Boolean(comment.isAuthor),
+    isPostAuthor: Boolean(comment.isPostAuthor),
     isReply: Boolean(comment.parentId),
     likeCount: comment.likeCount,
     replyTargetLabel: parent ? getReplyTargetLabel(parent) : undefined,
@@ -171,6 +174,10 @@ const getErrorMessage = (error: unknown) => {
 export const useBoardDetailData = (postId?: string) => {
   const {user} = useAuth();
   const boardRepository = useBoardRepository();
+  const {
+    isAnonymous: isCommentAnonymousPreferred,
+    toggleAnonymousPreference: toggleStoredAnonymousPreference,
+  } = useCommentAnonymousPreference();
   const [post, setPost] = React.useState<BoardPost | null>(null);
   const [comments, setComments] = React.useState<BoardCommentTreeNode[]>([]);
   const [commentDraft, setCommentDraft] = React.useState('');
@@ -186,6 +193,9 @@ export const useBoardDetailData = (postId?: string) => {
   );
   const [replyTargetCommentId, setReplyTargetCommentId] = React.useState<
     string | null
+  >(null);
+  const [commentAnonymousDraft, setCommentAnonymousDraft] = React.useState<
+    boolean | null
   >(null);
   const [commentLikePendingIds, setCommentLikePendingIds] = React.useState<
     string[]
@@ -211,6 +221,16 @@ export const useBoardDetailData = (postId?: string) => {
     () => (replyTargetComment ? getReplyTargetLabel(replyTargetComment) : null),
     [replyTargetComment],
   );
+  const editingComment = React.useMemo(
+    () =>
+      flattenedCommentEntries.find(
+        entry => entry.comment.id === editingCommentId,
+      )?.comment ?? null,
+    [editingCommentId, flattenedCommentEntries],
+  );
+  const commentAnonymousValue =
+    commentAnonymousDraft ?? isCommentAnonymousPreferred;
+  const commentAnonymousDisabled = submittingComment;
 
   const refreshComments = React.useCallback(async () => {
     if (!postId) {
@@ -298,6 +318,7 @@ export const useBoardDetailData = (postId?: string) => {
     setCommentDraft('');
     setEditingCommentId(null);
     setReplyTargetCommentId(null);
+    setCommentAnonymousDraft(null);
   }, [postId]);
 
   const canManageActions = React.useMemo(() => {
@@ -536,6 +557,7 @@ export const useBoardDetailData = (postId?: string) => {
           postId,
           editingCommentId,
           trimmedComment,
+          commentAnonymousValue,
         );
       } else {
         targetCommentId = await boardRepository.createComment(postId, {
@@ -544,7 +566,7 @@ export const useBoardDetailData = (postId?: string) => {
           authorName: user.displayName ?? '익명',
           authorProfileImage: user.photoURL ?? null,
           content: trimmedComment,
-          isAnonymous: false,
+          isAnonymous: isCommentAnonymousPreferred,
           isAuthor: true,
           isDeleted: false,
           isLiked: false,
@@ -558,6 +580,7 @@ export const useBoardDetailData = (postId?: string) => {
       setCommentDraft('');
       setEditingCommentId(null);
       setReplyTargetCommentId(null);
+      setCommentAnonymousDraft(null);
       invalidateData(BOARD_MUTATION_INVALIDATION_KEYS);
 
       return {
@@ -570,6 +593,8 @@ export const useBoardDetailData = (postId?: string) => {
     boardRepository,
     commentDraft,
     editingCommentId,
+    commentAnonymousValue,
+    isCommentAnonymousPreferred,
     postId,
     refreshComments,
     replyTargetCommentId,
@@ -589,6 +614,7 @@ export const useBoardDetailData = (postId?: string) => {
       setEditingCommentId(commentId);
       setReplyTargetCommentId(null);
       setCommentDraft(targetComment.content);
+      setCommentAnonymousDraft(Boolean(targetComment.isAnonymous));
     },
     [flattenedCommentEntries],
   );
@@ -606,6 +632,7 @@ export const useBoardDetailData = (postId?: string) => {
       setEditingCommentId(null);
       setReplyTargetCommentId(commentId);
       setCommentDraft('');
+      setCommentAnonymousDraft(null);
     },
     [flattenedCommentEntries],
   );
@@ -613,12 +640,60 @@ export const useBoardDetailData = (postId?: string) => {
   const cancelCommentEdit = React.useCallback(() => {
     setEditingCommentId(null);
     setCommentDraft('');
+    setCommentAnonymousDraft(null);
   }, []);
 
   const cancelCommentReply = React.useCallback(() => {
     setReplyTargetCommentId(null);
     setCommentDraft('');
+    setCommentAnonymousDraft(null);
   }, []);
+
+  const toggleCommentAnonymousPreference = React.useCallback(() => {
+    if (editingCommentId) {
+      setCommentAnonymousDraft(currentValue => {
+        const resolvedValue =
+          currentValue ?? Boolean(editingComment?.isAnonymous);
+        return !resolvedValue;
+      });
+      return;
+    }
+
+    toggleStoredAnonymousPreference();
+  }, [editingComment?.isAnonymous, editingCommentId, toggleStoredAnonymousPreference]);
+
+  const deleteComment = React.useCallback(
+    async (commentId: string) => {
+      if (!postId || !user?.uid) {
+        throw new Error('로그인이 필요합니다.');
+      }
+
+      await boardRepository.deleteComment(postId, commentId);
+      await refreshComments();
+
+      if (editingCommentId === commentId) {
+        setEditingCommentId(null);
+        setCommentDraft('');
+        setCommentAnonymousDraft(null);
+      }
+
+      if (replyTargetCommentId === commentId) {
+        setReplyTargetCommentId(null);
+        setCommentDraft('');
+        setCommentAnonymousDraft(null);
+      }
+
+      invalidateData(BOARD_MUTATION_INVALIDATION_KEYS);
+    },
+    [
+      boardRepository,
+      editingCommentId,
+      postId,
+      refreshComments,
+      replyTargetCommentId,
+      user?.uid,
+    ],
+  );
 
   const deletePost = React.useCallback(async () => {
     if (!postId) {
@@ -644,10 +719,13 @@ export const useBoardDetailData = (postId?: string) => {
     cancelCommentEdit,
     cancelCommentReply,
     canManageActions,
+    commentAnonymousDisabled,
+    commentAnonymousValue,
     commentDraft,
     commentLikePendingIds,
     commentItems,
     data,
+    deleteComment,
     deletePost,
     deletingPost,
     editingCommentId,
@@ -664,6 +742,7 @@ export const useBoardDetailData = (postId?: string) => {
     startReplyingComment,
     submitComment,
     submittingComment,
+    toggleCommentAnonymousPreference,
     toggleCommentLike,
     toggleBookmark,
     toggleLike,

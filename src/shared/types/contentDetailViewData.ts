@@ -44,6 +44,8 @@ export interface ContentDetailCommentViewData {
   id: string;
   isDeleted: boolean;
   isLiked: boolean;
+  isMine?: boolean;
+  isPostAuthor?: boolean;
   isReply: boolean;
   likeCount: number;
   replyTargetLabel?: string;

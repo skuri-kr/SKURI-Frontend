@@ -8,6 +8,7 @@ import {
   NOTICE_READ_STATUS_INVALIDATION_KEYS,
 } from '@/app/data-freshness/invalidationKeys';
 import {useAuth} from '@/features/auth';
+import {useCommentAnonymousPreference} from '@/shared/hooks';
 import {
   formatKoreanAbsoluteDate,
   formatKoreanAbsoluteWithRelativeTime,
@@ -203,6 +204,7 @@ const toCommentItems = (
     isDeleted: Boolean(comment.isDeleted),
     isEditable: Boolean(comment.isAuthor && !comment.isDeleted),
     isLiked: Boolean(comment.isLiked),
+    isMine: Boolean(comment.isAuthor),
     isReply: Boolean(comment.parentId),
     likeCount: comment.likeCount ?? 0,
     replyTargetLabel: parent ? getReplyTargetLabel(parent) : undefined,
@@ -265,6 +267,10 @@ const getErrorMessage = (error: unknown) => {
 export const useNoticeDetailData = (noticeId?: string) => {
   const {user} = useAuth();
   const noticeRepository = useNoticeRepository();
+  const {
+    isAnonymous: isCommentAnonymousPreferred,
+    toggleAnonymousPreference: toggleStoredAnonymousPreference,
+  } = useCommentAnonymousPreference();
   const [notice, setNotice] = React.useState<Notice | null>(null);
   const [comments, setComments] = React.useState<NoticeCommentTreeNode[]>([]);
   const [commentDraft, setCommentDraft] = React.useState('');
@@ -279,6 +285,9 @@ export const useNoticeDetailData = (noticeId?: string) => {
   );
   const [replyTargetCommentId, setReplyTargetCommentId] = React.useState<
     string | null
+  >(null);
+  const [commentAnonymousDraft, setCommentAnonymousDraft] = React.useState<
+    boolean | null
   >(null);
   const [commentLikePendingIds, setCommentLikePendingIds] = React.useState<
     string[]
@@ -305,6 +314,16 @@ export const useNoticeDetailData = (noticeId?: string) => {
     () => (replyTargetComment ? getReplyTargetLabel(replyTargetComment) : null),
     [replyTargetComment],
   );
+  const editingComment = React.useMemo(
+    () =>
+      flattenedCommentEntries.find(
+        entry => entry.comment.id === editingCommentId,
+      )?.comment ?? null,
+    [editingCommentId, flattenedCommentEntries],
+  );
+  const commentAnonymousValue =
+    commentAnonymousDraft ?? isCommentAnonymousPreferred;
+  const commentAnonymousDisabled = submittingComment;
 
   const refreshComments = React.useCallback(async () => {
     if (!noticeId) {
@@ -396,6 +415,7 @@ export const useNoticeDetailData = (noticeId?: string) => {
     setCommentDraft('');
     setEditingCommentId(null);
     setReplyTargetCommentId(null);
+    setCommentAnonymousDraft(null);
   }, [noticeId]);
 
   React.useEffect(() => {
@@ -649,11 +669,12 @@ export const useNoticeDetailData = (noticeId?: string) => {
           noticeId,
           editingCommentId,
           trimmedComment,
+          commentAnonymousValue,
         );
       } else {
         targetCommentId = await noticeRepository.createComment(noticeId, {
           content: trimmedComment,
-          isAnonymous: false,
+          isAnonymous: isCommentAnonymousPreferred,
           parentId: replyTargetCommentId,
           userDisplayName: user.displayName ?? '익명',
           userId: user.uid,
@@ -664,6 +685,7 @@ export const useNoticeDetailData = (noticeId?: string) => {
       setCommentDraft('');
       setEditingCommentId(null);
       setReplyTargetCommentId(null);
+      setCommentAnonymousDraft(null);
       invalidateData(NOTICE_MUTATION_INVALIDATION_KEYS);
 
       return {
@@ -674,7 +696,9 @@ export const useNoticeDetailData = (noticeId?: string) => {
     }
   }, [
     commentDraft,
+    commentAnonymousValue,
     editingCommentId,
+    isCommentAnonymousPreferred,
     noticeId,
     noticeRepository,
     refreshComments,
@@ -699,6 +723,7 @@ export const useNoticeDetailData = (noticeId?: string) => {
       setEditingCommentId(commentId);
       setReplyTargetCommentId(null);
       setCommentDraft(targetComment.content);
+      setCommentAnonymousDraft(Boolean(targetComment.isAnonymous));
     },
     [flattenedCommentEntries],
   );
@@ -716,6 +741,7 @@ export const useNoticeDetailData = (noticeId?: string) => {
       setEditingCommentId(null);
       setReplyTargetCommentId(commentId);
       setCommentDraft('');
+      setCommentAnonymousDraft(null);
     },
     [flattenedCommentEntries],
   );
@@ -723,12 +749,60 @@ export const useNoticeDetailData = (noticeId?: string) => {
   const cancelCommentEdit = React.useCallback(() => {
     setEditingCommentId(null);
     setCommentDraft('');
+    setCommentAnonymousDraft(null);
   }, []);
 
   const cancelCommentReply = React.useCallback(() => {
     setReplyTargetCommentId(null);
     setCommentDraft('');
+    setCommentAnonymousDraft(null);
   }, []);
+
+  const toggleCommentAnonymousPreference = React.useCallback(() => {
+    if (editingCommentId) {
+      setCommentAnonymousDraft(currentValue => {
+        const resolvedValue =
+          currentValue ?? Boolean(editingComment?.isAnonymous);
+        return !resolvedValue;
+      });
+      return;
+    }
+
+    toggleStoredAnonymousPreference();
+  }, [editingComment?.isAnonymous, editingCommentId, toggleStoredAnonymousPreference]);
+
+  const deleteComment = React.useCallback(
+    async (commentId: string) => {
+      if (!noticeId || !user?.uid) {
+        throw new Error('로그인이 필요합니다.');
+      }
+
+      await noticeRepository.deleteComment(noticeId, commentId);
+      await refreshComments();
+
+      if (editingCommentId === commentId) {
+        setEditingCommentId(null);
+        setCommentDraft('');
+        setCommentAnonymousDraft(null);
+      }
+
+      if (replyTargetCommentId === commentId) {
+        setReplyTargetCommentId(null);
+        setCommentDraft('');
+        setCommentAnonymousDraft(null);
+      }
+
+      invalidateData(NOTICE_MUTATION_INVALIDATION_KEYS);
+    },
+    [
+      editingCommentId,
+      noticeId,
+      noticeRepository,
+      refreshComments,
+      replyTargetCommentId,
+      user?.uid,
+    ],
+  );
 
   const data = React.useMemo(
     () => (notice ? toViewData(notice, commentItems) : null),
@@ -738,10 +812,13 @@ export const useNoticeDetailData = (noticeId?: string) => {
   return {
     cancelCommentEdit,
     cancelCommentReply,
+    commentAnonymousDisabled,
+    commentAnonymousValue,
     commentLikePendingIds,
     commentDraft,
     commentItems,
     data,
+    deleteComment,
     editingCommentId,
     error,
     isEditingComment: Boolean(editingCommentId),
@@ -756,6 +833,7 @@ export const useNoticeDetailData = (noticeId?: string) => {
     startReplyingComment,
     submitComment,
     submittingComment,
+    toggleCommentAnonymousPreference,
     toggleCommentLike,
     toggleBookmark,
     toggleLike,

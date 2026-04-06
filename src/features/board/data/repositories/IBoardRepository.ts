@@ -71,7 +71,12 @@ export interface IBoardRepository {
     commentId: string,
     userId: string,
   ): Promise<BoardCommentLikeState>;
-  updateComment(postId: string, commentId: string, content: string): Promise<void>;
+  updateComment(
+    postId: string,
+    commentId: string,
+    content: string,
+    isAnonymous?: boolean,
+  ): Promise<void>;
   deleteComment(postId: string, commentId: string): Promise<void>;
   uploadImage(uri: string, postId?: string): Promise<BoardImage>;
   deleteImage(imageUrl: string): Promise<void>;

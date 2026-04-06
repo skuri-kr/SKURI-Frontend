@@ -109,4 +109,5 @@ export interface CreateNoticeCommentRequestDto {
 
 export interface UpdateNoticeCommentRequestDto {
   content: string;
+  isAnonymous?: boolean;
 }

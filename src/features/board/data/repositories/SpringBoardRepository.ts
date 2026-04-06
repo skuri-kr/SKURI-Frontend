@@ -414,9 +414,11 @@ export class SpringBoardRepository implements IBoardRepository {
     postId: string,
     commentId: string,
     content: string,
+    isAnonymous?: boolean,
   ): Promise<void> {
     const response = await this.apiClient.updateComment(commentId, {
       content: content.trim(),
+      ...(isAnonymous === undefined ? {} : {isAnonymous}),
     });
     const updatedComment = mapBoardCommentDto(postId, response.data);
 

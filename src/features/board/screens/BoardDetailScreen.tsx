@@ -84,10 +84,13 @@ export const BoardDetailScreen = () => {
     cancelCommentEdit,
     cancelCommentReply,
     canManageActions,
+    commentAnonymousDisabled,
+    commentAnonymousValue,
     commentDraft,
     commentLikePendingIds,
     commentItems,
     data,
+    deleteComment,
     deletePost,
     deletingPost,
     editingCommentId,
@@ -104,6 +107,7 @@ export const BoardDetailScreen = () => {
     startReplyingComment,
     submitComment,
     submittingComment,
+    toggleCommentAnonymousPreference,
     toggleCommentLike,
     toggleBookmark,
     toggleLike,
@@ -119,8 +123,10 @@ export const BoardDetailScreen = () => {
   const scrollViewRef = React.useRef<ScrollView>(null);
   const composerRef = React.useRef<TextInput>(null);
   const commentOffsetMapRef = React.useRef(new Map<string, number>());
+  const commentsListOffsetRef = React.useRef(0);
   const pendingScrollCommentIdRef = React.useRef<string | null>(null);
   const lastAppliedInitialCommentIdRef = React.useRef<string | null>(null);
+  const commentScrollAnimationDelay = Platform.OS === 'ios' ? 220 : 120;
 
   const handlePressBack = React.useCallback(() => {
     if (navigation.canGoBack()) {
@@ -294,6 +300,29 @@ export const BoardDetailScreen = () => {
     [toggleCommentLike],
   );
 
+  const handleDeleteComment = React.useCallback(
+    (commentId: string) => {
+      Alert.alert('댓글 삭제', '이 댓글을 삭제하시겠습니까?', [
+        {text: '취소', style: 'cancel'},
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: () => {
+            deleteComment(commentId).catch(deleteError => {
+              Alert.alert(
+                '오류',
+                deleteError instanceof Error
+                  ? deleteError.message
+                  : '댓글 삭제에 실패했습니다.',
+              );
+            });
+          },
+        },
+      ]);
+    },
+    [deleteComment],
+  );
+
   const handleSubmitComment = React.useCallback(() => {
     submitComment()
       .then(result => {
@@ -310,6 +339,7 @@ export const BoardDetailScreen = () => {
 
         setTimeout(() => {
           const commentOffset = commentOffsetMapRef.current.get(targetCommentId);
+          const commentsListOffset = commentsListOffsetRef.current;
 
           if (commentOffset == null) {
             return;
@@ -318,9 +348,12 @@ export const BoardDetailScreen = () => {
           pendingScrollCommentIdRef.current = null;
           scrollViewRef.current?.scrollTo({
             animated: true,
-            y: Math.max(0, commentOffset - headerOffset - SPACING.md),
+            y: Math.max(
+              0,
+              commentsListOffset + commentOffset - headerOffset - SPACING.md,
+            ),
           });
-        }, Platform.OS === 'ios' ? 220 : 120);
+        }, commentScrollAnimationDelay);
       })
       .catch(submitError => {
         Alert.alert(
@@ -334,26 +367,62 @@ export const BoardDetailScreen = () => {
             : '댓글 작성에 실패했습니다.',
         );
       });
-  }, [headerOffset, isEditingComment, isReplyingComment, submitComment]);
+  }, [
+    commentScrollAnimationDelay,
+    headerOffset,
+    isEditingComment,
+    isReplyingComment,
+    submitComment,
+  ]);
 
   const handleStartEditingComment = React.useCallback(
     (commentId: string) => {
       startEditingComment(commentId);
+      pendingScrollCommentIdRef.current = commentId;
+      const commentOffset = commentOffsetMapRef.current.get(commentId);
+      const commentsListOffset = commentsListOffsetRef.current;
+
+      if (commentOffset != null) {
+        pendingScrollCommentIdRef.current = null;
+        scrollViewRef.current?.scrollTo({
+          animated: true,
+          y: Math.max(
+            0,
+            commentsListOffset + commentOffset - headerOffset - SPACING.md,
+          ),
+        });
+      }
+
       setTimeout(() => {
         composerRef.current?.focus();
-      }, 40);
+      }, commentScrollAnimationDelay);
     },
-    [startEditingComment],
+    [commentScrollAnimationDelay, headerOffset, startEditingComment],
   );
 
   const handleStartReplyingComment = React.useCallback(
     (commentId: string) => {
       startReplyingComment(commentId);
+      pendingScrollCommentIdRef.current = commentId;
+      const commentOffset = commentOffsetMapRef.current.get(commentId);
+      const commentsListOffset = commentsListOffsetRef.current;
+
+      if (commentOffset != null) {
+        pendingScrollCommentIdRef.current = null;
+        scrollViewRef.current?.scrollTo({
+          animated: true,
+          y: Math.max(
+            0,
+            commentsListOffset + commentOffset - headerOffset - SPACING.md,
+          ),
+        });
+      }
+
       setTimeout(() => {
         composerRef.current?.focus();
-      }, 40);
+      }, commentScrollAnimationDelay);
     },
-    [startReplyingComment],
+    [commentScrollAnimationDelay, headerOffset, startReplyingComment],
   );
 
   const handleCancelCommentEdit = React.useCallback(() => {
@@ -388,7 +457,38 @@ export const BoardDetailScreen = () => {
       pendingScrollCommentIdRef.current = null;
       scrollViewRef.current?.scrollTo({
         animated: true,
-        y: Math.max(0, nextOffset - headerOffset - SPACING.md),
+        y: Math.max(
+          0,
+          commentsListOffsetRef.current + nextOffset - headerOffset - SPACING.md,
+        ),
+      });
+    },
+    [headerOffset],
+  );
+
+  const handleCommentsListLayout = React.useCallback(
+    (event: LayoutChangeEvent) => {
+      commentsListOffsetRef.current = event.nativeEvent.layout.y;
+
+      const pendingCommentId = pendingScrollCommentIdRef.current;
+
+      if (!pendingCommentId) {
+        return;
+      }
+
+      const commentOffset = commentOffsetMapRef.current.get(pendingCommentId);
+
+      if (commentOffset == null) {
+        return;
+      }
+
+      pendingScrollCommentIdRef.current = null;
+      scrollViewRef.current?.scrollTo({
+        animated: true,
+        y: Math.max(
+          0,
+          commentsListOffsetRef.current + commentOffset - headerOffset - SPACING.md,
+        ),
       });
     },
     [headerOffset],
@@ -408,6 +508,7 @@ export const BoardDetailScreen = () => {
 
     const timeoutId = setTimeout(() => {
       const commentOffset = commentOffsetMapRef.current.get(initialCommentId);
+      const commentsListOffset = commentsListOffsetRef.current;
 
       if (commentOffset == null) {
         return;
@@ -416,12 +517,15 @@ export const BoardDetailScreen = () => {
       pendingScrollCommentIdRef.current = null;
       scrollViewRef.current?.scrollTo({
         animated: true,
-        y: Math.max(0, commentOffset - headerOffset - SPACING.md),
+        y: Math.max(
+          0,
+          commentsListOffset + commentOffset - headerOffset - SPACING.md,
+        ),
       });
-    }, Platform.OS === 'ios' ? 220 : 120);
+    }, commentScrollAnimationDelay);
 
     return () => clearTimeout(timeoutId);
-  }, [commentItems.length, headerOffset, initialCommentId]);
+  }, [commentItems.length, commentScrollAnimationDelay, headerOffset, initialCommentId]);
 
   const rightAccessory = data ? (
     <TouchableOpacity
@@ -542,7 +646,9 @@ export const BoardDetailScreen = () => {
                   </Text>
                 </View>
               ) : (
-                <View style={styles.commentsList}>
+                <View
+                  onLayout={handleCommentsListLayout}
+                  style={styles.commentsList}>
                   {commentItems.map(comment => (
                     <View
                       key={comment.id}
@@ -553,6 +659,11 @@ export const BoardDetailScreen = () => {
                         onPressEdit={
                           comment.isEditable
                             ? () => handleStartEditingComment(comment.id)
+                            : undefined
+                        }
+                        onPressDelete={
+                          comment.isEditable
+                            ? () => handleDeleteComment(comment.id)
                             : undefined
                         }
                         onPressLike={
@@ -606,9 +717,13 @@ export const BoardDetailScreen = () => {
                 </View>
               ) : null}
               <DetailComposer
+                anonymousChecked={commentAnonymousValue}
+                anonymousDisabled={commentAnonymousDisabled}
+                anonymousLabel="익명"
                 ref={composerRef}
                 onChangeText={setCommentDraft}
                 onSend={handleSubmitComment}
+                onToggleAnonymous={toggleCommentAnonymousPreference}
                 placeholder={
                   editingCommentId
                     ? '댓글을 수정하세요...'

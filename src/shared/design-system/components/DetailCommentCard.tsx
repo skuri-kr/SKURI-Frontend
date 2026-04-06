@@ -18,7 +18,9 @@ import {
 
 interface DetailCommentCardProps {
   comment: ContentDetailCommentViewData;
+  deleteDisabled?: boolean;
   likeDisabled?: boolean;
+  onPressDelete?: () => void;
   onPressEdit?: () => void;
   onPressLike?: () => void;
   onPressReport?: () => void;
@@ -28,7 +30,9 @@ interface DetailCommentCardProps {
 
 export const DetailCommentCard = ({
   comment,
+  deleteDisabled = false,
   likeDisabled = false,
+  onPressDelete,
   onPressEdit,
   onPressLike,
   onPressReport,
@@ -43,6 +47,20 @@ export const DetailCommentCard = ({
             <Icon color={COLORS.text.muted} name="person-outline" size={12} />
           </View>
           <Text style={styles.authorLabel}>{comment.authorLabel}</Text>
+          {comment.isPostAuthor ? (
+            <View style={[styles.metaBadge, styles.postAuthorBadge]}>
+              <Text style={[styles.metaBadgeLabel, styles.postAuthorBadgeLabel]}>
+                작성자
+              </Text>
+            </View>
+          ) : null}
+          {comment.isMine ? (
+            <View style={[styles.metaBadge, styles.mineBadge]}>
+              <Text style={[styles.metaBadgeLabel, styles.mineBadgeLabel]}>
+                나
+              </Text>
+            </View>
+          ) : null}
         </View>
         <View style={styles.trailingRow}>
           <Text style={styles.dateLabel}>{comment.dateLabel}</Text>
@@ -52,6 +70,15 @@ export const DetailCommentCard = ({
               activeOpacity={0.8}
               onPress={onPressEdit}>
               <Text style={styles.actionLabel}>수정</Text>
+            </TouchableOpacity>
+          ) : null}
+          {onPressDelete ? (
+            <TouchableOpacity
+              accessibilityRole="button"
+              activeOpacity={deleteDisabled ? 1 : 0.8}
+              disabled={deleteDisabled}
+              onPress={onPressDelete}>
+              <Text style={styles.deleteActionLabel}>삭제</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -158,8 +185,36 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 16,
   },
+  metaBadge: {
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+  },
+  metaBadgeLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    lineHeight: 12,
+  },
+  postAuthorBadge: {
+    backgroundColor: COLORS.accent.orangeSoft,
+  },
+  postAuthorBadgeLabel: {
+    color: COLORS.accent.orange,
+  },
+  mineBadge: {
+    backgroundColor: COLORS.brand.primaryTint,
+  },
+  mineBadgeLabel: {
+    color: COLORS.brand.primaryStrong,
+  },
   actionLabel: {
     color: COLORS.brand.primary,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
+  deleteActionLabel: {
+    color: COLORS.status.danger,
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 16,
