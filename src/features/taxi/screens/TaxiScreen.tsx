@@ -588,7 +588,7 @@ const styles = StyleSheet.create({
   primaryButtonLabel: {
     color: COLORS.text.inverse,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: 'bold',
     lineHeight: 21,
   },
   liveChatFloatingButton: {
