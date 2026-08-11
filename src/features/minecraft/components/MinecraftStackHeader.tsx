@@ -76,8 +76,12 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   backgroundLayer: {
-    ...StyleSheet.absoluteFillObject,
     flexDirection: 'row',
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   },
   bottomGradient: {
     bottom: 0,
