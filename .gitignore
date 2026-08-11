@@ -97,6 +97,9 @@ serviceAccountKey.json
 # Python
 .pip_packages/
 
+# Local architecture references
+docs/architecture/
+
 # Serena
 .serena/
 
