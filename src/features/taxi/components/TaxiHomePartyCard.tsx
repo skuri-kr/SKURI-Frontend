@@ -11,9 +11,6 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Animated, {
-  FadeInDown,
-  FadeOutUp,
-  LinearTransition,
   interpolate,
   interpolateColor,
   useAnimatedStyle,
@@ -25,6 +22,11 @@ import {
   DefaultProfileAvatar,
   ToneBadge,
 } from '@/shared/design-system/components';
+import {
+  enteringTransitions,
+  exitingTransitions,
+  layoutTransitions,
+} from '@/shared/design-system/motion';
 import type {
   TaxiHomeAvatarViewData,
   TaxiHomePartyCardViewData,
@@ -184,7 +186,7 @@ export const TaxiHomePartyCard = ({
 
   return (
     <Animated.View
-      layout={LinearTransition.springify().damping(18).stiffness(190)}
+      layout={layoutTransitions.cardExpand()}
       style={[
         styles.card,
         !isActiveStatusTone(party.statusTone) ? styles.cardInactive : null,
@@ -380,9 +382,9 @@ export const TaxiHomePartyCard = ({
 
       {expandable && expanded ? (
         <Animated.View
-          entering={FadeInDown.duration(180)}
-          exiting={FadeOutUp.duration(140)}
-          layout={LinearTransition.springify().damping(18).stiffness(190)}
+          entering={enteringTransitions.fadeInDown()}
+          exiting={exitingTransitions.fadeOutUp()}
+          layout={layoutTransitions.cardExpand()}
           style={styles.expandedSection}>
           <View style={styles.expandedDivider} />
 

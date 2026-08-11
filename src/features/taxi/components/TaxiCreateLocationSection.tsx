@@ -8,9 +8,6 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Animated, {
-  FadeInDown,
-  FadeOutUp,
-  LinearTransition,
   interpolate,
   interpolateColor,
   useAnimatedStyle,
@@ -24,6 +21,11 @@ import {
   SHADOWS,
   SPACING,
 } from '@/shared/design-system/tokens';
+import {
+  enteringTransitions,
+  exitingTransitions,
+  layoutTransitions,
+} from '@/shared/design-system/motion';
 
 interface TaxiCreateLocationSectionProps {
   customPlaceholder: string;
@@ -157,7 +159,9 @@ export const TaxiCreateLocationSection = ({
   onPressPreset,
 }: TaxiCreateLocationSectionProps) => {
   return (
-    <Animated.View layout={LinearTransition.damping(10)} style={styles.card}>
+    <Animated.View
+      layout={layoutTransitions.cardExpand()}
+      style={styles.card}>
       <Text style={styles.title}>{title}</Text>
 
       <View style={styles.chips}>
@@ -185,9 +189,9 @@ export const TaxiCreateLocationSection = ({
 
       {mode === 'custom' ? (
         <Animated.View
-          entering={FadeInDown.duration(180)}
-          exiting={FadeOutUp.duration(140)}
-          layout={LinearTransition.springify()}
+          entering={enteringTransitions.fadeInDown()}
+          exiting={exitingTransitions.fadeOutUp()}
+          layout={layoutTransitions.cardExpand()}
           style={styles.customSection}>
           <View style={styles.inputRow}>
             <TextInput
