@@ -44,7 +44,7 @@ import {taxiHomeApiClient} from '@/features/taxi/data/api/taxiHomeApiClient';
 import {SpringPartyRepository} from '../SpringPartyRepository';
 
 const flushPromises = () =>
-  new Promise(resolve => {
+  new Promise<void>(resolve => {
     setImmediate(resolve);
   });
 
