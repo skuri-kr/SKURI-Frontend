@@ -30,49 +30,6 @@ interface MinecraftServerGuideModalProps {
   visible: boolean;
 }
 
-const GuideImagePlaceholder = ({
-  iconName,
-  subtitle,
-  title,
-}: {
-  iconName: string;
-  subtitle: string;
-  title: string;
-}) => {
-  return (
-    <View style={styles.guideImagePlaceholder}>
-      <View style={styles.guideImageBrowserBar}>
-        <View style={styles.guideImageBrowserDots}>
-          <View
-            style={[
-              styles.guideImageBrowserDot,
-              {backgroundColor: COLORS.status.danger},
-            ]}
-          />
-          <View
-            style={[
-              styles.guideImageBrowserDot,
-              {backgroundColor: COLORS.accent.yellow},
-            ]}
-          />
-          <View
-            style={[
-              styles.guideImageBrowserDot,
-              {backgroundColor: COLORS.brand.primary},
-            ]}
-          />
-        </View>
-      </View>
-
-      <View style={styles.guideImageBody}>
-        <Icon color={COLORS.accent.blue} name={iconName} size={34} />
-        <Text style={styles.guideImageTitle}>{title}</Text>
-        <Text style={styles.guideImageSubtitle}>{subtitle}</Text>
-      </View>
-    </View>
-  );
-};
-
 export const MinecraftServerGuideModal = ({
   onClose,
   onPressAccountRegistration,

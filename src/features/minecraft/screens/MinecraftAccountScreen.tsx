@@ -22,7 +22,6 @@ import {
   FormField,
   InfoBanner,
   SegmentedControl,
-  StackHeader,
   StateCard,
   ToneBadge,
 } from '@/shared/design-system/components';
