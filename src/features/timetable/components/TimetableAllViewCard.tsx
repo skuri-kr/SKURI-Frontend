@@ -249,13 +249,21 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   blockBase: {
-    ...StyleSheet.absoluteFillObject,
     backgroundColor: COLORS.background.surface,
     borderRadius: BLOCK_RADIUS,
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   },
   blockTint: {
-    ...StyleSheet.absoluteFillObject,
     borderRadius: BLOCK_RADIUS,
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   },
   blockTitle: {
     fontSize: 9,

@@ -553,7 +553,11 @@ const styles = StyleSheet.create({
     height: 288,
   },
   heroMap: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   },
   heroContent: {
     paddingHorizontal: SPACING.lg,
