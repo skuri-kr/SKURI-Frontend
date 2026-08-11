@@ -321,7 +321,7 @@ export const useAcademicCalendarDetailData = (
       setError(null);
       const loadedSchedules = await academicRepository.getSchedules();
       setEvents(loadedSchedules.map(toAcademicCalendarEventSource));
-    } catch (loadError) {
+    } catch {
       setError('학사일정을 불러오지 못했습니다.');
     } finally {
       setLoading(false);

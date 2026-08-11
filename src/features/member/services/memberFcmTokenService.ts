@@ -13,7 +13,7 @@ const TOKEN_LOAD_MAX_TRIES = 3;
 const TOKEN_LOAD_DELAY_MS = 800;
 
 const delay = (ms: number) =>
-  new Promise(resolve => {
+  new Promise<void>(resolve => {
     setTimeout(resolve, ms);
   });
 

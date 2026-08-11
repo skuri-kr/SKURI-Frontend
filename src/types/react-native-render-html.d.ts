@@ -1,4 +1,4 @@
-import type { RenderersProps as BaseRenderersProps, ImageDimensions } from 'react-native-render-html';
+import type {RenderersProps as BaseRenderersProps} from 'react-native-render-html';
 
 declare module 'react-native-render-html' {
   interface RenderersProps {
@@ -8,4 +8,3 @@ declare module 'react-native-render-html' {
     };
   }
 }
-
