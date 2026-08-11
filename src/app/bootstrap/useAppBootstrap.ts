@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
-import ImmersiveMode from 'react-native-immersive-mode';
 
 import {useAppConfigRepository} from '@/di';
 import { logCrashlyticsMessage, subscribeAuthStateChange } from '@/shared/lib/firebase';
@@ -33,10 +31,6 @@ export const useAppBootstrap = (): AppBootstrapState => {
     logCrashlyticsMessage('App mounted');
 
     const unsubscribeAuth = subscribeAuthStateChange(() => {});
-
-    if (Platform.OS === 'android') {
-      ImmersiveMode.setBarMode('Normal');
-    }
 
     return () => {
       unsubscribeAuth();
