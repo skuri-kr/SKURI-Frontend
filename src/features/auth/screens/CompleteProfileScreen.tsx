@@ -27,6 +27,7 @@ import {DEPARTMENT_OPTIONS} from '@/shared/constants/departments';
 import {SelectionDropdown} from '@/shared/design-system/components';
 import {
   COLORS,
+  MOTION,
   RADIUS,
   SPACING,
 } from '@/shared/design-system/tokens';
@@ -57,11 +58,7 @@ const ProfileCheckRow = ({
   const progress = useSharedValue(checked ? 1 : 0);
 
   React.useEffect(() => {
-    progress.value = withSpring(checked ? 1 : 0, {
-      damping: 16,
-      stiffness: 220,
-      mass: 0.9,
-    });
+    progress.value = withSpring(checked ? 1 : 0, MOTION.spring.controlPop);
   }, [checked, progress]);
 
   const animatedCheckBoxStyle = useAnimatedStyle(() => ({

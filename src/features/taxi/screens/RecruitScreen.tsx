@@ -18,7 +18,6 @@ import {
 import Animated, {
   interpolate,
   interpolateColor,
-  LinearTransition,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -34,6 +33,7 @@ import {
   SHADOWS,
   SPACING,
 } from '@/shared/design-system/tokens';
+import {layoutTransitions} from '@/shared/design-system/motion';
 import {useScreenEnterAnimation, useScreenView} from '@/shared/hooks';
 
 import {TaxiCreateLocationSection} from '../components/TaxiCreateLocationSection';
@@ -51,7 +51,7 @@ type RecruitScreenNavigationProp = NativeStackNavigationProp<
 const DETAIL_MAX_LENGTH = 300;
 const AnimatedTouchableOpacity =
   Animated.createAnimatedComponent(TouchableOpacity);
-const SECTION_LAYOUT_TRANSITION = LinearTransition.springify().damping(16);
+const createSectionLayoutTransition = layoutTransitions.cardExpand;
 
 const RecruitMemberChip = ({
   selected,
@@ -233,7 +233,7 @@ export const RecruitScreen = () => {
             keyboardShouldPersistTaps="handled"
             ref={scrollViewRef}
             showsVerticalScrollIndicator={false}>
-            <Animated.View layout={SECTION_LAYOUT_TRANSITION}>
+            <Animated.View layout={createSectionLayoutTransition()}>
               <TaxiCreateLocationSection
                 customPlaceholder="출발지를 직접 입력하세요"
                 customValue={departure.customValue}
@@ -256,7 +256,7 @@ export const RecruitScreen = () => {
               />
             </Animated.View>
 
-            <Animated.View layout={SECTION_LAYOUT_TRANSITION}>
+            <Animated.View layout={createSectionLayoutTransition()}>
               <TaxiCreateLocationSection
                 customPlaceholder="도착지를 직접 입력하세요"
                 customValue={destination.customValue}
@@ -279,7 +279,7 @@ export const RecruitScreen = () => {
               />
             </Animated.View>
 
-            <Animated.View layout={SECTION_LAYOUT_TRANSITION}>
+            <Animated.View layout={createSectionLayoutTransition()}>
               <TaxiCreateTimePicker
                 hour={departureTime.hour}
                 minute={departureTime.minute}
@@ -290,7 +290,9 @@ export const RecruitScreen = () => {
               />
             </Animated.View>
 
-            <Animated.View layout={SECTION_LAYOUT_TRANSITION} style={styles.card}>
+            <Animated.View
+              layout={createSectionLayoutTransition()}
+              style={styles.card}>
               <Text style={styles.memberTitle}>
                 최대 인원{' '}
                 <Text style={styles.memberCount}>{`${maxMembers}명`}</Text>{' '}
@@ -311,7 +313,7 @@ export const RecruitScreen = () => {
               </View>
             </Animated.View>
 
-            <Animated.View layout={SECTION_LAYOUT_TRANSITION}>
+            <Animated.View layout={createSectionLayoutTransition()}>
               <TaxiCreateTagSection
                 customTagInput={customTagInput}
                 selectedTags={selectedTags}
@@ -323,7 +325,9 @@ export const RecruitScreen = () => {
               />
             </Animated.View>
 
-            <Animated.View layout={SECTION_LAYOUT_TRANSITION} style={styles.card}>
+            <Animated.View
+              layout={createSectionLayoutTransition()}
+              style={styles.card}>
               <Text style={styles.title}>상세 내용</Text>
               <TextInput
                 maxLength={DETAIL_MAX_LENGTH}
