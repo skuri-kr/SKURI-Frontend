@@ -3,6 +3,7 @@ import {StyleSheet, View} from 'react-native';
 import Animated, {
   interpolate,
   interpolateColor,
+  type SharedValue,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -26,7 +27,7 @@ const ProgressDot = ({
 }: {
   activeColor: string;
   index: number;
-  progress: Animated.SharedValue<number>;
+  progress: SharedValue<number>;
 }) => {
   const animatedStyle = useAnimatedStyle(() => {
     const distance = Math.abs(progress.value - index);

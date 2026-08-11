@@ -9,8 +9,22 @@ export interface StompSubscription {
   unsubscribe: () => void;
 }
 
+type StompSocketBinaryType = 'blob' | 'arraybuffer';
+
+declare const TextDecoder: {
+  new (): {
+    decode: (input?: ArrayBuffer) => string;
+  };
+};
+
+declare const TextEncoder: {
+  new (): {
+    encode: (input?: string) => Uint8Array;
+  };
+};
+
 export interface StompSocket {
-  binaryType?: WebSocket['binaryType'];
+  binaryType?: StompSocketBinaryType;
   readonly readyState: number;
   readonly url: string;
   close: (code?: number, reason?: string) => void;
@@ -104,7 +118,7 @@ const serializeFrame = ({
   return `${command}\n${headerLines.join('\n')}\n\n${body}${NULL_BYTE}`;
 };
 
-const encodeFrame = (frame: string) => new TextEncoder().encode(frame).buffer;
+const encodeFrame = (frame: string) => new TextEncoder().encode(frame);
 
 export class MinimalStompClient {
   public beforeConnect: () => Promise<void> | void = () => undefined;

@@ -4,7 +4,7 @@ import {saveAuthLocalAdjunct} from './authLocalAdjunctService';
 const COMPLETION_DELAY_MS = 1000;
 
 const delay = (ms: number) =>
-  new Promise(resolve => {
+  new Promise<void>(resolve => {
     setTimeout(resolve, ms);
   });
 

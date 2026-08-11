@@ -4,7 +4,6 @@ import {StyleSheet, Text, View} from 'react-native';
 import {
   COLORS,
   RADIUS,
-  SPACING,
 } from '@/shared/design-system/tokens';
 
 interface AuthFeatureChipProps {

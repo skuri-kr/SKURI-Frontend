@@ -1,12 +1,12 @@
 import React from 'react';
 import {
   Animated,
+  Dimensions,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { WINDOW_WIDTH } from '@gorhom/bottom-sheet';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 import { BOTTOM_TAB_BAR_HEIGHT } from '@/shared/constants/layout';
@@ -22,6 +22,8 @@ type PermissionBubbleProps = {
   onAllowNotification: () => void;
   onClose: () => void;
 };
+
+const WINDOW_WIDTH = Dimensions.get('window').width;
 
 export const PermissionBubble = ({
   visible,
