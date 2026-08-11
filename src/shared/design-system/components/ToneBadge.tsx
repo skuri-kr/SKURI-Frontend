@@ -1,5 +1,5 @@
 import React from 'react';
-import {StyleSheet, Text, View, type StyleProp, type ViewStyle} from 'react-native';
+import {StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle} from 'react-native';
 
 import type {ContentDetailBadgeTone} from '@/shared/types/contentDetailViewData';
 
@@ -7,7 +7,8 @@ import {COLORS, RADIUS, SPACING} from '../tokens';
 
 interface ToneBadgeProps {
   label: string;
-  style?: StyleProp<ViewStyle>;
+  badgeStyle?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
   tone: ContentDetailBadgeTone;
 }
 
@@ -47,7 +48,7 @@ const getToneStyle = (tone: ContentDetailBadgeTone) => {
   }
 };
 
-export const ToneBadge = ({label, style, tone}: ToneBadgeProps) => {
+export const ToneBadge = ({label, badgeStyle, textStyle, tone}: ToneBadgeProps) => {
   const toneStyle = getToneStyle(tone);
 
   return (
@@ -55,9 +56,9 @@ export const ToneBadge = ({label, style, tone}: ToneBadgeProps) => {
       style={[
         styles.badge,
         {backgroundColor: toneStyle.backgroundColor},
-        style,
+        badgeStyle,
       ]}>
-      <Text style={[styles.label, {color: toneStyle.textColor}]}>{label}</Text>
+      <Text style={[styles.label, {color: toneStyle.textColor}, textStyle]}>{label}</Text>
     </View>
   );
 };

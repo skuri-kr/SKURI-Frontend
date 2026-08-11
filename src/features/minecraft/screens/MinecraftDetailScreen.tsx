@@ -14,6 +14,14 @@ import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
+import Animated, {
+  interpolate,
+  LayoutAnimationConfig,
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import {navigateToChatRoom} from '@/app/navigation/services/communityNavigation';
 import {type CampusStackParamList} from '@/app/navigation/types';
@@ -23,10 +31,17 @@ import {
 } from '@/shared/design-system/components';
 import {
   COLORS,
+  MOTION,
   RADIUS,
   SHADOWS,
   SPACING,
+  TYPOGRAPHY,
 } from '@/shared/design-system/tokens';
+import {
+  enteringTransitions,
+  exitingTransitions,
+  layoutTransitions,
+} from '@/shared/design-system/motion';
 import {useScreenView} from '@/shared/hooks/useScreenView';
 
 import {MinecraftServerGuideModal} from '../components/MinecraftServerGuideModal';
@@ -91,6 +106,72 @@ const sortWhitelistPlayers = <T extends MinecraftWhitelistPlayer>(
   return [...parents, ...friends];
 };
 
+type WhitelistPlayerGroup<T extends MinecraftWhitelistPlayer> = {
+  friends: T[];
+  parent: T;
+};
+
+const groupWhitelistPlayers = <T extends MinecraftWhitelistPlayer>(
+  players: T[],
+): WhitelistPlayerGroup<T>[] => {
+  const parents = players
+    .filter(player => !player.whoseFriend)
+    .sort((left, right) => left.username.localeCompare(right.username, 'ko'));
+  const friendsByParent = new Map<string, T[]>();
+
+  players
+    .filter(player => !!player.whoseFriend)
+    .forEach(friend => {
+      const parentName = friend.whoseFriend ?? '';
+      const friends = friendsByParent.get(parentName) ?? [];
+
+      friends.push(friend);
+      friendsByParent.set(parentName, friends);
+    });
+
+  return parents.map(parent => ({
+    parent,
+    friends: (friendsByParent.get(parent.username) ?? []).sort((left, right) =>
+      left.username.localeCompare(right.username, 'ko'),
+    ),
+  }));
+};
+
+const MEMBER_LAYOUT_TRANSITION = layoutTransitions.cardExpand();
+const MEMBER_ENTERING_TRANSITION = enteringTransitions.fadeInDown();
+const MEMBER_EXITING_TRANSITION = exitingTransitions.fadeOutUp();
+
+interface AnimatedChevronProps {
+  color: string;
+  expanded: boolean;
+  size: number;
+}
+
+const AnimatedChevron = ({color, expanded, size}: AnimatedChevronProps) => {
+  const progress = useSharedValue(expanded ? 1 : 0);
+
+  React.useEffect(() => {
+    progress.value = withTiming(expanded ? 1 : 0, {
+      duration: MOTION.duration.fast,
+      reduceMotion: ReduceMotion.System,
+    });
+  }, [expanded, progress]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        rotate: `${interpolate(progress.value, [0, 1], [0, 180])}deg`,
+      },
+    ],
+  }));
+
+  return (
+    <Animated.View style={animatedStyle}>
+      <Icon color={color} name="chevron-down" size={size} />
+    </Animated.View>
+  );
+};
+
 export const MinecraftDetailScreen = () => {
   useScreenView();
 
@@ -104,11 +185,29 @@ export const MinecraftDetailScreen = () => {
     players,
   } = useMinecraftWhitelistPlayers();
   const [isGuideModalVisible, setGuideModalVisible] = React.useState(false);
+  const [expandedMemberParentIds, setExpandedMemberParentIds] =
+    React.useState<Set<string> | null>(null);
 
-  const sortedPlayers = React.useMemo(
-    () => sortWhitelistPlayers(players),
+  const memberGroups = React.useMemo(
+    () => groupWhitelistPlayers(players),
     [players],
   );
+  const expandableMemberParentIds = React.useMemo(
+    () =>
+      memberGroups
+        .filter(group => group.friends.length > 0)
+        .map(group => group.parent.id),
+    [memberGroups],
+  );
+  const visibleExpandedMemberParentIds = React.useMemo(
+    () => expandedMemberParentIds ?? new Set(expandableMemberParentIds),
+    [expandedMemberParentIds, expandableMemberParentIds],
+  );
+  const areAllMemberGroupsExpanded =
+    expandableMemberParentIds.length > 0 &&
+    expandableMemberParentIds.every(parentId =>
+      visibleExpandedMemberParentIds.has(parentId),
+    );
 
   const onlinePlayers = React.useMemo(
     () => sortWhitelistPlayers(players.filter(player => player.online)),
@@ -140,6 +239,37 @@ export const MinecraftDetailScreen = () => {
     setGuideModalVisible(false);
     navigation.navigate('MinecraftAccount');
   }, [navigation]);
+
+  const handleToggleAllMemberGroups = React.useCallback(() => {
+    setExpandedMemberParentIds(currentExpandedIds => {
+      const currentIds =
+        currentExpandedIds ?? new Set(expandableMemberParentIds);
+      const shouldCollapse =
+        expandableMemberParentIds.length > 0 &&
+        expandableMemberParentIds.every(parentId => currentIds.has(parentId));
+
+      return shouldCollapse ? new Set() : new Set(expandableMemberParentIds);
+    });
+  }, [expandableMemberParentIds]);
+
+  const handleToggleMemberGroup = React.useCallback(
+    (parentId: string) => {
+      setExpandedMemberParentIds(currentExpandedIds => {
+        const nextExpandedIds = new Set(
+          currentExpandedIds ?? expandableMemberParentIds,
+        );
+
+        if (nextExpandedIds.has(parentId)) {
+          nextExpandedIds.delete(parentId);
+        } else {
+          nextExpandedIds.add(parentId);
+        }
+
+        return nextExpandedIds;
+      });
+    },
+    [expandableMemberParentIds],
+  );
 
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
@@ -360,7 +490,7 @@ export const MinecraftDetailScreen = () => {
                     현재 접속 중인 플레이어가 없습니다
                   </Text>
                   <Text style={styles.emptyStateDescription}>
-                    서버가 켜져 있어도 접속자가 없으면 이 영역은 비어 있습니다.
+                    서버에 접속해서 유일한 생존자가 되어 보세요!
                   </Text>
                 </View>
               ) : (
@@ -389,16 +519,52 @@ export const MinecraftDetailScreen = () => {
               )}
             </View>
 
-            <View style={styles.card}>
+            <Animated.View
+              layout={MEMBER_LAYOUT_TRANSITION}
+              style={styles.card}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderTitleWrap}>
                   <Icon color={COLORS.accent.purple} name="people-outline" size={18} />
                   <Text style={styles.cardTitle}>서버 멤버 목록</Text>
+                  {!loadingPlayers ? (
+                    <ToneBadge
+                      badgeStyle={styles.memberCountBadge}
+                      label={`총 ${players.length}명`}
+                      textStyle={styles.memberCountBadgeText}
+                      tone="purple"
+                    />
+                  ) : null}
                 </View>
 
-                {fetchingUsers ? (
-                  <ActivityIndicator color={COLORS.text.muted} size="small" />
-                ) : null}
+                <View style={styles.cardHeaderActions}>
+                  {fetchingUsers ? (
+                    <ActivityIndicator color={COLORS.text.muted} size="small" />
+                  ) : null}
+                  {expandableMemberParentIds.length > 0 ? (
+                    <TouchableOpacity
+                      accessibilityLabel={
+                        areAllMemberGroupsExpanded
+                          ? '서버 멤버 목록 모두 접기'
+                          : '서버 멤버 목록 모두 펼치기'
+                      }
+                      accessibilityRole="button"
+                      accessibilityState={{
+                        expanded: areAllMemberGroupsExpanded,
+                      }}
+                      activeOpacity={0.8}
+                      onPress={handleToggleAllMemberGroups}
+                      style={styles.memberHeaderToggleButton}>
+                      <Text style={styles.memberHeaderToggleText}>
+                        {areAllMemberGroupsExpanded ? '모두 접기' : '모두 펼치기'}
+                      </Text>
+                      <AnimatedChevron
+                        color={COLORS.accent.purple}
+                        expanded={areAllMemberGroupsExpanded}
+                        size={16}
+                      />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
               </View>
 
               {loadingPlayers ? (
@@ -408,7 +574,7 @@ export const MinecraftDetailScreen = () => {
                     화이트리스트 멤버를 불러오고 있습니다.
                   </Text>
                 </View>
-              ) : sortedPlayers.length === 0 ? (
+              ) : memberGroups.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Icon
                     color={COLORS.text.muted}
@@ -421,60 +587,140 @@ export const MinecraftDetailScreen = () => {
                   </Text>
                 </View>
               ) : (
-                sortedPlayers.map((player, index) => {
-                  const isOnline = player.online === true;
+                <LayoutAnimationConfig skipEntering>
+                  {memberGroups.map((group, index) => {
+                    const {friends, parent} = group;
+                    const hasFriends = friends.length > 0;
+                    const isExpanded =
+                      visibleExpandedMemberParentIds.has(parent.id);
 
-                  return (
-                    <View
-                      key={player.id}
-                      style={[
-                        styles.playerRow,
-                        index < sortedPlayers.length - 1
-                          ? styles.playerRowDivider
-                          : undefined,
-                      ]}>
-                      <Image
-                        source={{uri: getAvatarUri(player.uuid)}}
-                        style={styles.avatar}
-                      />
+                    return (
+                      <Animated.View
+                        key={parent.id}
+                        layout={MEMBER_LAYOUT_TRANSITION}
+                        style={[
+                          index < memberGroups.length - 1
+                            ? styles.playerRowDivider
+                            : undefined,
+                        ]}>
+                        <View style={styles.playerRow}>
+                          <Image
+                            source={{uri: getAvatarUri(parent.uuid)}}
+                            style={styles.avatar}
+                          />
 
-                      <View style={styles.playerBody}>
-                        <View style={styles.memberTitleRow}>
-                          <Text style={styles.playerName}>{player.username}</Text>
-                          <ToneBadge
-                            label={player.edition ?? 'JE'}
-                            tone={
-                              player.edition === 'BE' ? 'purple' : 'blue'
-                            }
-                          />
-                          <ToneBadge
-                            label={player.whoseFriend ? '친구 계정' : '대표 계정'}
-                            tone={player.whoseFriend ? 'orange' : 'green'}
-                          />
+                          <View style={styles.playerBody}>
+                            <View style={styles.memberTitleRow}>
+                              <Text style={styles.playerName}>
+                                {parent.username}
+                              </Text>
+                              <ToneBadge
+                                label={parent.edition ?? 'JE'}
+                                tone={
+                                  parent.edition === 'BE' ? 'purple' : 'blue'
+                                }
+                                badgeStyle={styles.playerBadge}
+                                textStyle={styles.playerBadgeText}
+                              />
+                            </View>
+
+                            <View style={styles.playerMetaRow}>
+                              <Text style={styles.playerMeta}>
+                                등록자 {parent.addedByDisplayName}
+                              </Text>
+                              <ToneBadge
+                                label="대표 계정"
+                                tone="green"
+                                badgeStyle={styles.playerBadge}
+                                textStyle={styles.playerBadgeText}
+                              />
+                            </View>
+                            <Text style={styles.playerMeta}>
+                              최근 접속 {formatDateTime(parent.lastSeenAt)}
+                            </Text>
+                          </View>
+
+                          {hasFriends ? (
+                            <TouchableOpacity
+                              accessibilityLabel={`${parent.username} 친구 계정 ${
+                                isExpanded ? '접기' : '펼치기'
+                              }`}
+                              accessibilityRole="button"
+                              accessibilityState={{expanded: isExpanded}}
+                              activeOpacity={0.75}
+                              onPress={() => handleToggleMemberGroup(parent.id)}
+                              style={styles.memberArrowButton}>
+                              <AnimatedChevron
+                                color={COLORS.text.secondary}
+                                expanded={isExpanded}
+                                size={20}
+                              />
+                            </TouchableOpacity>
+                          ) : null}
                         </View>
 
-                        <Text style={styles.playerMeta}>
-                          등록자 {player.addedByDisplayName}
-                        </Text>
-                        <Text style={styles.playerMeta}>
-                          최근 접속 {formatDateTime(player.lastSeenAt)}
-                        </Text>
-                        {player.whoseFriend ? (
-                          <Text style={styles.playerMeta}>
-                            {player.whoseFriend} 계정에 연결됨
-                          </Text>
-                        ) : null}
-                      </View>
+                        {isExpanded && hasFriends ? (
+                          <Animated.View
+                            entering={MEMBER_ENTERING_TRANSITION}
+                            exiting={MEMBER_EXITING_TRANSITION}
+                            layout={MEMBER_LAYOUT_TRANSITION}
+                            style={styles.friendList}>
+                            {friends.map((friend, friendIndex) => (
+                              <View
+                                key={friend.id}
+                                style={[
+                                  styles.friendRow,
+                                  friendIndex < friends.length - 1
+                                    ? styles.friendRowDivider
+                                    : undefined,
+                                ]}>
+                                <Image
+                                  source={{uri: getAvatarUri(friend.uuid)}}
+                                  style={styles.friendAvatar}
+                                />
 
-                      <ToneBadge
-                        label={isOnline ? '온라인' : '오프라인'}
-                        tone={isOnline ? 'green' : 'gray'}
-                      />
-                    </View>
-                  );
-                })
+                                <View style={styles.playerBody}>
+                                  <View style={styles.memberTitleRow}>
+                                    <Text style={styles.playerName}>
+                                      {friend.username}
+                                    </Text>
+                                    <ToneBadge
+                                      label={friend.edition ?? 'JE'}
+                                      tone={
+                                        friend.edition === 'BE'
+                                          ? 'purple'
+                                          : 'blue'
+                                      }
+                                      badgeStyle={styles.playerBadge}
+                                      textStyle={styles.playerBadgeText}
+                                    />
+                                  </View>
+
+                                  <View style={styles.playerMetaRow}>
+                                    <Text style={styles.playerMeta}>
+                                      등록자 {friend.addedByDisplayName}
+                                    </Text>
+                                    <ToneBadge
+                                      label="친구 계정"
+                                      tone="orange"
+                                      badgeStyle={styles.playerBadge}
+                                      textStyle={styles.playerBadgeText}
+                                    />
+                                  </View>
+                                  <Text style={styles.playerMeta}>
+                                    최근 접속 {formatDateTime(friend.lastSeenAt)}
+                                  </Text>
+                                </View>
+                              </View>
+                            ))}
+                          </Animated.View>
+                        ) : null}
+                      </Animated.View>
+                    );
+                  })}
+                </LayoutAnimationConfig>
               )}
-            </View>
+            </Animated.View>
 
           </>
         ) : null}
@@ -615,6 +861,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: SPACING.sm,
   },
+  cardHeaderActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexShrink: 0,
+    gap: SPACING.sm,
+  },
   cardTitle: {
     color: COLORS.text.primary,
     fontSize: 16,
@@ -630,6 +882,30 @@ const styles = StyleSheet.create({
     color: COLORS.text.tertiary,
     fontSize: 12,
     lineHeight: 18,
+  },
+  memberHeaderToggleButton: {
+    alignItems: 'center',
+    backgroundColor: COLORS.accent.purpleSoft,
+    borderRadius: RADIUS.pill,
+    flexDirection: 'row',
+    gap: 2,
+    minHeight: 30,
+    paddingHorizontal: SPACING.sm,
+  },
+  memberHeaderToggleText: {
+    color: COLORS.accent.purple,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
+  memberCountBadge: {
+    minHeight: 0,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+  },
+  memberCountBadgeText: {
+    ...TYPOGRAPHY.caption2,
+    fontWeight: '700',
   },
   serverAddressCard: {
     backgroundColor: COLORS.background.subtle,
@@ -770,6 +1046,15 @@ const styles = StyleSheet.create({
   playerBody: {
     flex: 1,
   },
+  memberArrowButton: {
+    alignItems: 'center',
+    backgroundColor: COLORS.background.subtle,
+    borderRadius: RADIUS.pill,
+    height: 36,
+    justifyContent: 'center',
+    marginLeft: SPACING.sm,
+    width: 36,
+  },
   playerName: {
     color: COLORS.text.primary,
     fontSize: 15,
@@ -782,11 +1067,46 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 2,
   },
+  playerMetaRow: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
+    alignItems: 'center',
+  },
   memberTitleRow: {
     alignItems: 'center',
     columnGap: SPACING.sm,
     flexDirection: 'row',
     flexWrap: 'wrap',
     rowGap: SPACING.xs,
+  },
+  playerBadge: {
+    minHeight: 0,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  playerBadgeText: {
+    ...TYPOGRAPHY.caption2,
+    fontWeight: '600'
+  },
+  friendList: {
+    backgroundColor: COLORS.background.grayLight,
+    borderRadius: RADIUS.sm,
+  },
+  friendRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    minHeight: 64,
+    paddingLeft: 30,
+    paddingVertical: SPACING.sm,
+  },
+  friendRowDivider: {
+    borderBottomColor: COLORS.border.subtle,
+    borderBottomWidth: 1,
+  },
+  friendAvatar: {
+    borderRadius: 10,
+    height: 40,
+    marginRight: SPACING.md,
+    width: 40,
   },
 });

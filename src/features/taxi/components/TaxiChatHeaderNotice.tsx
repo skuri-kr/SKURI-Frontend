@@ -184,7 +184,7 @@ export const TaxiChatHeaderNotice = ({
                   <View style={styles.settlementMemberLeft}>
                     <ToneBadge
                       label={buildSettlementMemberStatusLabel(member)}
-                      style={styles.settlementMemberBadge}
+                      badgeStyle={styles.settlementMemberBadge}
                       tone={
                         member.leftParty
                           ? 'pink'
