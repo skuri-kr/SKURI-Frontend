@@ -1,8 +1,8 @@
 import React from 'react';
+import Clipboard from '@react-native-clipboard/clipboard';
 import {
   ActivityIndicator,
   Alert,
-  Clipboard,
   KeyboardAvoidingView,
   Linking,
   Platform,
