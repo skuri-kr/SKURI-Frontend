@@ -433,6 +433,7 @@ export const DetailBodyBlocks = ({blocks}: DetailBodyBlocksProps) => {
         return (
           <Text
             key={block.id}
+            selectable
             style={[styles.paragraph, !isLast ? styles.blockSpacing : null]}>
             {block.text}
           </Text>

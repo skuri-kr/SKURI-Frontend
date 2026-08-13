@@ -94,7 +94,9 @@ export const DetailCommentCard = ({
         </View>
       ) : null}
 
-      <Text style={styles.bodyText}>{comment.body}</Text>
+      <Text selectable={!comment.isDeleted} style={styles.bodyText}>
+        {comment.body}
+      </Text>
 
       {!comment.isDeleted ? (
         <View style={styles.footerRow}>
