@@ -1,3 +1,5 @@
+import {differenceInMonths, differenceInYears} from 'date-fns';
+
 // SKTaxi: ISO 문자열(yyyy-mm-ddThh:mm:ssZ...)을 "오전/오후 hh:mm" 포맷으로 변환
 export function formatKoreanAmPmTime(isoString?: string | null): string {
   if (!isoString) {
@@ -42,7 +44,8 @@ export function formatKoreanRelativeTime(value?: unknown): string {
     return '';
   }
 
-  const diffMs = Date.now() - date.getTime();
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
 
   if (diffMs < 0) {
     return '곧';
@@ -51,6 +54,16 @@ export function formatKoreanRelativeTime(value?: unknown): string {
   const diffMinutes = Math.floor(diffMs / (1000 * 60));
   const diffHours = Math.floor(diffMinutes / 60);
   const diffDays = Math.floor(diffHours / 24);
+  const diffMonths = differenceInMonths(now, date);
+  const diffYears = differenceInYears(now, date);
+
+  if (diffYears > 0) {
+    return `${diffYears}년 전`;
+  }
+
+  if (diffMonths > 0) {
+    return `${diffMonths}개월 전`;
+  }
 
   if (diffDays > 0) {
     return `${diffDays}일 전`;
@@ -65,6 +78,23 @@ export function formatKoreanRelativeTime(value?: unknown): string {
   }
 
   return '방금 전';
+}
+
+export function formatKoreanCompactDateTime(value?: unknown): string {
+  const date = toSafeDate(value);
+
+  if (!date) {
+    return '';
+  }
+
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  const hours = `${date.getHours()}`.padStart(2, '0');
+  const minutes = `${date.getMinutes()}`.padStart(2, '0');
+  const yearPrefix = year === new Date().getFullYear() ? '' : `${year}.`;
+
+  return `${yearPrefix}${month}.${day} ${hours}:${minutes}`;
 }
 
 export function formatKoreanAbsoluteDate(value?: unknown): string {

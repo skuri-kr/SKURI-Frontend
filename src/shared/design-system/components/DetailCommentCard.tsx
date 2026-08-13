@@ -64,22 +64,26 @@ export const DetailCommentCard = ({
         </View>
         <View style={styles.trailingRow}>
           <Text style={styles.dateLabel}>{comment.dateLabel}</Text>
-          {onPressEdit ? (
-            <TouchableOpacity
-              accessibilityRole="button"
-              activeOpacity={0.8}
-              onPress={onPressEdit}>
-              <Text style={styles.actionLabel}>수정</Text>
-            </TouchableOpacity>
-          ) : null}
-          {onPressDelete ? (
-            <TouchableOpacity
-              accessibilityRole="button"
-              activeOpacity={deleteDisabled ? 1 : 0.8}
-              disabled={deleteDisabled}
-              onPress={onPressDelete}>
-              <Text style={styles.deleteActionLabel}>삭제</Text>
-            </TouchableOpacity>
+          {onPressEdit || onPressDelete ? (
+            <View style={styles.trailingActionsRow}>
+              {onPressEdit ? (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  activeOpacity={0.8}
+                  onPress={onPressEdit}>
+                  <Text style={styles.actionLabel}>수정</Text>
+                </TouchableOpacity>
+              ) : null}
+              {onPressDelete ? (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  activeOpacity={deleteDisabled ? 1 : 0.8}
+                  disabled={deleteDisabled}
+                  onPress={onPressDelete}>
+                  <Text style={styles.deleteActionLabel}>삭제</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           ) : null}
         </View>
       </View>
@@ -161,14 +165,16 @@ const styles = StyleSheet.create({
     marginLeft: SPACING.xl,
   },
   headerRow: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: SPACING.sm,
   },
   authorRow: {
     alignItems: 'center',
+    flex: 1,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: SPACING.sm,
   },
   avatarCircle: {
@@ -269,6 +275,11 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   trailingRow: {
+    alignItems: 'flex-end',
+    gap: SPACING.sm,
+    marginLeft: SPACING.sm,
+  },
+  trailingActionsRow: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: SPACING.sm,

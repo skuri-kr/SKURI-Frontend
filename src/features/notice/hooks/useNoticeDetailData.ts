@@ -14,8 +14,8 @@ import {
   type FlattenedCommentTreeEntry,
 } from '@/shared/lib/comments';
 import {
-  formatKoreanAbsoluteDate,
   formatKoreanAbsoluteWithRelativeTime,
+  formatKoreanCompactDateTime,
 } from '@/shared/lib/date';
 import type {
   ContentDetailBodyBlockViewData,
@@ -186,7 +186,7 @@ const toCommentItems = (
   comments.map(({comment, parent}) => ({
     authorLabel: getCommentAuthorLabel(comment),
     body: comment.content,
-    dateLabel: formatKoreanAbsoluteDate(comment.createdAt),
+    dateLabel: formatKoreanCompactDateTime(comment.createdAt),
     id: comment.id,
     isDeleted: Boolean(comment.isDeleted),
     isEditable: Boolean(comment.isAuthor && !comment.isDeleted),
