@@ -28,12 +28,20 @@ import type {
   TaxiChatTextMessageViewData,
   TaxiChatThreadItemViewData,
 } from '../model/taxiChatViewData';
+import {
+  getTaxiChatNewMessagePreview,
+  isTaxiChatOutgoingItem,
+} from './taxiChatThreadPreview';
 
 interface TaxiChatMessageListProps {
   autoScrollKey?: number | string;
+  bottomOverlayInset?: number;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  hasOlderMessages?: boolean;
   headerContent?: React.ReactNode;
   items: TaxiChatThreadItemViewData[];
+  loadingOlderMessages?: boolean;
+  onLoadOlderMessages?: () => Promise<void> | void;
   onLongPressMessage?: (
     item: TaxiChatAccountMessageViewData | TaxiChatTextMessageViewData,
     event: GestureResponderEvent,
@@ -60,18 +68,28 @@ const formatMaskedAccountHolder = (accountHolder: string, hideName: boolean) => 
 
 export const TaxiChatMessageList = ({
   autoScrollKey,
+  bottomOverlayInset,
   contentContainerStyle,
+  hasOlderMessages,
   headerContent,
   items,
+  loadingOlderMessages,
   onLongPressMessage,
+  onLoadOlderMessages,
   onPressEndPartyExit,
 }: TaxiChatMessageListProps) => {
   return (
     <ChatThreadCore
       autoScrollKey={autoScrollKey}
+      bottomOverlayInset={bottomOverlayInset}
       contentContainerStyle={contentContainerStyle}
+      getNewMessagePreview={getTaxiChatNewMessagePreview}
+      hasOlderItems={hasOlderMessages}
       headerContent={headerContent}
       items={items}
+      isCurrentUserItem={isTaxiChatOutgoingItem}
+      loadingOlderItems={loadingOlderMessages}
+      onLoadOlderItems={onLoadOlderMessages}
       onLongPressMessage={onLongPressMessage}
       renderCustomItem={item => {
         if (item.type === 'end-message') {

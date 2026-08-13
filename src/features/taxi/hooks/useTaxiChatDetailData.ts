@@ -182,6 +182,14 @@ export const useTaxiChatDetailData = (partyId: string | undefined) => {
     }
   }, [partyId, refreshPartySnapshot, taxiChatRepository]);
 
+  const loadOlderMessages = React.useCallback(async () => {
+    if (!partyId) {
+      return;
+    }
+
+    await taxiChatRepository.loadOlderMessages(partyId);
+  }, [partyId, taxiChatRepository]);
+
   React.useEffect(() => {
     if (!partyId) {
       setSourceData(null);
@@ -510,9 +518,12 @@ export const useTaxiChatDetailData = (partyId: string | undefined) => {
     data,
     endParty,
     error,
+    hasOlderMessages: sourceData?.hasOlderMessages ?? false,
     kickMember,
     leaveParty,
+    loadOlderMessages,
     loading,
+    loadingOlderMessages: sourceData?.loadingOlderMessages ?? false,
     notificationTogglePending,
     reload,
     reopenParty,
