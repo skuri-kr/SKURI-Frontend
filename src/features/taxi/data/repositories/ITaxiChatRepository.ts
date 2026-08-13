@@ -14,6 +14,7 @@ import type {
 export interface ITaxiChatRepository {
   createPartyChat(draft: TaxiRecruitDraft): Promise<{partyId: string}>
   getPartyChat(partyId: string): Promise<TaxiChatSourceData | null>
+  loadOlderMessages(partyId: string): Promise<void>
   getSessionSnapshot(): TaxiChatSessionSnapshot
   resetSession(): Promise<void>
   sendAccountMessage(

@@ -147,8 +147,10 @@ export interface TaxiChatSourceData {
   detail?: string;
   destinationLocation: PartyLocation;
   estimatedFareLabel: string;
+  hasOlderMessages: boolean;
   id: string;
   latestAccountData?: TaxiChatSourceAccountData;
+  loadingOlderMessages: boolean;
   leaderId: string;
   maxMembers: number;
   memberCount: number;

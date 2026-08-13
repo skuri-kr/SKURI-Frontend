@@ -25,6 +25,7 @@ import type {
 import {taxiHomeApiClient} from '../api/taxiHomeApiClient';
 import {taxiChatApiClient} from '../api/taxiChatApiClient';
 import type {
+  ChatMessageCursorResponseDto,
   ChatMessageResponseDto,
   SendChatMessageRequestDto,
   StompApiErrorDto,
@@ -37,7 +38,10 @@ import {
 import type {ITaxiChatRepository} from './ITaxiChatRepository';
 
 interface PartyChatState {
+  hasOlderMessages: boolean;
   loadPromise: Promise<TaxiChatSourceData | null> | null;
+  loadingOlderPromise: Promise<void> | null;
+  olderCursor: ChatMessageCursorResponseDto | null;
   roomSubscription: StompSubscription | null;
   source: TaxiChatSourceData | null;
   subscribers: Set<SubscriptionCallbacks<TaxiChatSourceData | null>>;
@@ -146,6 +150,73 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     const source = await this.loadPartyChat(partyId, true);
 
     return source ? clonePartySource(source) : null;
+  }
+
+  async loadOlderMessages(partyId: string): Promise<void> {
+    const state = this.getOrCreatePartyState(partyId);
+
+    if (state.loadingOlderPromise) {
+      return state.loadingOlderPromise;
+    }
+
+    if (!state.source || !state.hasOlderMessages || !state.olderCursor) {
+      return;
+    }
+
+    const cursor = state.olderCursor;
+    state.source = {
+      ...state.source,
+      loadingOlderMessages: true,
+    };
+    this.publishPartyState(partyId);
+
+    state.loadingOlderPromise = taxiChatApiClient
+      .getMessages(resolveTaxiChatRoomId(partyId), {
+        cursorCreatedAt: cursor.createdAt,
+        cursorId: cursor.id,
+        size: MESSAGES_PAGE_SIZE,
+      })
+      .then(response => {
+        const currentSource = state.source;
+
+        if (!currentSource) {
+          return;
+        }
+
+        const existingMessageIds = new Set(
+          currentSource.messages.map(message => message.id),
+        );
+        const olderMessages = [...response.data.messages]
+          .reverse()
+          .map(mapTaxiChatMessageDto)
+          .filter(message => !existingMessageIds.has(message.id));
+
+        state.olderCursor = response.data.nextCursor ?? null;
+        state.hasOlderMessages = response.data.hasNext;
+        state.source = {
+          ...currentSource,
+          hasOlderMessages: state.hasOlderMessages,
+          loadingOlderMessages: false,
+          messages: [...olderMessages, ...currentSource.messages],
+        };
+        this.publishPartyState(partyId);
+      })
+      .catch(error => {
+        if (state.source) {
+          state.source = {
+            ...state.source,
+            loadingOlderMessages: false,
+          };
+          this.publishPartyState(partyId);
+        }
+
+        throw error;
+      })
+      .finally(() => {
+        state.loadingOlderPromise = null;
+      });
+
+    return state.loadingOlderPromise;
   }
 
   getSessionSnapshot(): TaxiChatSessionSnapshot {
@@ -782,7 +853,10 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     }
 
     const nextState: PartyChatState = {
+      hasOlderMessages: false,
       loadPromise: null,
+      loadingOlderPromise: null,
+      olderCursor: null,
       roomSubscription: null,
       source: null,
       subscribers: new Set(),
@@ -866,11 +940,44 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
       }),
     ])
       .then(([partyResponse, roomResponse, messagesResponse]) => {
-        const source = buildTaxiChatSourceData({
+        const refreshedSource = buildTaxiChatSourceData({
           messages: messagesResponse.data.messages,
           party: partyResponse.data,
           room: roomResponse.data,
         });
+        const previousSource = state.source;
+        const previousMessages = previousSource?.messages ?? [];
+        const previousMessageIds = new Set(
+          previousMessages.map(message => message.id),
+        );
+        const freshMessageById = new Map(
+          refreshedSource.messages.map(message => [message.id, message]),
+        );
+        const mergedMessages = [
+          ...previousMessages.map(
+            message => freshMessageById.get(message.id) ?? message,
+          ),
+          ...refreshedSource.messages.filter(
+            message => !previousMessageIds.has(message.id),
+          ),
+        ];
+        const latestAccountData = [...mergedMessages]
+          .reverse()
+          .find(message => message.type === 'account' && message.accountData)
+          ?.accountData;
+
+        if (!previousSource) {
+          state.olderCursor = messagesResponse.data.nextCursor ?? null;
+          state.hasOlderMessages = messagesResponse.data.hasNext;
+        }
+
+        const source: TaxiChatSourceData = {
+          ...refreshedSource,
+          hasOlderMessages: state.hasOlderMessages,
+          latestAccountData,
+          loadingOlderMessages: previousSource?.loadingOlderMessages ?? false,
+          messages: mergedMessages,
+        };
 
         state.source = source;
         this.publishPartyState(partyId);

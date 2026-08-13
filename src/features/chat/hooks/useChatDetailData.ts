@@ -24,7 +24,10 @@ export const useChatDetailData = (chatRoomId: string | undefined) => {
   } = useChatRoom(chatRoomId);
   const {
     error: messagesError,
+    hasMore: hasOlderMessages,
+    loadMore: loadOlderMessages,
     loading: messagesLoading,
+    loadingMore: loadingOlderMessages,
     messages,
     refresh: refreshMessages,
   } = useChatMessages(chatRoomId, Boolean(chatRoomId && chatRoom?.isJoined));
@@ -193,9 +196,12 @@ export const useChatDetailData = (chatRoomId: string | undefined) => {
   return {
     data,
     error,
+    hasOlderMessages,
     joinRoom,
     leaveRoom,
+    loadOlderMessages,
     loading,
+    loadingOlderMessages,
     membershipLoading,
     notificationTogglePending,
     notFound,

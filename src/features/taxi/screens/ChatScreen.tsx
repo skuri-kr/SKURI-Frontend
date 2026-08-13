@@ -166,8 +166,11 @@ export const ChatScreen = () => {
     data,
     endParty,
     error,
+    hasOlderMessages,
     leaveParty,
+    loadOlderMessages,
     loading,
+    loadingOlderMessages,
     notificationTogglePending,
     reload,
     reopenParty,
@@ -761,14 +764,18 @@ export const ChatScreen = () => {
             <View style={styles.threadWrap}>
               <TaxiChatMessageList
                 autoScrollKey={keyboardHeight}
+                bottomOverlayInset={threadBottomPadding}
                 contentContainerStyle={[
                   styles.threadContent,
                   {
                     paddingBottom: threadBottomPadding,
                   },
                 ]}
+                hasOlderMessages={hasOlderMessages}
                 headerContent={<TaxiChatSummaryCard summary={data.summary} />}
                 items={data.items}
+                loadingOlderMessages={loadingOlderMessages}
+                onLoadOlderMessages={loadOlderMessages}
                 onLongPressMessage={(message, event) => {
                   handleLongPressMessage(
                     message,

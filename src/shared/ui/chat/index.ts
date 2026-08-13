@@ -8,6 +8,7 @@ export {
   ChatComposerBar,
 } from './ChatComposerBar';
 export {ChatThreadCore} from './ChatThreadCore';
+export {ChatThreadScrollActions} from './ChatThreadScrollActions';
 export {resolveChatMenuPosition} from './chatMenuPosition';
 export type {
   ChatAvatarViewData,
@@ -17,5 +18,6 @@ export type {
   ChatThreadListViewData,
   ChatThreadMenuViewData,
   ChatThreadMessageViewData,
+  ChatThreadNewMessagePreviewViewData,
   ChatThreadSystemMessageViewData,
 } from './types';
