@@ -1,6 +1,4 @@
 import React from 'react';
-import {format} from 'date-fns';
-import {ko} from 'date-fns/locale';
 
 import {invalidateData} from '@/app/data-freshness/dataInvalidation';
 import {
@@ -13,7 +11,10 @@ import {
   flattenVisibleCommentTree,
   type FlattenedCommentTreeEntry,
 } from '@/shared/lib/comments';
-import {formatKoreanAbsoluteWithRelativeTime} from '@/shared/lib/date';
+import {
+  formatKoreanAbsoluteWithRelativeTime,
+  formatKoreanCompactDateTime,
+} from '@/shared/lib/date';
 import type {
   ContentDetailCommentViewData,
   ContentDetailViewData,
@@ -28,16 +29,6 @@ const CATEGORY_LABEL_MAP: Record<BoardPost['category'], string> = {
   general: '자유게시판',
   question: '질문게시판',
   review: '후기게시판',
-};
-
-const formatBoardCommentDateLabel = (value: string) => {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-
-  return format(date, 'M월 d일', {locale: ko});
 };
 
 const splitParagraphs = (content: string) =>
@@ -92,7 +83,7 @@ const toCommentItems = (
   comments.map(({comment, parent}) => ({
     authorLabel: getCommentAuthorLabel(comment),
     body: comment.content,
-    dateLabel: formatBoardCommentDateLabel(comment.createdAt.toISOString()),
+    dateLabel: formatKoreanCompactDateTime(comment.createdAt),
     id: comment.id,
     isDeleted: Boolean(comment.isDeleted),
     isEditable: Boolean(comment.isAuthor && !comment.isDeleted),
