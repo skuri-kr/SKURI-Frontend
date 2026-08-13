@@ -416,7 +416,7 @@ export const TaxiScreen = () => {
               style={[styles.statusBarBackdrop, {height: insets.top}]}
             />
           ) : null}
-          <View style={[styles.heroContent, {paddingTop: insets.top}]}>
+          <View style={[styles.heroContent, {paddingTop: insets.top + SPACING.sm}]}>
             <TaxiHomeSearchBar
               onChangeText={setSearchQuery}
               placeholder={data?.searchPlaceholder ?? '출발지 검색'}
