@@ -1,10 +1,12 @@
 import React from 'react';
 import {
   Keyboard,
+  Platform,
   StyleSheet,
   TextInput,
   TouchableOpacity,
   useWindowDimensions,
+  View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Animated, {
@@ -94,75 +96,82 @@ export const TaxiHomeSearchBar = ({
   }, [onChangeText]);
 
   return (
-    <Animated.View style={[styles.container, containerAnimatedStyle]}>
-      {showSearchContent ? (
-        <Animated.View style={[styles.searchContent, searchContentAnimatedStyle]}>
-          <TouchableOpacity
-            accessibilityLabel="검색 닫기"
-            accessibilityRole="button"
-            activeOpacity={0.8}
-            hitSlop={8}
-            onPress={handleCollapse}
-            style={styles.iconButton}>
-            <Icon
-              color={COLORS.text.muted}
-              name="chevron-forward"
-              size={20}
-            />
-          </TouchableOpacity>
-          <TextInput
-            ref={inputRef}
-            onChangeText={onChangeText}
-            placeholder={placeholder}
-            placeholderTextColor={COLORS.text.muted}
-            returnKeyType="search"
-            selectionColor={COLORS.brand.primary}
-            style={styles.input}
-            value={value}
-          />
-          {value ? (
+    <Animated.View style={[styles.shadowContainer, containerAnimatedStyle]}>
+      <View style={styles.container}>
+        {showSearchContent ? (
+          <Animated.View
+            style={[styles.searchContent, searchContentAnimatedStyle]}>
             <TouchableOpacity
-              accessibilityLabel="검색어 지우기"
+              accessibilityLabel="검색 닫기"
               accessibilityRole="button"
               activeOpacity={0.8}
-              onPress={() => onChangeText('')}
+              hitSlop={8}
+              onPress={handleCollapse}
               style={styles.iconButton}>
               <Icon
                 color={COLORS.text.muted}
-                name="close-circle"
-                size={18}
+                name="chevron-forward"
+                size={20}
               />
             </TouchableOpacity>
-          ) : null}
-        </Animated.View>
-      ) : (
-        <TouchableOpacity
-          accessibilityLabel="택시 출발지 검색 열기"
-          accessibilityRole="button"
-          activeOpacity={0.8}
-          onPress={handleExpand}
-          style={styles.compactButton}>
-          <Icon color={COLORS.text.muted} name="search-outline" size={20} />
-        </TouchableOpacity>
-      )}
+            <TextInput
+              ref={inputRef}
+              onChangeText={onChangeText}
+              placeholder={placeholder}
+              placeholderTextColor={COLORS.text.muted}
+              returnKeyType="search"
+              selectionColor={COLORS.brand.primary}
+              style={styles.input}
+              value={value}
+            />
+            {value ? (
+              <TouchableOpacity
+                accessibilityLabel="검색어 지우기"
+                accessibilityRole="button"
+                activeOpacity={0.8}
+                onPress={() => onChangeText('')}
+                style={styles.iconButton}>
+                <Icon
+                  color={COLORS.text.muted}
+                  name="close-circle"
+                  size={18}
+                />
+              </TouchableOpacity>
+            ) : null}
+          </Animated.View>
+        ) : (
+          <TouchableOpacity
+            accessibilityLabel="택시 출발지 검색 열기"
+            accessibilityRole="button"
+            activeOpacity={0.8}
+            onPress={handleExpand}
+            style={styles.compactButton}>
+            <Icon color={COLORS.text.muted} name="search-outline" size={20} />
+          </TouchableOpacity>
+        )}
+      </View>
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
+  shadowContainer: {
     alignSelf: 'flex-end',
-    backgroundColor: COLORS.background.surface,
     borderRadius: RADIUS.md,
     height: 44,
+    shadowColor: '#000000',
+    shadowOffset: {width: 0, height: Platform.OS === 'ios' ? 12 : 10},
+    shadowOpacity: Platform.OS === 'ios' ? 0.3 : 0.18,
+    shadowRadius: Platform.OS === 'ios' ? 20 : 15,
+    elevation: 10,
+  },
+  container: {
+    alignItems: 'center',
+    backgroundColor: COLORS.background.surface,
+    borderRadius: RADIUS.md,
+    flex: 1,
     justifyContent: 'center',
     overflow: 'hidden',
-    shadowColor: '#000000',
-    shadowOffset: {width: 0, height: 10},
-    shadowOpacity: 0.18,
-    shadowRadius: 15,
-    elevation: 10,
   },
   compactButton: {
     alignItems: 'center',
