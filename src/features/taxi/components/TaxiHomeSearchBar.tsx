@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   Keyboard,
-  Platform,
   StyleSheet,
   TextInput,
   TouchableOpacity,
@@ -146,7 +145,7 @@ export const TaxiHomeSearchBar = ({
             activeOpacity={0.8}
             onPress={handleExpand}
             style={styles.compactButton}>
-            <Icon color={COLORS.text.muted} name="search-outline" size={20} />
+            <Icon color={COLORS.text.secondary} name="search-outline" size={20} />
           </TouchableOpacity>
         )}
       </View>
@@ -160,9 +159,9 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
     height: 44,
     shadowColor: '#000000',
-    shadowOffset: {width: 0, height: Platform.OS === 'ios' ? 12 : 10},
-    shadowOpacity: Platform.OS === 'ios' ? 0.3 : 0.18,
-    shadowRadius: Platform.OS === 'ios' ? 20 : 15,
+    shadowOffset: {width: 0, height: 12},
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
     elevation: 10,
   },
   container: {
