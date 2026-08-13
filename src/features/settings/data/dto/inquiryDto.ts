@@ -30,6 +30,7 @@ export interface InquiryCreateResponseDto {
 export type InquiryStatusDto = 'IN_PROGRESS' | 'PENDING' | 'RESOLVED';
 
 export interface InquiryListItemResponseDto {
+  answer: string | null;
   attachments: InquiryAttachmentDto[];
   content: string;
   createdAt: string;

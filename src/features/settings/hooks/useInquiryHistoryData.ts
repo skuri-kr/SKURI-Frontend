@@ -56,16 +56,6 @@ const INQUIRY_STATUS_META: Record<
   },
 };
 
-const summarizeContent = (content: string) => {
-  const normalized = content.replace(/\s+/g, ' ').trim();
-
-  if (normalized.length <= 88) {
-    return normalized;
-  }
-
-  return `${normalized.slice(0, 85).trimEnd()}...`;
-};
-
 const formatInquiryDateTime = (value: string) => {
   const date = new Date(value);
 
@@ -82,12 +72,15 @@ const mapInquiryItem = (
   const typeMeta = INQUIRY_TYPE_META[item.type];
   const statusMeta = INQUIRY_STATUS_META[item.status];
   const attachmentCount =
-    item.attachments.length > 0 ? `이미지 ${item.attachments.length}장` : undefined;
+    item.attachments.length > 0
+      ? `이미지 ${item.attachments.length}장`
+      : undefined;
   const thumbnail = item.attachments[0];
 
   return {
+    adminAnswer: item.answer ?? undefined,
     attachmentCountLabel: attachmentCount,
-    contentPreview: summarizeContent(item.content),
+    content: item.content,
     createdAtLabel: formatInquiryDateTime(item.createdAt),
     id: item.id,
     statusLabel: statusMeta.statusLabel,

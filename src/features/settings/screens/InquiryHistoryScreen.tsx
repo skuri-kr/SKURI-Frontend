@@ -1,10 +1,5 @@
 import React from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -16,11 +11,7 @@ import {
   StackHeader,
   StateCard,
 } from '@/shared/design-system/components';
-import {
-  COLORS,
-  RADIUS,
-  SPACING,
-} from '@/shared/design-system/tokens';
+import {COLORS, RADIUS, SPACING} from '@/shared/design-system/tokens';
 import {useScreenView} from '@/shared/hooks/useScreenView';
 
 import {InquiryHistoryListItem} from '../components/InquiryHistoryListItem';
@@ -32,10 +23,30 @@ export const InquiryHistoryScreen = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
   const {data, error, loading, reload} = useInquiryHistoryData();
+  const [expandedInquiryIds, setExpandedInquiryIds] = React.useState<
+    Set<string>
+  >(() => new Set());
+
+  const handleToggleInquiry = React.useCallback((inquiryId: string) => {
+    setExpandedInquiryIds(previousIds => {
+      const nextIds = new Set(previousIds);
+
+      if (nextIds.has(inquiryId)) {
+        nextIds.delete(inquiryId);
+      } else {
+        nextIds.add(inquiryId);
+      }
+
+      return nextIds;
+    });
+  }, []);
 
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
-      <StackHeader onPressBack={() => navigation.goBack()} title="내 문의 내역" />
+      <StackHeader
+        onPressBack={() => navigation.goBack()}
+        title="내 문의 내역"
+      />
 
       {loading && !data ? <InquiryHistoryScreenSkeleton /> : null}
 
@@ -73,7 +84,12 @@ export const InquiryHistoryScreen = () => {
           {data.items.length > 0 ? (
             <View style={styles.list}>
               {data.items.map(item => (
-                <InquiryHistoryListItem key={item.id} item={item} />
+                <InquiryHistoryListItem
+                  expanded={expandedInquiryIds.has(item.id)}
+                  item={item}
+                  key={item.id}
+                  onToggle={() => handleToggleInquiry(item.id)}
+                />
               ))}
             </View>
           ) : (
