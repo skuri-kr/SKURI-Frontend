@@ -101,9 +101,12 @@ export const ChatDetailScreen = () => {
   const {
     data,
     error,
+    hasOlderMessages,
     joinRoom,
     leaveRoom,
+    loadOlderMessages,
     loading,
+    loadingOlderMessages,
     membershipLoading,
     notificationTogglePending,
     notFound,
@@ -517,7 +520,10 @@ export const ChatDetailScreen = () => {
                       ? styles.threadContentWithGuideButton
                       : undefined,
                   ]}
+                  hasOlderMessages={hasOlderMessages}
                   items={data.items}
+                  loadingOlderMessages={loadingOlderMessages}
+                  onLoadOlderMessages={loadOlderMessages}
                   onLongPressMessage={(message, event) => {
                     handleLongPressMessage(
                       message,

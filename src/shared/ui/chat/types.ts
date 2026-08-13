@@ -59,6 +59,12 @@ export interface ChatThreadMessageViewData {
   type: 'text-message'
 }
 
+export interface ChatThreadNewMessagePreviewViewData {
+  id: string
+  senderName: string
+  text: string
+}
+
 export type ChatThreadItemViewData =
   | ChatThreadDateDividerViewData
   | ChatThreadSystemMessageViewData
