@@ -26,7 +26,6 @@ import {COLORS, SPACING} from '@/shared/design-system/tokens';
 import {NoticeSettingsPanel} from '../components/NoticeSettingsPanel';
 import {NoticeCategoryBar} from '../components/NoticeCategoryBar';
 import {NoticeHomeList} from '../components/NoticeHomeList';
-import {NoticeUnreadBanner} from '../components/NoticeUnreadBanner';
 import {useNoticeHomeData} from '../hooks/useNoticeHomeData';
 import type {NoticeStackParamList} from '../model/navigation';
 
@@ -41,8 +40,6 @@ export const NoticeScreen = () => {
   const screenAnimatedStyle = useScreenEnterAnimation();
 
   const {
-    banner,
-    bannerFirstUnreadNoticeId,
     data,
     error,
     hasMore,
@@ -87,14 +84,6 @@ export const NoticeScreen = () => {
   const handleOpenSettings = React.useCallback(() => {
     setPanelVisible(true);
   }, []);
-
-  const handlePressUnreadBanner = React.useCallback(() => {
-    if (!bannerFirstUnreadNoticeId) {
-      return;
-    }
-
-    handleOpenNotice(bannerFirstUnreadNoticeId);
-  }, [bannerFirstUnreadNoticeId, handleOpenNotice]);
 
   const handleListSectionScroll = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -148,14 +137,6 @@ export const NoticeScreen = () => {
             subtitle={data.subtitle}
             title={data.title}
           />
-          {banner?.hasUnread ? (
-            <NoticeUnreadBanner
-              banner={banner}
-              onPressAction={
-                banner.actionLabel ? handlePressUnreadBanner : undefined
-              }
-            />
-          ) : null}
         </View>
 
         <View style={styles.categorySection}>
@@ -214,7 +195,6 @@ const styles = StyleSheet.create({
   },
   headerSection: {
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
   },
   categorySection: {
     paddingHorizontal: SPACING.lg,
