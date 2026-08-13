@@ -19,7 +19,6 @@ import {
   COLORS,
   MOTION,
   RADIUS,
-  SHADOWS,
   SPACING,
 } from '@/shared/design-system/tokens';
 
@@ -159,7 +158,11 @@ const styles = StyleSheet.create({
     height: 44,
     justifyContent: 'center',
     overflow: 'hidden',
-    ...SHADOWS.raised,
+    shadowColor: '#000000',
+    shadowOffset: {width: 0, height: 10},
+    shadowOpacity: 0.18,
+    shadowRadius: 15,
+    elevation: 10,
   },
   compactButton: {
     alignItems: 'center',
