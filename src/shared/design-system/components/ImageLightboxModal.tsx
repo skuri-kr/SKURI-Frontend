@@ -3,6 +3,7 @@ import {
   FlatList,
   Image,
   Modal,
+  Platform,
   StatusBar,
   StyleSheet,
   Text,
@@ -438,7 +439,9 @@ export const ImageLightboxModal = ({
       statusBarTranslucent
       transparent
       visible={visible}>
-      {visible ? <StatusBar barStyle="light-content" /> : null}
+      {visible && Platform.OS === 'android' ? (
+        <StatusBar barStyle="light-content" />
+      ) : null}
       <View style={styles.backdrop}>
         <GestureDetector gesture={dismissGesture}>
           <Animated.View

@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   ImageBackground,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -135,10 +136,12 @@ export const LoginScreen = (_props: LoginScreenProps) => {
             resizeMode="cover"
             source={require('../../../../assets/images/login/login_main.png')}
             style={styles.heroImage}>
-            <View
-              pointerEvents="none"
-              style={[styles.statusBarBackdrop, {height: insets.top}]}
-            />
+            {Platform.OS === 'android' ? (
+              <View
+                pointerEvents="none"
+                style={[styles.statusBarBackdrop, {height: insets.top}]}
+              />
+            ) : null}
             <View style={[styles.brandPill, {marginTop: insets.top + 8}]}>
               <Image
                 source={require('../../../../assets/icons/sku-wordmark.png')}
