@@ -1,6 +1,6 @@
 export const FONT_FAMILIES = {
   brand: {
-    wordmark: 'Montserrat',
+    wordmark: 'Montserrat-ExtraBold',
   },
 } as const;
 

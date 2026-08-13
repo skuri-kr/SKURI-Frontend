@@ -78,7 +78,6 @@ const styles = StyleSheet.create({
     color: COLORS.text.primary,
     fontFamily: FONT_FAMILIES.brand.wordmark,
     fontSize: 30,
-    fontWeight: '800',
     letterSpacing: -1,
     lineHeight: 36,
   },
