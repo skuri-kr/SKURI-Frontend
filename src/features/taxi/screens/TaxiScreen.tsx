@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -409,10 +410,12 @@ export const TaxiScreen = () => {
               />
             ))}
           </MapView>
-          <View
-            pointerEvents="none"
-            style={[styles.statusBarBackdrop, {height: insets.top}]}
-          />
+          {Platform.OS === 'android' ? (
+            <View
+              pointerEvents="none"
+              style={[styles.statusBarBackdrop, {height: insets.top}]}
+            />
+          ) : null}
           <View style={[styles.heroContent, {paddingTop: insets.top}]}>
             <TaxiHomeSearchBar
               onChangeText={setSearchQuery}
