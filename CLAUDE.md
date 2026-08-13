@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> Git 브랜치, PR, 리뷰, 병합 규칙은 [AGENTS.md](AGENTS.md)를 우선으로 따른다.
+
 ## Project Overview
 
 SKURI Taxi는 성결대학교 학생을 위한 택시 동승 + 캠퍼스 라이프 통합 React Native 모바일 앱이다.
