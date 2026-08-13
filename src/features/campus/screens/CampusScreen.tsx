@@ -81,7 +81,7 @@ export const CampusScreen = () => {
 
   const contentContainerStyle = React.useMemo(
     () => ({
-      paddingTop: 76,
+      paddingTop: 72,
       paddingBottom: BOTTOM_TAB_BAR_HEIGHT + insets.bottom + SPACING.xxl,
     }),
     [insets.bottom],

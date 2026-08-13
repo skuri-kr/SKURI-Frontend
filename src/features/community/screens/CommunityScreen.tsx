@@ -265,7 +265,6 @@ const styles = StyleSheet.create({
   },
   headerSection: {
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
   },
   segmentSection: {
     paddingHorizontal: SPACING.lg,
