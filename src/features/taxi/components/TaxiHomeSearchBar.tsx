@@ -108,7 +108,7 @@ export const TaxiHomeSearchBar = ({
               onPress={handleCollapse}
               style={styles.iconButton}>
               <Icon
-                color={COLORS.text.muted}
+                color={COLORS.text.tertiary}
                 name="chevron-forward"
                 size={20}
               />
@@ -145,7 +145,7 @@ export const TaxiHomeSearchBar = ({
             activeOpacity={0.8}
             onPress={handleExpand}
             style={styles.compactButton}>
-            <Icon color={COLORS.text.secondary} name="search-outline" size={20} />
+            <Icon color={COLORS.text.tertiary} name="search" size={20} />
           </TouchableOpacity>
         )}
       </View>
