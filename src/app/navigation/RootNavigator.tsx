@@ -8,6 +8,7 @@ import {
   TermsOfUseForAuthScreen,
 } from '@/features/auth';
 
+import { LIGHT_SURFACE_SCREEN_OPTIONS } from './config/systemBars';
 import { RootStackParamList } from './types';
 import { MainNavigator } from './MainNavigator';
 import { AuthNavigator } from './AuthNavigator';
@@ -25,7 +26,7 @@ export const RootNavigator = () => {
   }
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={LIGHT_SURFACE_SCREEN_OPTIONS}>
       {route === 'auth' ? (
         <Stack.Screen name="Auth" component={AuthNavigator} />
       ) : route === 'completeProfile' ? (

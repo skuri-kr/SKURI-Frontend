@@ -3,6 +3,7 @@ import {
   FlatList,
   Image,
   Modal,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -437,6 +438,7 @@ export const ImageLightboxModal = ({
       statusBarTranslucent
       transparent
       visible={visible}>
+      {visible ? <StatusBar barStyle="light-content" /> : null}
       <View style={styles.backdrop}>
         <GestureDetector gesture={dismissGesture}>
           <Animated.View

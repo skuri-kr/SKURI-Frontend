@@ -8,11 +8,13 @@ import {
   NoticeScreen,
 } from '@/features/notice';
 
+import { LIGHT_SURFACE_SCREEN_OPTIONS } from '../config/systemBars';
+
 const NoticeStack = createNativeStackNavigator<NoticeStackParamList>();
 
 export const NoticeStackNavigator = () => {
   return (
-    <NoticeStack.Navigator screenOptions={{ headerShown: false }}>
+    <NoticeStack.Navigator screenOptions={LIGHT_SURFACE_SCREEN_OPTIONS}>
       <NoticeStack.Screen name="NoticeMain" component={NoticeScreen} />
       <NoticeStack.Screen name="NoticeSearch" component={NoticeSearchScreen} />
       <NoticeStack.Screen name="NoticeDetail" component={NoticeDetailScreen} />
