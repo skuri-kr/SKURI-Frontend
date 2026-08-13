@@ -36,24 +36,34 @@ describe('InquiryHistoryListItem', () => {
     expect(screen.getByText(item.content).props.numberOfLines).toBe(3);
     expect(screen.queryByText('관리자 답변')).toBeNull();
     expect(
-      screen.getByRole('button', {name: '긴 문의 제목 문의 내용 펼치기'}).props
-        .accessibilityState,
+      screen.getByRole('button', {
+        name: '긴 문의 제목. 버그 신고. 처리 완료. 2026.08.13 12:00. 펼치기',
+      }).props.accessibilityState,
     ).toEqual({expanded: false});
 
     fireEvent.press(
-      screen.getByRole('button', {name: '긴 문의 제목 문의 내용 펼치기'}),
+      screen.getByRole('button', {
+        name: '긴 문의 제목. 버그 신고. 처리 완료. 2026.08.13 12:00. 펼치기',
+      }),
     );
 
     expect(screen.getByText(item.content).props.numberOfLines).toBeUndefined();
     expect(screen.getByText('관리자 답변')).not.toBeNull();
     expect(screen.getByText(item.adminAnswer!)).not.toBeNull();
     expect(
-      screen.getByRole('button', {name: '긴 문의 제목 문의 내용 접기'}).props
-        .accessibilityState,
+      screen.getByRole('button', {
+        name: `긴 문의 제목. 버그 신고. 처리 완료. 2026.08.13 12:00. 문의 내용 ${
+          item.content
+        }. 관리자 답변 ${item.adminAnswer!}. 접기`,
+      }).props.accessibilityState,
     ).toEqual({expanded: true});
 
     fireEvent.press(
-      screen.getByRole('button', {name: '긴 문의 제목 문의 내용 접기'}),
+      screen.getByRole('button', {
+        name: `긴 문의 제목. 버그 신고. 처리 완료. 2026.08.13 12:00. 문의 내용 ${
+          item.content
+        }. 관리자 답변 ${item.adminAnswer!}. 접기`,
+      }),
     );
 
     expect(screen.queryByText('관리자 답변')).toBeNull();

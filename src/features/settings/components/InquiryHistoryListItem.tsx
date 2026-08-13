@@ -29,6 +29,25 @@ interface InquiryHistoryListItemProps {
 
 const CARD_LAYOUT_TRANSITION = layoutTransitions.cardExpand();
 
+const buildAccessibilityLabel = (
+  item: InquiryHistoryItemViewData,
+  expanded: boolean,
+) => {
+  const detailLabels = [item.typeLabel, item.statusLabel, item.createdAtLabel];
+
+  if (expanded) {
+    detailLabels.push(`문의 내용 ${item.content}`);
+
+    if (item.adminAnswer) {
+      detailLabels.push(`관리자 답변 ${item.adminAnswer}`);
+    }
+  }
+
+  detailLabels.push(expanded ? '접기' : '펼치기');
+
+  return `${item.subject}. ${detailLabels.join('. ')}`;
+};
+
 const AnimatedChevron = ({expanded}: {expanded: boolean}) => {
   const progress = useSharedValue(expanded ? 1 : 0);
 
@@ -62,9 +81,7 @@ export const InquiryHistoryListItem = ({
   return (
     <Animated.View layout={CARD_LAYOUT_TRANSITION}>
       <TouchableOpacity
-        accessibilityLabel={`${item.subject} 문의 내용 ${
-          expanded ? '접기' : '펼치기'
-        }`}
+        accessibilityLabel={buildAccessibilityLabel(item, expanded)}
         accessibilityRole="button"
         accessibilityState={{expanded}}
         activeOpacity={0.82}
