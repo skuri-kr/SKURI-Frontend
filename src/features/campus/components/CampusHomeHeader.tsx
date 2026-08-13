@@ -70,9 +70,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: SPACING.lg,
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.xl + SPACING.xs,
+    paddingTop: SPACING.xl,
     backgroundColor: COLORS.background.pageHeader,
-    /* height: 76, */
+    /* height: 72, */
   },
   wordmark: {
     color: COLORS.text.primary,

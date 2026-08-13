@@ -87,10 +87,11 @@ export const PageHeader = ({
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'flex-end',
+    alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingBottom: SPACING.lg,
+    paddingBottom: SPACING.md,
+    paddingTop: SPACING.xl,
   },
   title: {
     color: COLORS.text.primary,
