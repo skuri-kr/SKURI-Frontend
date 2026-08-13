@@ -9,6 +9,10 @@ import {
 } from '@/app/data-freshness/invalidationKeys';
 import {useAuth} from '@/features/auth';
 import {useCommentAnonymousPreference} from '@/shared/hooks';
+import {
+  flattenVisibleCommentTree,
+  type FlattenedCommentTreeEntry,
+} from '@/shared/lib/comments';
 import {formatKoreanAbsoluteWithRelativeTime} from '@/shared/lib/date';
 import type {
   ContentDetailCommentViewData,
@@ -44,25 +48,8 @@ const splitParagraphs = (content: string) =>
 
 const formatViewCountLabel = (value: number) => value.toLocaleString('ko-KR');
 
-interface FlattenedBoardCommentEntry {
-  comment: BoardCommentTreeNode;
-  parent: BoardCommentTreeNode | null;
-}
-
-const flattenCommentEntries = (
-  comments: BoardCommentTreeNode[],
-  parent: BoardCommentTreeNode | null = null,
-): FlattenedBoardCommentEntry[] =>
-  comments.flatMap(comment => [
-    {
-      comment,
-      parent,
-    },
-    ...flattenCommentEntries(comment.replies, comment),
-  ]);
-
 const countComments = (comments: BoardCommentTreeNode[]) =>
-  flattenCommentEntries(comments).length;
+  flattenVisibleCommentTree(comments).length;
 
 const getCommentAuthorLabel = (comment: BoardComment) => {
   if (!comment.isAnonymous) {
@@ -100,7 +87,7 @@ export interface BoardDetailCommentItem extends ContentDetailCommentViewData {
 }
 
 const toCommentItems = (
-  comments: FlattenedBoardCommentEntry[],
+  comments: FlattenedCommentTreeEntry<BoardCommentTreeNode>[],
 ): BoardDetailCommentItem[] =>
   comments.map(({comment, parent}) => ({
     authorLabel: getCommentAuthorLabel(comment),
@@ -203,7 +190,7 @@ export const useBoardDetailData = (postId?: string) => {
   const requestIdRef = React.useRef(0);
   const lastInvalidatedLoadedPostIdRef = React.useRef<string | null>(null);
   const flattenedCommentEntries = React.useMemo(
-    () => flattenCommentEntries(comments),
+    () => flattenVisibleCommentTree(comments),
     [comments],
   );
   const commentItems = React.useMemo(

@@ -10,6 +10,10 @@ import {
 import {useAuth} from '@/features/auth';
 import {useCommentAnonymousPreference} from '@/shared/hooks';
 import {
+  flattenVisibleCommentTree,
+  type FlattenedCommentTreeEntry,
+} from '@/shared/lib/comments';
+import {
   formatKoreanAbsoluteDate,
   formatKoreanAbsoluteWithRelativeTime,
 } from '@/shared/lib/date';
@@ -29,25 +33,8 @@ import {useNoticeRepository} from './useNoticeRepository';
 
 const RECENT_NOTICE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-interface FlattenedNoticeCommentEntry {
-  comment: NoticeCommentTreeNode;
-  parent: NoticeCommentTreeNode | null;
-}
-
-const flattenCommentEntries = (
-  comments: NoticeCommentTreeNode[],
-  parent: NoticeCommentTreeNode | null = null,
-): FlattenedNoticeCommentEntry[] =>
-  comments.flatMap(comment => [
-    {
-      comment,
-      parent,
-    },
-    ...flattenCommentEntries(comment.replies, comment),
-  ]);
-
 const countComments = (comments: NoticeCommentTreeNode[]) =>
-  flattenCommentEntries(comments).length;
+  flattenVisibleCommentTree(comments).length;
 
 const decodeHtmlEntities = (value: string) =>
   value
@@ -194,7 +181,7 @@ export interface NoticeDetailCommentItem extends ContentDetailCommentViewData {
 }
 
 const toCommentItems = (
-  comments: FlattenedNoticeCommentEntry[],
+  comments: FlattenedCommentTreeEntry<NoticeCommentTreeNode>[],
 ): NoticeDetailCommentItem[] =>
   comments.map(({comment, parent}) => ({
     authorLabel: getCommentAuthorLabel(comment),
@@ -295,7 +282,7 @@ export const useNoticeDetailData = (noticeId?: string) => {
   const requestIdRef = React.useRef(0);
   const lastInvalidatedLoadedNoticeIdRef = React.useRef<string | null>(null);
   const flattenedCommentEntries = React.useMemo(
-    () => flattenCommentEntries(comments),
+    () => flattenVisibleCommentTree(comments),
     [comments],
   );
 
