@@ -135,6 +135,10 @@ export const LoginScreen = (_props: LoginScreenProps) => {
             resizeMode="cover"
             source={require('../../../../assets/images/login/login_main.png')}
             style={styles.heroImage}>
+            <View
+              pointerEvents="none"
+              style={[styles.statusBarBackdrop, {height: insets.top}]}
+            />
             <View style={[styles.brandPill, {marginTop: insets.top + 8}]}>
               <Image
                 source={require('../../../../assets/icons/sku-wordmark.png')}
@@ -515,5 +519,12 @@ const styles = StyleSheet.create({
   },
   screen: {
     flex: 1,
+  },
+  statusBarBackdrop: {
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
   },
 });

@@ -31,11 +31,13 @@ import {
   TaxiHistoryScreen,
 } from '@/features/user';
 
+import { LIGHT_SURFACE_SCREEN_OPTIONS } from '../config/systemBars';
+
 const CampusStack = createNativeStackNavigator<CampusStackParamList>();
 
 export const CampusStackNavigator = () => {
   return (
-    <CampusStack.Navigator screenOptions={{ headerShown: false }}>
+    <CampusStack.Navigator screenOptions={LIGHT_SURFACE_SCREEN_OPTIONS}>
       <CampusStack.Screen name="CampusMain" component={CampusScreen} />
       <CampusStack.Screen name="Notification" component={NotificationScreen} />
       <CampusStack.Screen name="Setting" component={SettingScreen} />

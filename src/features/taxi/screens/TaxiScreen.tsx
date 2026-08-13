@@ -409,6 +409,10 @@ export const TaxiScreen = () => {
               />
             ))}
           </MapView>
+          <View
+            pointerEvents="none"
+            style={[styles.statusBarBackdrop, {height: insets.top}]}
+          />
           <View style={[styles.heroContent, {paddingTop: insets.top}]}>
             <TaxiHomeSearchBar
               onChangeText={setSearchQuery}
@@ -548,6 +552,13 @@ const styles = StyleSheet.create({
   },
   screen: {
     flex: 1,
+  },
+  statusBarBackdrop: {
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
   },
   hero: {
     height: 288,

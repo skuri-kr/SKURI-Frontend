@@ -10,11 +10,13 @@ import {
   type TaxiStackParamList,
 } from '@/features/taxi';
 
+import { LIGHT_SURFACE_SCREEN_OPTIONS } from '../config/systemBars';
+
 const TaxiStack = createNativeStackNavigator<TaxiStackParamList>();
 
 export const TaxiStackNavigator = () => {
   return (
-    <TaxiStack.Navigator screenOptions={{ headerShown: false }}>
+    <TaxiStack.Navigator screenOptions={LIGHT_SURFACE_SCREEN_OPTIONS}>
       <TaxiStack.Screen name="TaxiMain" component={TaxiScreen} />
       <TaxiStack.Screen
         name="AcceptancePending"

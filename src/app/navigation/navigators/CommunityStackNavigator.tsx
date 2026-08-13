@@ -10,11 +10,13 @@ import {
 import {CommunityScreen} from '@/features/community';
 import {ChatDetailScreen} from '@/features/chat';
 
+import {LIGHT_SURFACE_SCREEN_OPTIONS} from '../config/systemBars';
+
 const CommunityStack = createNativeStackNavigator<CommunityStackParamList>();
 
 export const CommunityStackNavigator = () => {
   return (
-    <CommunityStack.Navigator screenOptions={{headerShown: false}}>
+    <CommunityStack.Navigator screenOptions={LIGHT_SURFACE_SCREEN_OPTIONS}>
       <CommunityStack.Screen name="BoardMain" component={CommunityScreen} />
       <CommunityStack.Screen name="BoardDetail" component={BoardDetailScreen} />
       <CommunityStack.Screen name="BoardWrite" component={BoardWriteScreen} />
