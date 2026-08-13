@@ -1,8 +1,9 @@
 import type {ContentDetailBadgeTone} from '@/shared/types/contentDetailViewData';
 
 export interface InquiryHistoryItemViewData {
+  adminAnswer?: string;
   attachmentCountLabel?: string;
-  contentPreview: string;
+  content: string;
   createdAtLabel: string;
   id: string;
   statusLabel: string;

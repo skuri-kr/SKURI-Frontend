@@ -3185,6 +3185,7 @@ Authorization:Bearer <firebase_id_token>
       "subject": "앱 오류 문의",
       "content": "채팅 화면에서 오류가 발생합니다.",
       "status": "PENDING",
+      "answer": "재현 후 수정 배포 완료",
       "attachments": [
         {
           "url": "https://cdn.skuri.app/uploads/inquiries/2026/03/28/4f3ec1a0.jpg",
@@ -3201,6 +3202,8 @@ Authorization:Bearer <firebase_id_token>
   ]
 }
 ```
+
+- `answer`는 관리자가 작성한 사용자 공개 답변이며, 답변이 없으면 `null`입니다.
 
 ### 8.2 신고
 
@@ -6230,6 +6233,8 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 }
 ```
 
+- `memo`는 해당 문의를 접수한 사용자에게 앱에서 공개되는 답변입니다. 내부 전용 메모를 저장하는 용도로 사용하지 않습니다.
+
 #### PATCH /v1/admin/inquiries/{inquiryId}/status
 문의 상태 처리 (관리자)
 
@@ -6272,6 +6277,8 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
   }
 }
 ```
+
+- `memo`는 해당 문의를 접수한 사용자에게 앱에서 공개되는 답변입니다. 내부 전용 메모를 저장하는 용도로 사용하지 않습니다.
 
 #### GET /v1/admin/reports
 신고 전체 목록 조회 (관리자)

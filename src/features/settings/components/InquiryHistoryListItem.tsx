@@ -1,59 +1,143 @@
 import React from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
+import Animated, {
+  interpolate,
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
-import {
-  ListCardThumbnail,
-  ToneBadge,
-} from '@/shared/design-system/components';
+import {ListCardThumbnail, ToneBadge} from '@/shared/design-system/components';
 import {
   COLORS,
+  MOTION,
   RADIUS,
   SHADOWS,
   SPACING,
 } from '@/shared/design-system/tokens';
+import {layoutTransitions} from '@/shared/design-system/motion';
 
 import type {InquiryHistoryItemViewData} from '../model/inquiryHistoryViewData';
 
 interface InquiryHistoryListItemProps {
+  expanded: boolean;
   item: InquiryHistoryItemViewData;
+  onToggle: () => void;
 }
 
+const CARD_LAYOUT_TRANSITION = layoutTransitions.cardExpand();
+
+const buildAccessibilityLabel = (
+  item: InquiryHistoryItemViewData,
+  expanded: boolean,
+) => {
+  const detailLabels = [item.typeLabel, item.statusLabel, item.createdAtLabel];
+
+  if (expanded) {
+    detailLabels.push(`문의 내용 ${item.content}`);
+
+    if (item.adminAnswer) {
+      detailLabels.push(`관리자 답변 ${item.adminAnswer}`);
+    }
+  }
+
+  detailLabels.push(expanded ? '접기' : '펼치기');
+
+  return `${item.subject}. ${detailLabels.join('. ')}`;
+};
+
+const AnimatedChevron = ({expanded}: {expanded: boolean}) => {
+  const progress = useSharedValue(expanded ? 1 : 0);
+
+  React.useEffect(() => {
+    progress.value = withTiming(expanded ? 1 : 0, {
+      duration: MOTION.duration.fast,
+      reduceMotion: ReduceMotion.System,
+    });
+  }, [expanded, progress]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        rotate: `${interpolate(progress.value, [0, 1], [0, 180])}deg`,
+      },
+    ],
+  }));
+
+  return (
+    <Animated.View style={animatedStyle}>
+      <Icon color={COLORS.text.muted} name="chevron-down" size={18} />
+    </Animated.View>
+  );
+};
+
 export const InquiryHistoryListItem = ({
+  expanded,
   item,
+  onToggle,
 }: InquiryHistoryListItemProps) => {
   return (
-    <View style={styles.card}>
-      <View style={styles.headerRow}>
-        <View style={styles.badgeRow}>
-          <ToneBadge label={item.typeLabel} tone={item.typeTone} />
-          <ToneBadge label={item.statusLabel} tone={item.statusTone} />
+    <Animated.View layout={CARD_LAYOUT_TRANSITION}>
+      <TouchableOpacity
+        accessibilityLabel={buildAccessibilityLabel(item, expanded)}
+        accessibilityRole="button"
+        accessibilityState={{expanded}}
+        activeOpacity={0.82}
+        onPress={onToggle}
+        style={styles.card}>
+        <View style={styles.headerRow}>
+          <View style={styles.badgeRow}>
+            <ToneBadge label={item.typeLabel} tone={item.typeTone} />
+            <ToneBadge label={item.statusLabel} tone={item.statusTone} />
+            {item.adminAnswer ? (
+              <ToneBadge label="답변 있음" tone="blue" />
+            ) : null}
+          </View>
+          <View style={styles.headerMeta}>
+            <Text style={styles.dateLabel}>{item.createdAtLabel}</Text>
+            <AnimatedChevron expanded={expanded} />
+          </View>
         </View>
-        <Text style={styles.dateLabel}>{item.createdAtLabel}</Text>
-      </View>
 
-      <View style={styles.bodyRow}>
-        <View style={styles.body}>
-          <Text numberOfLines={2} style={styles.subject}>
-            {item.subject}
-          </Text>
-          <Text numberOfLines={3} style={styles.preview}>
-            {item.contentPreview}
-          </Text>
+        <View style={styles.bodyRow}>
+          <View style={styles.body}>
+            <Text
+              numberOfLines={expanded ? undefined : 2}
+              style={styles.subject}>
+              {item.subject}
+            </Text>
+            <Text
+              numberOfLines={expanded ? undefined : 3}
+              style={styles.preview}>
+              {item.content}
+            </Text>
 
-          {item.attachmentCountLabel ? (
-            <Text style={styles.attachmentLabel}>{item.attachmentCountLabel}</Text>
+            {item.attachmentCountLabel ? (
+              <Text style={styles.attachmentLabel}>
+                {item.attachmentCountLabel}
+              </Text>
+            ) : null}
+          </View>
+
+          {item.thumbnailUri ? (
+            <ListCardThumbnail
+              accessibilityLabel={`${item.subject} 첨부 이미지`}
+              size={84}
+              uri={item.thumbnailUri}
+            />
           ) : null}
         </View>
 
-        {item.thumbnailUri ? (
-          <ListCardThumbnail
-            accessibilityLabel={`${item.subject} 첨부 이미지`}
-            size={84}
-            uri={item.thumbnailUri}
-          />
+        {expanded && item.adminAnswer ? (
+          <View style={styles.answerSection}>
+            <Text style={styles.answerLabel}>관리자 답변</Text>
+            <Text style={styles.answerContent}>{item.adminAnswer}</Text>
+          </View>
         ) : null}
-      </View>
-    </View>
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
 
@@ -85,6 +169,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
+  headerMeta: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: SPACING.xs,
+  },
   bodyRow: {
     alignItems: 'flex-start',
     flexDirection: 'row',
@@ -112,5 +201,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     lineHeight: 16,
+  },
+  answerSection: {
+    borderColor: COLORS.border.subtle,
+    borderTopWidth: 1,
+    gap: SPACING.xs,
+    marginTop: SPACING.lg,
+    paddingTop: SPACING.lg,
+  },
+  answerLabel: {
+    color: COLORS.brand.primaryStrong,
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  answerContent: {
+    color: COLORS.text.secondary,
+    fontSize: 14,
+    lineHeight: 21,
   },
 });

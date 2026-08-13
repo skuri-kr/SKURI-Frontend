@@ -65,6 +65,10 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
 }));
 
 // React Native 모듈 모킹
+jest.mock('react-native-worklets', () =>
+  require('react-native-worklets/lib/module/mock'),
+);
+
 jest.mock('react-native-gesture-handler', () => ({
   GestureHandlerRootView: ({ children }) => children,
   PanGestureHandler: 'PanGestureHandler',
@@ -84,6 +88,16 @@ jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }) => children,
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
+
+jest.mock('react-native-webview', () => {
+  const WebView = 'WebView';
+
+  return {
+    __esModule: true,
+    default: WebView,
+    WebView,
+  };
+});
 
 jest.mock('@react-navigation/native', () => ({
   NavigationContainer: ({ children }) => children,
