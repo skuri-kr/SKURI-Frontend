@@ -42,6 +42,7 @@ interface TimetableAddCourseSheetProps {
   onAddCatalogCourse: (courseId: string) => void;
   onClose: () => void;
   onLoadMoreSearchResults: () => void;
+  onRetryDepartmentOptions: () => void;
   onRetrySearch: () => void;
   onRetryFilterOptions: () => void;
   onSelectCatalogCategory: (category: string) => void;
@@ -208,6 +209,7 @@ export const TimetableAddCourseSheet = ({
   onAddCatalogCourse,
   onClose,
   onLoadMoreSearchResults,
+  onRetryDepartmentOptions,
   onRetryFilterOptions,
   onRetrySearch,
   onSelectCatalogCategory,
@@ -516,11 +518,41 @@ export const TimetableAddCourseSheet = ({
                 onSelect={value => onSetManualField('department', value)}
                 onToggle={() => toggleDropdown('manualDepartment')}
                 options={data.manual.departmentOptions}
-                placeholder="학과 선택"
+                placeholder={
+                  data.manual.isDepartmentLoading
+                    ? '불러오는 중...'
+                    : '학과 선택'
+                }
                 selectedId={data.manual.departmentValue}
               />
             </FieldBlock>
           </View>
+
+          {data.manual.isDepartmentLoading ? (
+            <View style={styles.manualDepartmentStateRow}>
+              <ActivityIndicator
+                color={COLORS.text.tertiary}
+                size="small"
+              />
+              <Text style={styles.manualDepartmentStateLabel}>
+                학과 목록을 불러오는 중입니다.
+              </Text>
+            </View>
+          ) : null}
+          {data.manual.departmentErrorLabel ? (
+            <View style={styles.manualDepartmentStateRow}>
+              <Text style={styles.manualDepartmentErrorLabel}>
+                {data.manual.departmentErrorLabel}
+              </Text>
+              <TouchableOpacity
+                accessibilityLabel="학과 목록 다시 불러오기"
+                accessibilityRole="button"
+                activeOpacity={0.8}
+                onPress={onRetryDepartmentOptions}>
+                <Text style={styles.manualDepartmentRetryLabel}>다시 시도</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
 
           <View style={styles.switchRow}>
             <Text style={styles.fieldLabel}>온라인 수업</Text>
@@ -1082,6 +1114,29 @@ const styles = StyleSheet.create({
   },
   manualSplitTextField: {
     height: 50,
+  },
+  manualDepartmentStateRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: -8,
+  },
+  manualDepartmentStateLabel: {
+    color: COLORS.text.tertiary,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  manualDepartmentErrorLabel: {
+    color: COLORS.status.danger,
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  manualDepartmentRetryLabel: {
+    color: COLORS.brand.primaryStrong,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
   },
   splitFieldRow: {
     flexDirection: 'row',

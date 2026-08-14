@@ -71,6 +71,7 @@ export const TimetableDetailScreen = () => {
     removeSelectedCourse,
     retryCatalogCourseSearch,
     retryCourseFilterOptions,
+    retryDepartmentOptions,
     selectColor,
     selectMode,
     selectSemester,
@@ -253,6 +254,9 @@ export const TimetableDetailScreen = () => {
             onClose={closeAddSheet}
             onLoadMoreSearchResults={() => {
               loadMoreCatalogCourses().catch(() => undefined);
+            }}
+            onRetryDepartmentOptions={() => {
+              retryDepartmentOptions().catch(() => undefined);
             }}
             onRetrySearch={() => {
               retryCatalogCourseSearch().catch(() => undefined);

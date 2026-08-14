@@ -147,9 +147,11 @@ export interface TimetableSearchTabViewData {
 export interface TimetableManualFormViewData {
   canSubmit: boolean;
   credits: TimetableManualCreditOptionViewData[];
+  departmentErrorLabel?: string;
   departmentOptions: TimetableFilterOptionViewData[];
   departmentValue: string;
   dayOptions: TimetableManualDayOptionViewData[];
+  isDepartmentLoading: boolean;
   isOnline: boolean;
   locationValue: string;
   nameValue: string;

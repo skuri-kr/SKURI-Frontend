@@ -325,6 +325,8 @@ const buildAddCourseSheetViewData = ({
   catalogFilters,
   courseFilterOptions,
   courses,
+  departmentOptionsError,
+  departmentOptionsLoading,
   departmentOptions,
   filterOptionsError,
   filterOptionsLoading,
@@ -342,6 +344,8 @@ const buildAddCourseSheetViewData = ({
   catalogFilters: TimetableCatalogCourseFilters;
   courseFilterOptions: TimetableCourseFilterOptions;
   courses: TimetableCourseRecord[];
+  departmentOptionsError: string | null;
+  departmentOptionsLoading: boolean;
   departmentOptions: string[];
   filterOptionsError: string | null;
   filterOptionsLoading: boolean;
@@ -372,6 +376,7 @@ const buildAddCourseSheetViewData = ({
         label: `${credit}학점`,
         selected: credit === manualDraft.credits,
       })),
+      departmentErrorLabel: departmentOptionsError ?? undefined,
       departmentOptions: [
         {id: '', label: '선택 안 함'},
         ...departmentOptions.map(department => ({
@@ -390,6 +395,7 @@ const buildAddCourseSheetViewData = ({
         canIncrease: manualDraft.endPeriod < 15,
         label: `${manualDraft.endPeriod}교시`,
       },
+      isDepartmentLoading: departmentOptionsLoading,
       isOnline: manualDraft.isOnline,
       locationValue: manualDraft.locationLabel,
       nameValue: manualDraft.name,
@@ -694,6 +700,12 @@ export const useTimetableDetailData = (
   const [courseFilterOptions, setCourseFilterOptions] =
     React.useState<TimetableCourseFilterOptions>(EMPTY_COURSE_FILTER_OPTIONS);
   const [departmentOptions, setDepartmentOptions] = React.useState<string[]>([]);
+  const [departmentOptionsError, setDepartmentOptionsError] =
+    React.useState<string | null>(null);
+  const [departmentOptionsLoaded, setDepartmentOptionsLoaded] =
+    React.useState(false);
+  const [departmentOptionsLoading, setDepartmentOptionsLoading] =
+    React.useState(false);
   const [filterOptionsError, setFilterOptionsError] = React.useState<string | null>(null);
   const [filterOptionsLoading, setFilterOptionsLoading] = React.useState(false);
   const [filterOptionsSemesterId, setFilterOptionsSemesterId] = React.useState<string>();
@@ -845,7 +857,7 @@ export const useTimetableDetailData = (
     [catalogFilters, query, selectedSemesterId, timetableRepository],
   );
 
-  const loadAddCourseOptions = React.useCallback(async () => {
+  const loadCourseFilterOptions = React.useCallback(async () => {
     if (!selectedSemesterId) {
       return;
     }
@@ -854,23 +866,37 @@ export const useTimetableDetailData = (
     setFilterOptionsError(null);
 
     try {
-      const [nextFilterOptions, nextDepartmentOptions] = await Promise.all([
-        timetableRepository.getCourseFilterOptions(selectedSemesterId),
-        timetableRepository.listDepartments(),
-      ]);
+      const nextFilterOptions =
+        await timetableRepository.getCourseFilterOptions(selectedSemesterId);
       setCourseFilterOptions(nextFilterOptions);
-      setDepartmentOptions(nextDepartmentOptions);
       setFilterOptionsSemesterId(selectedSemesterId);
     } catch (optionsError) {
       console.error(optionsError);
       setCourseFilterOptions(EMPTY_COURSE_FILTER_OPTIONS);
-      setDepartmentOptions([]);
-      setFilterOptionsError('필터와 학과 목록을 불러오지 못했습니다.');
+      setFilterOptionsError('필터를 불러오지 못했습니다.');
       setFilterOptionsSemesterId(selectedSemesterId);
     } finally {
       setFilterOptionsLoading(false);
     }
   }, [selectedSemesterId, timetableRepository]);
+
+  const loadDepartmentOptions = React.useCallback(async () => {
+    setDepartmentOptionsLoading(true);
+    setDepartmentOptionsError(null);
+
+    try {
+      const nextDepartmentOptions =
+        await timetableRepository.listDepartments();
+      setDepartmentOptions(nextDepartmentOptions);
+    } catch (optionsError) {
+      console.error(optionsError);
+      setDepartmentOptions([]);
+      setDepartmentOptionsError('학과 목록을 불러오지 못했습니다.');
+    } finally {
+      setDepartmentOptionsLoaded(true);
+      setDepartmentOptionsLoading(false);
+    }
+  }, [timetableRepository]);
 
   React.useEffect(() => {
     loadSemester().catch(() => undefined);
@@ -909,13 +935,21 @@ export const useTimetableDetailData = (
       return;
     }
 
-    loadAddCourseOptions().catch(() => undefined);
+    loadCourseFilterOptions().catch(() => undefined);
   }, [
     addSheetVisible,
     filterOptionsSemesterId,
-    loadAddCourseOptions,
+    loadCourseFilterOptions,
     selectedSemesterId,
   ]);
+
+  React.useEffect(() => {
+    if (!addSheetVisible || departmentOptionsLoaded) {
+      return;
+    }
+
+    loadDepartmentOptions().catch(() => undefined);
+  }, [addSheetVisible, departmentOptionsLoaded, loadDepartmentOptions]);
 
   const resetManualDraft = React.useCallback(() => {
     setManualDraft(previousDraft => ({
@@ -1317,6 +1351,8 @@ export const useTimetableDetailData = (
       catalogCourses: visibleCatalogCourses,
       courseFilterOptions,
       courses: record.courses,
+      departmentOptionsError,
+      departmentOptionsLoading,
       departmentOptions,
       filterOptionsError,
       filterOptionsLoading,
@@ -1333,6 +1369,8 @@ export const useTimetableDetailData = (
     activeTab,
     catalogFilters,
     courseFilterOptions,
+    departmentOptionsError,
+    departmentOptionsLoading,
     departmentOptions,
     filterOptionsError,
     filterOptionsLoading,
@@ -1392,7 +1430,8 @@ export const useTimetableDetailData = (
     reload: () => loadSemester(selectedSemesterId),
     removeSelectedCourse,
     retryCatalogCourseSearch,
-    retryCourseFilterOptions: () => loadAddCourseOptions(),
+    retryCourseFilterOptions: () => loadCourseFilterOptions(),
+    retryDepartmentOptions: () => loadDepartmentOptions(),
     selectColor: (colorId: TimetableCourseToneId) => {
       setSelectedToneId(colorId);
       setManualDraft(previousDraft => ({
