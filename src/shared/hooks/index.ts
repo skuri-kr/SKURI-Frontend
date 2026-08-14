@@ -6,3 +6,4 @@ export * from './useScreenView';
 export * from './useScreenEnterAnimation';
 export * from './usePlayChatSoundOnNewMessage';
 export * from './useCommentAnonymousPreference';
+export {useDepartments} from './useDepartments';

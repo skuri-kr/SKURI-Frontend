@@ -1,5 +1,5 @@
 import {uploadImage} from '@/shared/api/imageUploadClient';
-import {DEPARTMENT_OPTIONS} from '@/shared/constants/departments';
+import {getDepartments} from '@/shared/api';
 import type {MemberProfile} from '@/features/member/model/types';
 import {SpringMemberRepository} from '@/features/member/data/repositories/SpringMemberRepository';
 import type {IMemberRepository} from '@/features/member/data/repositories/IMemberRepository';
@@ -15,11 +15,12 @@ const DEFAULT_AVATAR_LABEL = '?';
 
 const toProfileEditSource = (
   memberProfile: MemberProfile,
+  departmentOptions: string[],
 ): ProfileEditSource => ({
   avatarLabel:
     memberProfile.nickname.trim().slice(0, 1) || DEFAULT_AVATAR_LABEL,
   department: memberProfile.department ?? '',
-  departmentOptions: DEPARTMENT_OPTIONS,
+  departmentOptions,
   displayName: memberProfile.nickname,
   gradeLabel: '',
   photoUrl: memberProfile.photoUrl ?? null,
@@ -32,8 +33,11 @@ export class SpringProfileEditRepository implements IProfileEditRepository {
   ) {}
 
   async getProfileEdit(): Promise<ProfileEditSource> {
-    const memberProfile = await this.memberRepository.getMyMemberProfile();
-    return toProfileEditSource(memberProfile);
+    const [memberProfile, departmentOptions] = await Promise.all([
+      this.memberRepository.getMyMemberProfile(),
+      getDepartments(),
+    ]);
+    return toProfileEditSource(memberProfile, departmentOptions);
   }
 
   async saveProfileEdit(draft: ProfileEditDraft): Promise<ProfileEditSource> {
@@ -43,7 +47,7 @@ export class SpringProfileEditRepository implements IProfileEditRepository {
       studentId: draft.studentId.trim(),
     });
 
-    return toProfileEditSource(memberProfile);
+    return toProfileEditSource(memberProfile, await getDepartments());
   }
 
   async uploadProfilePhoto(
@@ -64,13 +68,13 @@ export class SpringProfileEditRepository implements IProfileEditRepository {
       photoUrl: uploadedImage.url,
     });
 
-    return toProfileEditSource(memberProfile);
+    return toProfileEditSource(memberProfile, await getDepartments());
   }
 
   async removeProfilePhoto(): Promise<ProfileEditSource> {
     await this.memberRepository.deleteMyProfilePhoto();
     const memberProfile = await this.memberRepository.getMyMemberProfile();
 
-    return toProfileEditSource(memberProfile);
+    return toProfileEditSource(memberProfile, await getDepartments());
   }
 }

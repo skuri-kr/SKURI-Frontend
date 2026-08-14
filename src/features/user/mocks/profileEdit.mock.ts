@@ -1,5 +1,3 @@
-import {DEPARTMENT_OPTIONS} from '@/shared/constants/departments';
-
 import type {
   ProfileEditDraft,
   ProfileEditSource,
@@ -8,7 +6,7 @@ import type {
 let profileEditProfileState: ProfileEditSource = {
   avatarLabel: '김',
   department: '컴퓨터공학과',
-  departmentOptions: DEPARTMENT_OPTIONS,
+  departmentOptions: ['컴퓨터공학과'],
   displayName: '김성결',
   gradeLabel: '3학년',
   photoUrl: null,

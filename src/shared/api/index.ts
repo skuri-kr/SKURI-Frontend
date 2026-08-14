@@ -38,3 +38,4 @@ export {
 } from './apiLogSanitizer';
 export { HttpClient, httpClient } from './httpClient';
 export type { ApiRequestConfig } from './httpClient';
+export {getDepartments, resetDepartmentsCache} from './departmentApiClient';

@@ -23,7 +23,6 @@ import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 import type {RootStackParamList} from '@/app/navigation/types';
-import {DEPARTMENT_OPTIONS} from '@/shared/constants/departments';
 import {SelectionDropdown} from '@/shared/design-system/components';
 import {
   COLORS,
@@ -31,7 +30,7 @@ import {
   RADIUS,
   SPACING,
 } from '@/shared/design-system/tokens';
-import {useScreenView} from '@/shared/hooks';
+import {useDepartments, useScreenView} from '@/shared/hooks';
 
 import {AuthActionButton} from '../components/AuthActionButton';
 import {
@@ -121,6 +120,12 @@ export const CompleteProfileScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const {loading, submitProfile} = useCompleteProfile();
+  const {
+    departments,
+    error: departmentError,
+    loading: departmentsLoading,
+    reload: reloadDepartments,
+  } = useDepartments();
   const [displayName, setDisplayName] = React.useState('');
   const [department, setDepartment] = React.useState('');
   const [studentId, setStudentId] = React.useState('');
@@ -235,11 +240,21 @@ export const CompleteProfileScreen = () => {
                   Keyboard.dismiss();
                   setDropdownOpen(current => !current);
                 }}
-                options={DEPARTMENT_OPTIONS}
-                placeholder="학과를 선택해요"
+                options={departments}
+                placeholder={departmentsLoading ? '학과를 불러오는 중...' : '학과를 선택해요'}
                 selectedValue={department}
                 style={styles.dropdown}
               />
+              {departmentError ? (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    reloadDepartments().catch(() => undefined);
+                  }}>
+                  <Text style={styles.departmentError}>{departmentError} 다시 시도</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
 
             <View style={styles.fieldBlock}>
@@ -381,6 +396,12 @@ const styles = StyleSheet.create({
   },
   dropdown: {
     zIndex: 10,
+  },
+  departmentError: {
+    color: COLORS.status.danger,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 6,
   },
   divider: {
     backgroundColor: COLORS.border.subtle,
