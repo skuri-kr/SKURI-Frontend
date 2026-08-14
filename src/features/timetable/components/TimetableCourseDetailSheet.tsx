@@ -1,5 +1,4 @@
 import React from 'react';
-import {BottomSheetView} from '@gorhom/bottom-sheet';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 
@@ -57,7 +56,7 @@ export const TimetableCourseDetailSheet = ({
       onClose={onClose}
       snapPoints={DETAIL_SNAP_POINTS}
       visible={Boolean(course)}>
-      <BottomSheetView style={styles.content}>
+      <View style={styles.content}>
         <View style={styles.headerRow}>
           <View style={styles.titleGroup}>
             <View style={[styles.titleDot, {backgroundColor: tone.accent}]} />
@@ -119,7 +118,7 @@ export const TimetableCourseDetailSheet = ({
           />
           <Text style={styles.deleteLabel}>{course.deleteLabel}</Text>
         </TouchableOpacity>
-      </BottomSheetView>
+      </View>
     </TimetableBottomSheet>
   );
 };

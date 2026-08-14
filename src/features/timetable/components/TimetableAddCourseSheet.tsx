@@ -294,6 +294,7 @@ export const TimetableAddCourseSheet = ({
 
   return (
     <TimetableBottomSheet
+      contentMode="scrollable"
       keyboardBehavior="interactive"
       onClose={onClose}
       snapPoints={['88%']}
@@ -352,6 +353,7 @@ export const TimetableAddCourseSheet = ({
             removeClippedSubviews
             renderItem={renderCatalogCourseItem}
             showsVerticalScrollIndicator={false}
+            style={styles.scrollable}
             updateCellsBatchingPeriod={50}
             windowSize={8}
           />
@@ -360,7 +362,8 @@ export const TimetableAddCourseSheet = ({
         <BottomSheetScrollView
           contentContainerStyle={styles.manualContent}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          style={styles.scrollable}>
           <FieldBlock label="강의명 *">
             <BottomSheetTextInput
               onChangeText={value => onSetManualField('name', value)}
@@ -659,6 +662,9 @@ const StepperField = ({
 };
 
 const styles = StyleSheet.create({
+  scrollable: {
+    flex: 1,
+  },
   headerRow: {
     alignItems: 'center',
     flexDirection: 'row',
