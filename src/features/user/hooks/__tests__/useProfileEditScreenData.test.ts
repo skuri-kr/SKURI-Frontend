@@ -25,7 +25,7 @@ const createSource = (overrides: Partial<ProfileEditSource> = {}) => ({
 const baseSource = () => ({
   avatarLabel: '스',
   department: '컴퓨터공학과',
-  departmentOptions: ['컴퓨터공학과', '소프트웨어학과'],
+  departmentOptions: ['컴퓨터공학과', '미디어소프트웨어학과'],
   displayName: '스쿠리',
   gradeLabel: '',
   photoUrl:
