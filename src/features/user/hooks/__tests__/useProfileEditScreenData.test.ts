@@ -42,6 +42,9 @@ describe('useProfileEditScreenData', () => {
     const refreshCurrentUser = jest.fn().mockResolvedValue(undefined);
     const repository = {
       getProfileEdit: jest.fn().mockResolvedValue(createSource()),
+      listDepartments: jest
+        .fn()
+        .mockResolvedValue(['컴퓨터공학과', '미디어소프트웨어학과']),
       removeProfilePhoto: jest.fn(),
       saveProfileEdit: jest.fn().mockResolvedValue(
         createSource({
@@ -98,9 +101,9 @@ describe('useProfileEditScreenData', () => {
       mimeType: 'image/png',
       uri: 'file:///updated.png',
     });
-    expect(
-      repository.saveProfileEdit.mock.invocationCallOrder[0],
-    ).toBeLessThan(repository.uploadProfilePhoto.mock.invocationCallOrder[0]);
+    expect(repository.saveProfileEdit.mock.invocationCallOrder[0]).toBeLessThan(
+      repository.uploadProfilePhoto.mock.invocationCallOrder[0],
+    );
     expect(refreshCurrentUser).toHaveBeenCalledTimes(1);
     expect(result.current.data).toMatchObject({
       department: '소프트웨어학과',
@@ -115,6 +118,9 @@ describe('useProfileEditScreenData', () => {
     const refreshCurrentUser = jest.fn().mockResolvedValue(undefined);
     const repository = {
       getProfileEdit: jest.fn().mockResolvedValue(createSource()),
+      listDepartments: jest
+        .fn()
+        .mockResolvedValue(['컴퓨터공학과', '미디어소프트웨어학과']),
       removeProfilePhoto: jest.fn().mockResolvedValue(
         createSource({
           photoUrl: null,
@@ -154,5 +160,56 @@ describe('useProfileEditScreenData', () => {
     expect(repository.removeProfilePhoto).toHaveBeenCalledTimes(1);
     expect(refreshCurrentUser).toHaveBeenCalledTimes(1);
     expect(result.current.data?.photoUrl).toBeNull();
+  });
+
+  it('학과 목록 조회가 실패해도 프로필을 표시하고 별도로 재시도한다', async () => {
+    const refreshCurrentUser = jest.fn().mockResolvedValue(undefined);
+    const repository = {
+      getProfileEdit: jest.fn().mockResolvedValue(
+        createSource({
+          departmentOptions: [],
+        }),
+      ),
+      listDepartments: jest
+        .fn()
+        .mockRejectedValueOnce(new Error('department unavailable'))
+        .mockResolvedValueOnce(['컴퓨터공학과', '정보통신공학과']),
+      removeProfilePhoto: jest.fn(),
+      saveProfileEdit: jest.fn(),
+      uploadProfilePhoto: jest.fn(),
+    };
+    const consoleError = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    mockedUseAuth.mockReturnValue({
+      refreshCurrentUser,
+    } as unknown as ReturnType<typeof useAuth>);
+    mockedUseProfileEditRepository.mockReturnValue(
+      repository as ReturnType<typeof useProfileEditRepository>,
+    );
+
+    const {result} = renderHook(() => useProfileEditScreenData());
+
+    await waitFor(() => {
+      expect(result.current.data?.displayName).toBe('스쿠리');
+      expect(result.current.error).toBeUndefined();
+      expect(result.current.departmentOptionsError).toBe(
+        '학과 목록을 불러오지 못했습니다.',
+      );
+    });
+
+    await act(async () => {
+      await result.current.reloadDepartmentOptions();
+    });
+
+    expect(result.current.departmentOptionsError).toBeUndefined();
+    expect(result.current.data?.departmentOptions).toEqual([
+      '컴퓨터공학과',
+      '정보통신공학과',
+    ]);
+    expect(repository.listDepartments).toHaveBeenCalledTimes(2);
+
+    consoleError.mockRestore();
   });
 });

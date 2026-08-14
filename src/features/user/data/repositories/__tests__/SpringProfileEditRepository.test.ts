@@ -77,7 +77,7 @@ describe('SpringProfileEditRepository', () => {
       photoUrl:
         'https://cdn.skuri.app/uploads/profiles/member-1/2026/04/06/profile.jpg',
     });
-    expect(mockedGetDepartments).toHaveBeenCalledTimes(1);
+    expect(mockedGetDepartments).not.toHaveBeenCalled();
   });
 
   it('프로필 사진 삭제 시 전용 삭제 API 호출 후 최신 프로필을 다시 불러온다', async () => {
@@ -107,6 +107,36 @@ describe('SpringProfileEditRepository', () => {
 
     expect(memberRepository.deleteMyProfilePhoto).toHaveBeenCalledTimes(1);
     expect(memberRepository.getMyMemberProfile).toHaveBeenCalledTimes(1);
-    expect(mockedGetDepartments).toHaveBeenCalledTimes(1);
+    expect(mockedGetDepartments).not.toHaveBeenCalled();
+  });
+
+  it('학과 목록 조회 실패와 프로필 조회를 서로 격리한다', async () => {
+    const memberRepository = {
+      getMyMemberProfile: jest.fn().mockResolvedValue({
+        bankAccount: null,
+        department: '컴퓨터공학과',
+        email: 'user@skuniv.ac.kr',
+        id: 'member-1',
+        isAdmin: false,
+        joinedAt: '2026-03-28T12:00:00',
+        lastLogin: null,
+        nickname: '스쿠리',
+        notificationSetting: null,
+        photoUrl: null,
+        realname: null,
+        studentId: '20210001',
+      }),
+    } as unknown as IMemberRepository;
+    mockedGetDepartments.mockRejectedValue(new Error('department unavailable'));
+
+    const repository = new SpringProfileEditRepository(memberRepository);
+
+    await expect(repository.getProfileEdit()).resolves.toMatchObject({
+      department: '컴퓨터공학과',
+      displayName: '스쿠리',
+    });
+    await expect(repository.listDepartments()).rejects.toThrow(
+      'department unavailable',
+    );
   });
 });
