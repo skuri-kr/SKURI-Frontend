@@ -109,8 +109,20 @@ describe('useTimetableDetailData add course options', () => {
       expect(
         result.current.data?.addCourseSheet.search.filters.departments,
       ).toEqual([
-        {id: '', label: '전체'},
+        {id: '', label: '학과 전체'},
         {id: '컴퓨터공학과', label: '컴퓨터공학과'},
+      ]);
+      expect(
+        result.current.data?.addCourseSheet.search.filters.grades,
+      ).toEqual([
+        {id: '', label: '학년 전체'},
+        {id: '2', label: '2학년'},
+      ]);
+      expect(
+        result.current.data?.addCourseSheet.search.filters.categories,
+      ).toEqual([
+        {id: '', label: '구분 전체'},
+        {id: '전공선택', label: '전선'},
       ]);
       expect(
         result.current.data?.addCourseSheet.manual.departmentErrorLabel,
