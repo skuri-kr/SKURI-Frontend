@@ -29,6 +29,7 @@ const CARD_RADIUS = 16;
 const BLOCK_INSET_X = 2;
 const BLOCK_INSET_Y = 2;
 const BLOCK_RADIUS = 8;
+const GRID_LINE_WIDTH = 1;
 
 export const TimetableAllViewCard = ({
   blocks,
@@ -129,12 +130,16 @@ export const TimetableAllViewCard = ({
                   left:
                     columnWidth +
                     dayIndex * columnWidth +
+                    GRID_LINE_WIDTH +
                     BLOCK_INSET_X,
                   top:
                     HEADER_HEIGHT +
                     (block.startPeriod - 1) * ROW_HEIGHT +
                     BLOCK_INSET_Y,
-                  width: columnWidth - BLOCK_INSET_X * 2 - 1,
+                  width:
+                    columnWidth -
+                    GRID_LINE_WIDTH -
+                    BLOCK_INSET_X * 2,
                 },
               ]}>
               <View style={styles.blockBase} />
@@ -238,7 +243,7 @@ const styles = StyleSheet.create({
   gridLineVertical: {
     backgroundColor: COLORS.border.subtle,
     position: 'absolute',
-    width: 1,
+    width: GRID_LINE_WIDTH,
   },
   block: {
     alignItems: 'center',
