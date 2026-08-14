@@ -27,6 +27,7 @@ export const TimetableSemesterSheet = ({
 }: TimetableSemesterSheetProps) => {
   return (
     <TimetableBottomSheet
+      contentMode="scrollable"
       onClose={onClose}
       snapPoints={SEMESTER_SNAP_POINTS}
       visible={visible}>
@@ -44,7 +45,8 @@ export const TimetableSemesterSheet = ({
 
       <BottomSheetScrollView
         contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        style={styles.scrollable}>
         {options.map(option => {
           const selected = option.label === selectedLabel;
 
@@ -81,6 +83,9 @@ export const TimetableSemesterSheet = ({
 };
 
 const styles = StyleSheet.create({
+  scrollable: {
+    flex: 1,
+  },
   headerRow: {
     alignItems: 'center',
     flexDirection: 'row',

@@ -8,6 +8,7 @@ import {
 } from '@gorhom/bottom-sheet';
 import {
   StyleSheet,
+  View,
   useWindowDimensions,
   type StyleProp,
   type ViewStyle,
@@ -18,6 +19,7 @@ import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
 
 interface TimetableBottomSheetProps {
   children: React.ReactNode;
+  contentMode?: 'scrollable' | 'static';
   contentContainerStyle?: StyleProp<ViewStyle>;
   onClose: () => void;
   snapPoints: Array<string | number>;
@@ -27,6 +29,7 @@ interface TimetableBottomSheetProps {
 
 export const TimetableBottomSheet = ({
   children,
+  contentMode = 'static',
   contentContainerStyle,
   onClose,
   snapPoints,
@@ -75,6 +78,12 @@ export const TimetableBottomSheet = ({
     }
   }, [onClose, visible]);
 
+  const contentStyle = [
+    styles.content,
+    {paddingBottom: insets.bottom},
+    contentContainerStyle,
+  ];
+
   return (
     <BottomSheetModal
       backdropComponent={renderBackdrop}
@@ -93,14 +102,11 @@ export const TimetableBottomSheet = ({
       stackBehavior="replace"
       style={styles.sheet}
       topInset={insets.top}>
-      <BottomSheetView
-        style={[
-          styles.content,
-          {paddingBottom: insets.bottom},
-          contentContainerStyle,
-        ]}>
-        {children}
-      </BottomSheetView>
+      {contentMode === 'scrollable' ? (
+        <View style={contentStyle}>{children}</View>
+      ) : (
+        <BottomSheetView style={contentStyle}>{children}</BottomSheetView>
+      )}
     </BottomSheetModal>
   );
 };
