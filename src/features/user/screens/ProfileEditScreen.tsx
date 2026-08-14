@@ -44,8 +44,17 @@ export const ProfileEditScreen = () => {
 
   const navigation =
     useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
-  const {data, error, loading, reload, saveChanges, saving} =
-    useProfileEditScreenData();
+  const {
+    data,
+    departmentOptionsError,
+    departmentOptionsLoading,
+    error,
+    loading,
+    reload,
+    reloadDepartmentOptions,
+    saveChanges,
+    saving,
+  } = useProfileEditScreenData();
 
   const [displayName, setDisplayName] = React.useState('');
   const [studentId, setStudentId] = React.useState('');
@@ -401,6 +410,35 @@ export const ProfileEditScreen = () => {
                   options={data.departmentOptions}
                   selectedValue={department}
                 />
+                {departmentOptionsLoading ? (
+                  <View style={styles.departmentOptionStateRow}>
+                    <ActivityIndicator
+                      color={COLORS.text.tertiary}
+                      size="small"
+                    />
+                    <Text style={styles.departmentOptionStateLabel}>
+                      학과 목록을 불러오는 중입니다.
+                    </Text>
+                  </View>
+                ) : null}
+                {departmentOptionsError ? (
+                  <View style={styles.departmentOptionStateRow}>
+                    <Text style={styles.departmentOptionErrorLabel}>
+                      {departmentOptionsError}
+                    </Text>
+                    <TouchableOpacity
+                      accessibilityLabel="학과 목록 다시 불러오기"
+                      accessibilityRole="button"
+                      activeOpacity={0.75}
+                      onPress={() => {
+                        reloadDepartmentOptions().catch(() => undefined);
+                      }}>
+                      <Text style={styles.departmentOptionRetryLabel}>
+                        다시 시도
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
               </View>
             </View>
 
@@ -503,6 +541,29 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     paddingHorizontal: 17,
     paddingVertical: 15,
+  },
+  departmentOptionStateRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  departmentOptionStateLabel: {
+    color: COLORS.text.tertiary,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  departmentOptionErrorLabel: {
+    color: COLORS.status.danger,
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  departmentOptionRetryLabel: {
+    color: COLORS.brand.primaryStrong,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
   },
   saveButton: {
     alignItems: 'center',

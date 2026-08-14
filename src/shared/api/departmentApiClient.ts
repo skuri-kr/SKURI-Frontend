@@ -16,8 +16,19 @@ export const getDepartments = async (): Promise<string[]> => {
   if (!pendingRequest) {
     pendingRequest = httpClient
       .get<ApiSuccessResponse<DepartmentDto[]>>('/v1/departments')
-      .then(response => response.data.map(department => department.name))
+      .then(response =>
+        Array.from(
+          new Set(
+            response.data
+              .map(department => department.name.trim())
+              .filter(Boolean),
+          ),
+        ),
+      )
       .then(departments => {
+        if (departments.length === 0) {
+          throw new Error('학과 목록이 비어 있습니다.');
+        }
         cachedDepartments = departments;
         return departments;
       })
