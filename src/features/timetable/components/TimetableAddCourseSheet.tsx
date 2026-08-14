@@ -164,6 +164,7 @@ const CatalogCourseListItem = React.memo(
 );
 
 const FilterDropdown = ({
+  compact = false,
   isOpen,
   onRequestClose,
   onSelect,
@@ -173,6 +174,7 @@ const FilterDropdown = ({
   selectedId,
   style,
 }: {
+  compact?: boolean;
   isOpen: boolean;
   onRequestClose: () => void;
   onSelect: (id: string) => void;
@@ -199,7 +201,8 @@ const FilterDropdown = ({
       options={options.map(option => option.label)}
       placeholder={placeholder}
       selectedValue={selectedOption?.label}
-      style={style}
+      style={[style, compact ? styles.compactDropdown : undefined]}
+      triggerStyle={compact ? styles.compactDropdownTrigger : undefined}
     />
   );
 };
@@ -420,6 +423,7 @@ export const TimetableAddCourseSheet = ({
 
           <View style={styles.filterSection}>
             <FilterDropdown
+              compact
               isOpen={openDropdown === 'catalogDepartment'}
               onRequestClose={() => setOpenDropdown(undefined)}
               onSelect={onSelectCatalogDepartment}
@@ -432,6 +436,7 @@ export const TimetableAddCourseSheet = ({
             />
             <View style={styles.splitFieldRow}>
               <FilterDropdown
+                compact
                 isOpen={openDropdown === 'catalogGrade'}
                 onRequestClose={() => setOpenDropdown(undefined)}
                 onSelect={onSelectCatalogGrade}
@@ -442,6 +447,7 @@ export const TimetableAddCourseSheet = ({
                 style={styles.splitField}
               />
               <FilterDropdown
+                compact
                 isOpen={openDropdown === 'catalogCategory'}
                 onRequestClose={() => setOpenDropdown(undefined)}
                 onSelect={onSelectCatalogCategory}
@@ -963,6 +969,12 @@ const styles = StyleSheet.create({
   filterSection: {
     gap: 8,
     marginBottom: 12,
+  },
+  compactDropdown: {
+    minHeight: 44,
+  },
+  compactDropdownTrigger: {
+    height: 44,
   },
   filterErrorLabel: {
     color: COLORS.status.danger,
