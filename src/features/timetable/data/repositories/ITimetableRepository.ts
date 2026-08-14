@@ -1,5 +1,7 @@
 import type {
   TimetableCatalogCourseSearchPage,
+  TimetableCatalogCourseFilters,
+  TimetableCourseFilterOptions,
   TimetableManualCourseDraft,
   TimetableSemesterRecord,
 } from '../../model/timetableDomain';
@@ -20,12 +22,15 @@ export interface ITimetableRepository {
     semesterLabel?: string,
   ): Promise<TimetableSemesterRecord | null>;
   listSemesterRecords(): Promise<TimetableSemesterRecord[]>;
+  listDepartments(): Promise<string[]>;
+  getCourseFilterOptions(semesterId: string): Promise<TimetableCourseFilterOptions>;
   removeCourse(params: {
     courseId: string;
     semesterId: string;
   }): Promise<TimetableSemesterRecord | null>;
   searchCatalogCourses(params: {
     page: number;
+    filters: TimetableCatalogCourseFilters;
     query?: string;
     semesterId: string;
     size: number;

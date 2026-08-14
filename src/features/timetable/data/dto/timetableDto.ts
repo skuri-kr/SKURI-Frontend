@@ -31,6 +31,12 @@ export interface CourseSummaryDto {
   schedule: CourseScheduleDto[];
 }
 
+export interface CourseFilterOptionsDto {
+  departments: string[];
+  grades: number[];
+  categories: string[];
+}
+
 export interface TimetableSemesterOptionDto {
   id: string;
   label: string;
@@ -44,6 +50,7 @@ export interface TimetableCourseDto {
   professor?: string | null;
   location?: string | null;
   category?: string | null;
+  department?: string | null;
   credits: number;
   isOnline: boolean;
   schedule: CourseScheduleDto[];
@@ -78,6 +85,7 @@ export interface CreateMyManualTimetableCourseRequestDto {
   semester: string;
   name: string;
   professor: string;
+  department?: string | null;
   credits: number;
   isOnline: boolean;
   locationLabel?: string | null;

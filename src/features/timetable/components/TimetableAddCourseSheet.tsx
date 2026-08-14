@@ -6,15 +6,19 @@ import {
 } from '@gorhom/bottom-sheet';
 import {
   ActivityIndicator,
+  Keyboard,
   ListRenderItem,
+  type StyleProp,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  type ViewStyle,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 import {
+  SelectionDropdown,
   SkeletonBlock,
   ToggleSwitch,
 } from '@/shared/design-system/components';
@@ -27,6 +31,7 @@ import {
 } from '../model/timetableCourseTones';
 import type {
   TimetableAddCourseSheetViewData,
+  TimetableFilterOptionViewData,
   TimetableManualDayOptionViewData,
 } from '../model/timetableViewData';
 import type {TimetableCourseToneId} from '../model/timetablePrimitives';
@@ -37,13 +42,18 @@ interface TimetableAddCourseSheetProps {
   onAddCatalogCourse: (courseId: string) => void;
   onClose: () => void;
   onLoadMoreSearchResults: () => void;
+  onRetryDepartmentOptions: () => void;
   onRetrySearch: () => void;
+  onRetryFilterOptions: () => void;
+  onSelectCatalogCategory: (category: string) => void;
+  onSelectCatalogDepartment: (department: string) => void;
+  onSelectCatalogGrade: (grade: string) => void;
   onSelectColor: (colorId: TimetableCourseToneId) => void;
   onSelectCredits: (credits: number) => void;
   onSelectDay: (day: TimetableManualDayOptionViewData['id']) => void;
   onSetManualEndPeriod: (delta: -1 | 1) => void;
   onSetManualField: (
-    field: 'locationLabel' | 'name' | 'professor',
+    field: 'department' | 'locationLabel' | 'name' | 'professor',
     value: string,
   ) => void;
   onSetManualOnline: (enabled: boolean) => void;
@@ -81,7 +91,11 @@ const CatalogCourseListItem = React.memo(
           color: COLORS.text.secondary,
         }
       : undefined;
-    const gradeAndScheduleLabel = [item.gradeLabel, item.scheduleLabel]
+    const courseSummaryLabel = [
+      item.departmentLabel,
+      item.gradeLabel,
+      item.scheduleLabel,
+    ]
       .filter(Boolean)
       .join(' · ');
     const handlePress = () => {
@@ -112,9 +126,9 @@ const CatalogCourseListItem = React.memo(
               </View>
             ) : null}
           </View>
-          {gradeAndScheduleLabel ? (
+          {courseSummaryLabel ? (
             <Text numberOfLines={1} style={styles.catalogSupplementary}>
-              {gradeAndScheduleLabel}
+              {courseSummaryLabel}
             </Text>
           ) : null}
           <Text numberOfLines={1} style={styles.catalogMeta}>
@@ -149,12 +163,58 @@ const CatalogCourseListItem = React.memo(
   },
 );
 
+const FilterDropdown = ({
+  isOpen,
+  onRequestClose,
+  onSelect,
+  onToggle,
+  options,
+  placeholder,
+  selectedId,
+  style,
+}: {
+  isOpen: boolean;
+  onRequestClose: () => void;
+  onSelect: (id: string) => void;
+  onToggle: () => void;
+  options: TimetableFilterOptionViewData[];
+  placeholder: string;
+  selectedId: string;
+  style?: StyleProp<ViewStyle>;
+}) => {
+  const selectedOption = options.find(option => option.id === selectedId);
+
+  return (
+    <SelectionDropdown
+      isOpen={isOpen}
+      onPressSelect={label => {
+        const option = options.find(candidate => candidate.label === label);
+        if (option) {
+          onSelect(option.id);
+        }
+        onRequestClose();
+      }}
+      onPressTrigger={onToggle}
+      onRequestClose={onRequestClose}
+      options={options.map(option => option.label)}
+      placeholder={placeholder}
+      selectedValue={selectedOption?.label}
+      style={style}
+    />
+  );
+};
+
 export const TimetableAddCourseSheet = ({
   data,
   onAddCatalogCourse,
   onClose,
   onLoadMoreSearchResults,
+  onRetryDepartmentOptions,
+  onRetryFilterOptions,
   onRetrySearch,
+  onSelectCatalogCategory,
+  onSelectCatalogDepartment,
+  onSelectCatalogGrade,
   onSelectColor,
   onSelectCredits,
   onSelectDay,
@@ -167,6 +227,9 @@ export const TimetableAddCourseSheet = ({
   onUpdateQuery,
   visible,
 }: TimetableAddCourseSheetProps) => {
+  const [openDropdown, setOpenDropdown] = React.useState<
+    'catalogCategory' | 'catalogDepartment' | 'catalogGrade' | 'manualDepartment'
+  >();
   const [searchInputValue, setSearchInputValue] = React.useState(
     data.search.query,
   );
@@ -181,6 +244,20 @@ export const TimetableAddCourseSheet = ({
       });
     }
   }, [data.search.query, searchInputValue, visible]);
+
+  React.useEffect(() => {
+    if (!visible) {
+      setOpenDropdown(undefined);
+    }
+  }, [visible]);
+
+  const toggleDropdown = React.useCallback(
+    (dropdown: NonNullable<typeof openDropdown>) => {
+      Keyboard.dismiss();
+      setOpenDropdown(current => (current === dropdown ? undefined : dropdown));
+    },
+    [],
+  );
 
   React.useEffect(() => {
     if (!visible || data.activeTab !== 'search') {
@@ -297,7 +374,7 @@ export const TimetableAddCourseSheet = ({
       contentMode="scrollable"
       keyboardBehavior="interactive"
       onClose={onClose}
-      snapPoints={['88%']}
+      snapPoints={['95%']}
       visible={visible}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>강의 추가</Text>
@@ -313,7 +390,10 @@ export const TimetableAddCourseSheet = ({
 
       <SegmentedTabs
         activeTab={data.activeTab}
-        onSwitchTab={onSwitchTab}
+        onSwitchTab={tab => {
+          setOpenDropdown(undefined);
+          onSwitchTab(tab);
+        }}
       />
 
       <ColorPicker
@@ -336,6 +416,52 @@ export const TimetableAddCourseSheet = ({
               ref={searchInputRef}
               style={styles.searchInput}
             />
+          </View>
+
+          <View style={styles.filterSection}>
+            <FilterDropdown
+              isOpen={openDropdown === 'catalogDepartment'}
+              onRequestClose={() => setOpenDropdown(undefined)}
+              onSelect={onSelectCatalogDepartment}
+              onToggle={() => toggleDropdown('catalogDepartment')}
+              options={data.search.filters.departments}
+              placeholder={
+                data.search.filters.isLoading ? '필터 불러오는 중...' : '학과 전체'
+              }
+              selectedId={data.search.filters.selectedDepartmentId}
+            />
+            <View style={styles.splitFieldRow}>
+              <FilterDropdown
+                isOpen={openDropdown === 'catalogGrade'}
+                onRequestClose={() => setOpenDropdown(undefined)}
+                onSelect={onSelectCatalogGrade}
+                onToggle={() => toggleDropdown('catalogGrade')}
+                options={data.search.filters.grades}
+                placeholder="학년 전체"
+                selectedId={data.search.filters.selectedGradeId}
+                style={styles.splitField}
+              />
+              <FilterDropdown
+                isOpen={openDropdown === 'catalogCategory'}
+                onRequestClose={() => setOpenDropdown(undefined)}
+                onSelect={onSelectCatalogCategory}
+                onToggle={() => toggleDropdown('catalogCategory')}
+                options={data.search.filters.categories}
+                placeholder="구분 전체"
+                selectedId={data.search.filters.selectedCategoryId}
+                style={styles.splitField}
+              />
+            </View>
+            {data.search.filters.errorLabel ? (
+              <TouchableOpacity
+                accessibilityRole="button"
+                activeOpacity={0.8}
+                onPress={onRetryFilterOptions}>
+                <Text style={styles.filterErrorLabel}>
+                  {data.search.filters.errorLabel} 다시 시도
+                </Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
 
           <BottomSheetFlatList
@@ -374,15 +500,59 @@ export const TimetableAddCourseSheet = ({
             />
           </FieldBlock>
 
-          <FieldBlock label="교수명">
-            <BottomSheetTextInput
-              onChangeText={value => onSetManualField('professor', value)}
-              placeholder="교수명을 입력하세요"
-              placeholderTextColor={COLORS.text.muted}
-              style={styles.textField}
-              value={data.manual.professorValue}
-            />
-          </FieldBlock>
+          <View style={styles.splitFieldRow}>
+            <FieldBlock label="교수명" style={styles.splitField}>
+              <BottomSheetTextInput
+                onChangeText={value => onSetManualField('professor', value)}
+                placeholder="교수명 입력"
+                placeholderTextColor={COLORS.text.muted}
+                style={[styles.textField, styles.manualSplitTextField]}
+                value={data.manual.professorValue}
+              />
+            </FieldBlock>
+
+            <FieldBlock label="학과" style={styles.splitField}>
+              <FilterDropdown
+                isOpen={openDropdown === 'manualDepartment'}
+                onRequestClose={() => setOpenDropdown(undefined)}
+                onSelect={value => onSetManualField('department', value)}
+                onToggle={() => toggleDropdown('manualDepartment')}
+                options={data.manual.departmentOptions}
+                placeholder={
+                  data.manual.isDepartmentLoading
+                    ? '불러오는 중...'
+                    : '학과 선택'
+                }
+                selectedId={data.manual.departmentValue}
+              />
+            </FieldBlock>
+          </View>
+
+          {data.manual.isDepartmentLoading ? (
+            <View style={styles.manualDepartmentStateRow}>
+              <ActivityIndicator
+                color={COLORS.text.tertiary}
+                size="small"
+              />
+              <Text style={styles.manualDepartmentStateLabel}>
+                학과 목록을 불러오는 중입니다.
+              </Text>
+            </View>
+          ) : null}
+          {data.manual.departmentErrorLabel ? (
+            <View style={styles.manualDepartmentStateRow}>
+              <Text style={styles.manualDepartmentErrorLabel}>
+                {data.manual.departmentErrorLabel}
+              </Text>
+              <TouchableOpacity
+                accessibilityLabel="학과 목록 다시 불러오기"
+                accessibilityRole="button"
+                activeOpacity={0.8}
+                onPress={onRetryDepartmentOptions}>
+                <Text style={styles.manualDepartmentRetryLabel}>다시 시도</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
 
           <View style={styles.switchRow}>
             <Text style={styles.fieldLabel}>온라인 수업</Text>
@@ -605,7 +775,7 @@ const FieldBlock = ({
 }: {
   children: React.ReactNode;
   label: string;
-  style?: object;
+  style?: StyleProp<ViewStyle>;
 }) => {
   return (
     <View style={style}>
@@ -669,8 +839,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingBottom: 12,
-    paddingTop: 8,
+    paddingVertical: 8,
   },
   title: {
     color: COLORS.text.primary,
@@ -690,7 +859,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background.subtle,
     borderRadius: RADIUS.pill,
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: 12,
     padding: 4,
   },
   segmentButton: {
@@ -790,6 +959,16 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginLeft: 8,
     paddingVertical: 0,
+  },
+  filterSection: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  filterErrorLabel: {
+    color: COLORS.status.danger,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
   },
   catalogCard: {
     alignItems: 'center',
@@ -932,6 +1111,39 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     paddingHorizontal: 16,
     paddingVertical: 13,
+  },
+  manualSplitTextField: {
+    height: 50,
+  },
+  manualDepartmentStateRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: -8,
+  },
+  manualDepartmentStateLabel: {
+    color: COLORS.text.tertiary,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  manualDepartmentErrorLabel: {
+    color: COLORS.status.danger,
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  manualDepartmentRetryLabel: {
+    color: COLORS.brand.primaryStrong,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
+  },
+  splitFieldRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  splitField: {
+    flex: 1,
   },
   switchRow: {
     alignItems: 'center',

@@ -1,5 +1,5 @@
 import {uploadImage} from '@/shared/api/imageUploadClient';
-import {DEPARTMENT_OPTIONS} from '@/shared/constants/departments';
+import {getDepartments} from '@/shared/api';
 import type {MemberProfile} from '@/features/member/model/types';
 import {SpringMemberRepository} from '@/features/member/data/repositories/SpringMemberRepository';
 import type {IMemberRepository} from '@/features/member/data/repositories/IMemberRepository';
@@ -19,7 +19,7 @@ const toProfileEditSource = (
   avatarLabel:
     memberProfile.nickname.trim().slice(0, 1) || DEFAULT_AVATAR_LABEL,
   department: memberProfile.department ?? '',
-  departmentOptions: DEPARTMENT_OPTIONS,
+  departmentOptions: [],
   displayName: memberProfile.nickname,
   gradeLabel: '',
   photoUrl: memberProfile.photoUrl ?? null,
@@ -34,6 +34,10 @@ export class SpringProfileEditRepository implements IProfileEditRepository {
   async getProfileEdit(): Promise<ProfileEditSource> {
     const memberProfile = await this.memberRepository.getMyMemberProfile();
     return toProfileEditSource(memberProfile);
+  }
+
+  listDepartments(): Promise<string[]> {
+    return getDepartments();
   }
 
   async saveProfileEdit(draft: ProfileEditDraft): Promise<ProfileEditSource> {

@@ -42,6 +42,7 @@ describe('buildTimetableSemesterRecord', () => {
             professor: '문상혁',
             location: '영401',
             category: '전공선택',
+            department: '법학과',
             credits: 3,
             isOnline: false,
             schedule: [
@@ -60,6 +61,7 @@ describe('buildTimetableSemesterRecord', () => {
             professor: null,
             location: null,
             category: null,
+            department: '컴퓨터공학과',
             credits: 2,
             isOnline: true,
             schedule: [],
@@ -92,16 +94,19 @@ describe('buildTimetableSemesterRecord', () => {
     });
     expect(record.catalogCourses[0]).toMatchObject({
       category: '전공선택',
+      department: '법학과',
       grade: 2,
     });
     expect(record.courses[0]).toMatchObject({
       id: 'catalog-course',
+      department: '법학과',
       name: '민법총칙',
       isOnline: false,
       locationLabel: '영401',
     });
     expect(record.courses[1]).toMatchObject({
       id: 'manual-course',
+      department: '컴퓨터공학과',
       name: '플랫폼세미나',
       isOnline: true,
       professor: '-',

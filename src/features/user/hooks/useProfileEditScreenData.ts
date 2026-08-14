@@ -21,13 +21,47 @@ export const useProfileEditScreenData = () => {
   const {refreshCurrentUser} = useAuth();
   const profileEditRepository = useProfileEditRepository();
   const [data, setData] = React.useState<ProfileEditScreenViewData>();
+  const [departmentOptionsError, setDepartmentOptionsError] =
+    React.useState<string>();
+  const [departmentOptionsLoading, setDepartmentOptionsLoading] =
+    React.useState(false);
   const [error, setError] = React.useState<string>();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
+  const departmentOptionsRef = React.useRef<string[]>([]);
 
   const applySource = React.useCallback((source: ProfileEditSource) => {
-    setData(toViewData(source));
+    setData(previousData => ({
+      ...toViewData(source),
+      departmentOptions:
+        source.departmentOptions.length > 0
+          ? source.departmentOptions
+          : previousData?.departmentOptions ?? departmentOptionsRef.current,
+    }));
   }, []);
+
+  const reloadDepartmentOptions = React.useCallback(async () => {
+    try {
+      setDepartmentOptionsLoading(true);
+      setDepartmentOptionsError(undefined);
+
+      const departmentOptions = await profileEditRepository.listDepartments();
+      departmentOptionsRef.current = departmentOptions;
+      setData(previousData =>
+        previousData
+          ? {
+              ...previousData,
+              departmentOptions,
+            }
+          : previousData,
+      );
+    } catch (caughtError) {
+      console.error('Failed to fetch profile department options', caughtError);
+      setDepartmentOptionsError('학과 목록을 불러오지 못했습니다.');
+    } finally {
+      setDepartmentOptionsLoading(false);
+    }
+  }, [profileEditRepository]);
 
   const reload = React.useCallback(async () => {
     try {
@@ -117,14 +151,18 @@ export const useProfileEditScreenData = () => {
 
   React.useEffect(() => {
     reload().catch(() => undefined);
-  }, [reload]);
+    reloadDepartmentOptions().catch(() => undefined);
+  }, [reload, reloadDepartmentOptions]);
 
   return {
     data,
+    departmentOptionsError,
+    departmentOptionsLoading,
     error,
     loading,
     removePhoto,
     reload,
+    reloadDepartmentOptions,
     saveChanges,
     saving,
     uploadPhoto,

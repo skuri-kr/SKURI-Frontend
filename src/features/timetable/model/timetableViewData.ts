@@ -88,10 +88,16 @@ export interface TimetableCatalogCourseViewData {
   categoryLabel?: string;
   courseId: string;
   codeLabel: string;
+  departmentLabel?: string;
   gradeLabel?: string;
   metaLabel: string;
   scheduleLabel?: string;
   title: string;
+}
+
+export interface TimetableFilterOptionViewData {
+  id: string;
+  label: string;
 }
 
 export interface TimetableColorOptionViewData {
@@ -124,6 +130,16 @@ export interface TimetableSearchTabViewData {
   isLoading: boolean;
   isLoadingMore: boolean;
   items: TimetableCatalogCourseViewData[];
+  filters: {
+    categories: TimetableFilterOptionViewData[];
+    departments: TimetableFilterOptionViewData[];
+    errorLabel?: string;
+    grades: TimetableFilterOptionViewData[];
+    isLoading: boolean;
+    selectedCategoryId: string;
+    selectedDepartmentId: string;
+    selectedGradeId: string;
+  };
   placeholder: string;
   query: string;
 }
@@ -131,7 +147,11 @@ export interface TimetableSearchTabViewData {
 export interface TimetableManualFormViewData {
   canSubmit: boolean;
   credits: TimetableManualCreditOptionViewData[];
+  departmentErrorLabel?: string;
+  departmentOptions: TimetableFilterOptionViewData[];
+  departmentValue: string;
   dayOptions: TimetableManualDayOptionViewData[];
+  isDepartmentLoading: boolean;
   isOnline: boolean;
   locationValue: string;
   nameValue: string;
