@@ -92,6 +92,7 @@ const mapTimetableCourseDto = ({
 }): TimetableCourseRecord => ({
   code: course.code,
   credits: course.credits,
+  department: course.department ?? undefined,
   id: course.id,
   isOnline: course.isOnline,
   locationLabel: course.location ?? undefined,
@@ -114,6 +115,7 @@ export const mapCourseSummaryDtoToCatalogCourseRecord = ({
   category: course.category || undefined,
   code: course.code,
   credits: course.credits,
+  department: course.department,
   grade: course.grade,
   id: course.id,
   isOnline: course.isOnline,

@@ -70,10 +70,14 @@ export const TimetableDetailScreen = () => {
     reload,
     removeSelectedCourse,
     retryCatalogCourseSearch,
+    retryCourseFilterOptions,
     selectColor,
     selectMode,
     selectSemester,
     setAddSheetTab,
+    setCatalogCategory,
+    setCatalogDepartment,
+    setCatalogGrade,
     setManualCredits,
     setManualDay,
     setManualEndPeriod,
@@ -253,6 +257,12 @@ export const TimetableDetailScreen = () => {
             onRetrySearch={() => {
               retryCatalogCourseSearch().catch(() => undefined);
             }}
+            onRetryFilterOptions={() => {
+              retryCourseFilterOptions().catch(() => undefined);
+            }}
+            onSelectCatalogCategory={setCatalogCategory}
+            onSelectCatalogDepartment={setCatalogDepartment}
+            onSelectCatalogGrade={setCatalogGrade}
             onSelectColor={selectColor}
             onSelectCredits={setManualCredits}
             onSelectDay={setManualDay}

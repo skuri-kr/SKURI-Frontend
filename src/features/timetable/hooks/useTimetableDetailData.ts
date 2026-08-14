@@ -9,7 +9,9 @@ import {RepositoryError, RepositoryErrorCode} from '@/shared/lib/errors';
 import {getPeriodTimeInfo} from '../services/timetableCalendar';
 import type {
   TimetableCatalogCourseRecord,
+  TimetableCatalogCourseFilters,
   TimetableCourseRecord,
+  TimetableCourseFilterOptions,
   TimetableCourseScheduleRecord,
   TimetableManualCourseDraft,
   TimetableSemesterRecord,
@@ -55,9 +57,16 @@ const CATEGORY_SHORT_LABELS: Record<string, string> = {
   교양선택: '교선',
 };
 const CATALOG_COURSE_PAGE_SIZE = 30;
+const EMPTY_COURSE_FILTER_OPTIONS: TimetableCourseFilterOptions = {
+  categories: [],
+  departments: [],
+  grades: [],
+};
+const DEFAULT_CATALOG_FILTERS: TimetableCatalogCourseFilters = {};
 
 const DEFAULT_MANUAL_DRAFT: TimetableManualCourseDraft = {
   credits: 3,
+  department: '',
   day: 'mon',
   endPeriod: 3,
   isOnline: false,
@@ -68,8 +77,18 @@ const DEFAULT_MANUAL_DRAFT: TimetableManualCourseDraft = {
   toneId: 'green',
 };
 
-const buildCatalogSearchKey = (semesterId: string, query: string) =>
-  `${semesterId}::${query.trim()}`;
+const buildCatalogSearchKey = (
+  semesterId: string,
+  query: string,
+  filters: TimetableCatalogCourseFilters,
+) =>
+  [
+    semesterId,
+    query.trim(),
+    filters.department ?? '',
+    filters.grade?.toString() ?? '',
+    filters.category ?? '',
+  ].join('::');
 
 const mergeCatalogCourses = (
   currentCourses: TimetableCatalogCourseRecord[],
@@ -218,6 +237,9 @@ const formatCatalogCourseGradeLabel = (
   return `${course.grade}학년`;
 };
 
+const toCategoryShortLabel = (category: string) =>
+  CATEGORY_SHORT_LABELS[category.trim()] ?? category.trim();
+
 const isAlreadyExistsError = (error: unknown) =>
   error instanceof RepositoryError &&
   error.code === RepositoryErrorCode.ALREADY_EXISTS;
@@ -300,7 +322,12 @@ const buildSelectedCourseDetail = (
 const buildAddCourseSheetViewData = ({
   activeTab,
   catalogCourses,
+  catalogFilters,
+  courseFilterOptions,
   courses,
+  departmentOptions,
+  filterOptionsError,
+  filterOptionsLoading,
   manualDraft,
   query,
   searchError,
@@ -312,7 +339,12 @@ const buildAddCourseSheetViewData = ({
 }: {
   activeTab: 'manual' | 'search';
   catalogCourses: TimetableCatalogCourseRecord[];
+  catalogFilters: TimetableCatalogCourseFilters;
+  courseFilterOptions: TimetableCourseFilterOptions;
   courses: TimetableCourseRecord[];
+  departmentOptions: string[];
+  filterOptionsError: string | null;
+  filterOptionsLoading: boolean;
   manualDraft: TimetableManualCourseDraft;
   query: string;
   searchError: string | null;
@@ -340,6 +372,14 @@ const buildAddCourseSheetViewData = ({
         label: `${credit}학점`,
         selected: credit === manualDraft.credits,
       })),
+      departmentOptions: [
+        {id: '', label: '선택 안 함'},
+        ...departmentOptions.map(department => ({
+          id: department,
+          label: department,
+        })),
+      ],
+      departmentValue: manualDraft.department,
       dayOptions: DAY_ORDER.map(day => ({
         id: day,
         label: DAY_LABELS[day],
@@ -370,6 +410,34 @@ const buildAddCourseSheetViewData = ({
           : undefined,
       errorLabel: searchError ?? undefined,
       hasNext: searchHasNext,
+      filters: {
+        categories: [
+          {id: '', label: '전체'},
+          ...courseFilterOptions.categories.map(category => ({
+            id: category,
+            label: toCategoryShortLabel(category),
+          })),
+        ],
+        departments: [
+          {id: '', label: '전체'},
+          ...courseFilterOptions.departments.map(department => ({
+            id: department,
+            label: department,
+          })),
+        ],
+        errorLabel: filterOptionsError ?? undefined,
+        grades: [
+          {id: '', label: '전체'},
+          ...courseFilterOptions.grades.map(grade => ({
+            id: grade.toString(),
+            label: `${grade}학년`,
+          })),
+        ],
+        isLoading: filterOptionsLoading,
+        selectedCategoryId: catalogFilters.category ?? '',
+        selectedDepartmentId: catalogFilters.department ?? '',
+        selectedGradeId: catalogFilters.grade?.toString() ?? '',
+      },
       isLoading: isSearchLoading,
       isLoadingMore: searchLoadingMore,
       items: catalogCourses.map(course => {
@@ -382,6 +450,7 @@ const buildAddCourseSheetViewData = ({
           categoryLabel,
           codeLabel: course.code,
           courseId: course.id,
+          departmentLabel: course.department,
           gradeLabel,
           metaLabel: formatCatalogCourseMetaLabel(course),
           scheduleLabel,
@@ -620,6 +689,14 @@ export const useTimetableDetailData = (
   const [loading, setLoading] = React.useState(true);
   const [manualDraft, setManualDraft] =
     React.useState<TimetableManualCourseDraft>(DEFAULT_MANUAL_DRAFT);
+  const [catalogFilters, setCatalogFilters] =
+    React.useState<TimetableCatalogCourseFilters>(DEFAULT_CATALOG_FILTERS);
+  const [courseFilterOptions, setCourseFilterOptions] =
+    React.useState<TimetableCourseFilterOptions>(EMPTY_COURSE_FILTER_OPTIONS);
+  const [departmentOptions, setDepartmentOptions] = React.useState<string[]>([]);
+  const [filterOptionsError, setFilterOptionsError] = React.useState<string | null>(null);
+  const [filterOptionsLoading, setFilterOptionsLoading] = React.useState(false);
+  const [filterOptionsSemesterId, setFilterOptionsSemesterId] = React.useState<string>();
   const [query, setQuery] = React.useState('');
   const [record, setRecord] = React.useState<TimetableSemesterRecord | null>(null);
   const [selectedCourseId, setSelectedCourseId] = React.useState<string>();
@@ -642,7 +719,7 @@ export const useTimetableDetailData = (
   const searchRequestIdRef = React.useRef(0);
   const selectedSemesterIdRef = React.useRef<string | undefined>(undefined);
   const currentSearchKey = selectedSemesterId
-    ? buildCatalogSearchKey(selectedSemesterId, query)
+    ? buildCatalogSearchKey(selectedSemesterId, query, catalogFilters)
     : undefined;
 
   const loadSemester = React.useCallback(async (semesterId?: string) => {
@@ -705,7 +782,11 @@ export const useTimetableDetailData = (
       }
 
       const nextQuery = query.trim();
-      const nextSearchKey = buildCatalogSearchKey(selectedSemesterId, nextQuery);
+      const nextSearchKey = buildCatalogSearchKey(
+        selectedSemesterId,
+        nextQuery,
+        catalogFilters,
+      );
       const requestId = ++searchRequestIdRef.current;
 
       if (reset) {
@@ -721,6 +802,7 @@ export const useTimetableDetailData = (
 
       try {
         const response = await timetableRepository.searchCatalogCourses({
+          filters: catalogFilters,
           page,
           query: nextQuery.length > 0 ? nextQuery : undefined,
           semesterId: selectedSemesterId,
@@ -760,8 +842,35 @@ export const useTimetableDetailData = (
         }
       }
     },
-    [query, selectedSemesterId, timetableRepository],
+    [catalogFilters, query, selectedSemesterId, timetableRepository],
   );
+
+  const loadAddCourseOptions = React.useCallback(async () => {
+    if (!selectedSemesterId) {
+      return;
+    }
+
+    setFilterOptionsLoading(true);
+    setFilterOptionsError(null);
+
+    try {
+      const [nextFilterOptions, nextDepartmentOptions] = await Promise.all([
+        timetableRepository.getCourseFilterOptions(selectedSemesterId),
+        timetableRepository.listDepartments(),
+      ]);
+      setCourseFilterOptions(nextFilterOptions);
+      setDepartmentOptions(nextDepartmentOptions);
+      setFilterOptionsSemesterId(selectedSemesterId);
+    } catch (optionsError) {
+      console.error(optionsError);
+      setCourseFilterOptions(EMPTY_COURSE_FILTER_OPTIONS);
+      setDepartmentOptions([]);
+      setFilterOptionsError('필터와 학과 목록을 불러오지 못했습니다.');
+      setFilterOptionsSemesterId(selectedSemesterId);
+    } finally {
+      setFilterOptionsLoading(false);
+    }
+  }, [selectedSemesterId, timetableRepository]);
 
   React.useEffect(() => {
     loadSemester().catch(() => undefined);
@@ -791,6 +900,23 @@ export const useTimetableDetailData = (
     selectedSemesterId,
   ]);
 
+  React.useEffect(() => {
+    if (
+      !addSheetVisible ||
+      !selectedSemesterId ||
+      filterOptionsSemesterId === selectedSemesterId
+    ) {
+      return;
+    }
+
+    loadAddCourseOptions().catch(() => undefined);
+  }, [
+    addSheetVisible,
+    filterOptionsSemesterId,
+    loadAddCourseOptions,
+    selectedSemesterId,
+  ]);
+
   const resetManualDraft = React.useCallback(() => {
     setManualDraft(previousDraft => ({
       ...DEFAULT_MANUAL_DRAFT,
@@ -802,6 +928,7 @@ export const useTimetableDetailData = (
     setAddSheetVisible(false);
     setQuery('');
     setActiveTab('search');
+    setCatalogFilters(DEFAULT_CATALOG_FILTERS);
     resetManualDraft();
   }, [resetManualDraft]);
 
@@ -1186,8 +1313,13 @@ export const useTimetableDetailData = (
 
     return buildAddCourseSheetViewData({
       activeTab,
+      catalogFilters,
       catalogCourses: visibleCatalogCourses,
+      courseFilterOptions,
       courses: record.courses,
+      departmentOptions,
+      filterOptionsError,
+      filterOptionsLoading,
       manualDraft,
       query,
       searchError,
@@ -1199,6 +1331,11 @@ export const useTimetableDetailData = (
     });
   }, [
     activeTab,
+    catalogFilters,
+    courseFilterOptions,
+    departmentOptions,
+    filterOptionsError,
+    filterOptionsLoading,
     manualDraft,
     query,
     record,
@@ -1255,6 +1392,7 @@ export const useTimetableDetailData = (
     reload: () => loadSemester(selectedSemesterId),
     removeSelectedCourse,
     retryCatalogCourseSearch,
+    retryCourseFilterOptions: () => loadAddCourseOptions(),
     selectColor: (colorId: TimetableCourseToneId) => {
       setSelectedToneId(colorId);
       setManualDraft(previousDraft => ({
@@ -1268,9 +1406,27 @@ export const useTimetableDetailData = (
     },
     selectSemester: async (semesterId: string) => {
       setSelectedCourseId(undefined);
+      setCatalogFilters(DEFAULT_CATALOG_FILTERS);
+      setCourseFilterOptions(EMPTY_COURSE_FILTER_OPTIONS);
+      setFilterOptionsSemesterId(undefined);
       await loadSemester(semesterId);
     },
     setAddSheetTab: (tab: 'manual' | 'search') => setActiveTab(tab),
+    setCatalogCategory: (category: string) =>
+      setCatalogFilters(previousFilters => ({
+        ...previousFilters,
+        category: category || undefined,
+      })),
+    setCatalogDepartment: (department: string) =>
+      setCatalogFilters(previousFilters => ({
+        ...previousFilters,
+        department: department || undefined,
+      })),
+    setCatalogGrade: (grade: string) =>
+      setCatalogFilters(previousFilters => ({
+        ...previousFilters,
+        grade: grade ? Number(grade) : undefined,
+      })),
     setManualCredits: (credits: number) =>
       setManualDraft(previousDraft => ({
         ...previousDraft,
@@ -1294,7 +1450,7 @@ export const useTimetableDetailData = (
         };
       }),
     setManualField: (
-      field: 'locationLabel' | 'name' | 'professor',
+      field: 'department' | 'locationLabel' | 'name' | 'professor',
       value: string,
     ) =>
       setManualDraft(previousDraft => ({

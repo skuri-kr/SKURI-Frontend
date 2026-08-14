@@ -1,9 +1,12 @@
 import type {TimetableCourseToneId} from '../../model/timetablePrimitives';
 import type {
   TimetableCatalogCourseSearchPage,
+  TimetableCatalogCourseFilters,
+  TimetableCourseFilterOptions,
   TimetableManualCourseDraft,
   TimetableSemesterRecord,
 } from '../../model/timetableDomain';
+import {getDepartments} from '@/shared/api';
 import {getCurrentSemester} from '../../services/timetableCalendar';
 import {getTimetableCourseToneMap} from '../../services/timetableToneStorage';
 import {
@@ -55,6 +58,17 @@ export class SpringTimetableRepository implements ITimetableRepository {
       id: option.id,
       label: option.label,
     }));
+  }
+
+  listDepartments(): Promise<string[]> {
+    return getDepartments();
+  }
+
+  async getCourseFilterOptions(
+    semesterId: string,
+  ): Promise<TimetableCourseFilterOptions> {
+    const response = await this.apiClient.getCourseFilterOptions(semesterId);
+    return response.data;
   }
 
   async getSemesterRecord(
@@ -110,6 +124,7 @@ export class SpringTimetableRepository implements ITimetableRepository {
         semester: semesterId,
         name: draft.name.trim(),
         professor: draft.professor.trim(),
+        department: draft.department.trim() || null,
         credits: draft.credits,
         isOnline: draft.isOnline,
         locationLabel: draft.isOnline ? null : draft.locationLabel.trim(),
@@ -159,11 +174,13 @@ export class SpringTimetableRepository implements ITimetableRepository {
 
   async searchCatalogCourses({
     page,
+    filters,
     query,
     semesterId,
     size,
   }: {
     page: number;
+    filters: TimetableCatalogCourseFilters;
     query?: string;
     semesterId: string;
     size: number;
@@ -171,6 +188,9 @@ export class SpringTimetableRepository implements ITimetableRepository {
     const [response, toneMap] = await Promise.all([
       this.apiClient.getCourses({
         page,
+        category: filters.category,
+        department: filters.department,
+        grade: filters.grade,
         search: query,
         semester: semesterId,
         size,

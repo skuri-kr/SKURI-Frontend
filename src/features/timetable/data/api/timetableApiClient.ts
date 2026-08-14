@@ -3,6 +3,7 @@ import {httpClient, type ApiSuccessResponse} from '@/shared/api';
 import type {
   AddMyTimetableCourseRequestDto,
   CourseSummaryDto,
+  CourseFilterOptionsDto,
   CreateMyManualTimetableCourseRequestDto,
   TimetablePageDto,
   TimetableSemesterOptionDto,
@@ -12,6 +13,7 @@ import type {
 interface GetCoursesParams {
   semester?: string;
   department?: string;
+  category?: string;
   professor?: string;
   search?: string;
   dayOfWeek?: number;
@@ -27,6 +29,13 @@ export class TimetableApiClient {
     >('/v1/courses', {
       params,
     });
+  }
+
+  getCourseFilterOptions(semester: string) {
+    return httpClient.get<ApiSuccessResponse<CourseFilterOptionsDto>>(
+      '/v1/courses/filter-options',
+      {params: {semester}},
+    );
   }
 
   getMySemesters() {

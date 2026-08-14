@@ -12,6 +12,7 @@ export interface TimetableCourseScheduleRecord {
 export interface TimetableCourseRecord {
   code: string;
   credits: number;
+  department?: string;
   id: string;
   isOnline?: boolean;
   locationLabel?: string;
@@ -40,8 +41,21 @@ export interface TimetableCatalogCourseSearchPage {
   page: number;
 }
 
+export interface TimetableCatalogCourseFilters {
+  category?: string;
+  department?: string;
+  grade?: number;
+}
+
+export interface TimetableCourseFilterOptions {
+  categories: string[];
+  departments: string[];
+  grades: number[];
+}
+
 export interface TimetableManualCourseDraft {
   credits: number;
+  department: string;
   day: TimetableWeekdayId;
   endPeriod: number;
   isOnline: boolean;
