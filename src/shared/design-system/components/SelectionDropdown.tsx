@@ -38,6 +38,7 @@ interface SelectionDropdownProps {
   placeholder?: string;
   selectedValue?: string;
   style?: StyleProp<ViewStyle>;
+  triggerStyle?: StyleProp<ViewStyle>;
 }
 
 interface TriggerLayout {
@@ -57,6 +58,7 @@ export const SelectionDropdown = ({
   placeholder = '',
   selectedValue,
   style,
+  triggerStyle,
 }: SelectionDropdownProps) => {
   const insets = useSafeAreaInsets();
   const {height: windowHeight, width: windowWidth} = useWindowDimensions();
@@ -254,7 +256,7 @@ export const SelectionDropdown = ({
         accessibilityRole="button"
         activeOpacity={0.82}
         onPress={onPressTrigger}
-        style={styles.trigger}>
+        style={[styles.trigger, triggerStyle]}>
         <Text
           style={[
             styles.triggerLabel,

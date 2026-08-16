@@ -418,14 +418,14 @@ const buildAddCourseSheetViewData = ({
       hasNext: searchHasNext,
       filters: {
         categories: [
-          {id: '', label: '전체'},
+          {id: '', label: '구분 전체'},
           ...courseFilterOptions.categories.map(category => ({
             id: category,
             label: toCategoryShortLabel(category),
           })),
         ],
         departments: [
-          {id: '', label: '전체'},
+          {id: '', label: '학과 전체'},
           ...courseFilterOptions.departments.map(department => ({
             id: department,
             label: department,
@@ -433,7 +433,7 @@ const buildAddCourseSheetViewData = ({
         ],
         errorLabel: filterOptionsError ?? undefined,
         grades: [
-          {id: '', label: '전체'},
+          {id: '', label: '학년 전체'},
           ...courseFilterOptions.grades.map(grade => ({
             id: grade.toString(),
             label: `${grade}학년`,
