@@ -2,6 +2,96 @@
 
 이 문서는 이 저장소에서 작업하는 모든 AI 에이전트의 Git·PR·리뷰 절차에 대한 기준이다. `CLAUDE.md` 등 다른 AI 안내 문서와 충돌하면 이 문서의 절차를 우선한다.
 
+## SKURI 프로젝트 구성
+
+SKURI는 서로 독립된 3개의 Git 저장소로 구성된다.
+
+| 영역 | 로컬 경로 | 역할 |
+| --- | --- | --- |
+| 프론트엔드(모바일 앱) | `/Users/jisung/SKTaxi` | React Native 기반 사용자 앱 |
+| 백엔드 | `/Users/jisung/skuri-backend` | Spring Boot 기반 REST API, 인증·권한, 비즈니스 규칙, DB, 실시간 통신 |
+| 관리자 페이지 | `/Users/jisung/skuri-admin` | Next.js 기반 운영·관리 화면 |
+
+- 세 디렉터리는 각각 독립된 Git 저장소다.
+- 다른 저장소를 조사하거나 수정하기 전 해당 저장소의 `AGENTS.md`와 작업 트리 상태를 먼저 확인한다.
+- 브랜치, commit, push, PR, 검증은 저장소별로 분리한다.
+- 이 문서의 Git·PR 규칙은 `/Users/jisung/SKTaxi`에만 적용한다. 백엔드와 관리자 페이지에서는 각 저장소의 `AGENTS.md`가 우선한다.
+- 핵심 도메인 데이터, 권한, 상태 전이, API 응답 계약의 런타임 source of truth는 백엔드다. 모바일 앱과 관리자 페이지는 백엔드 계약을 소비한다.
+
+## 소스 탐색 가이드
+
+### 프론트엔드(현재 저장소)
+
+- 앱 초기화·Provider·Guard: `src/app/`
+- 화면 이동·탭·스택: `src/app/navigation/`
+- 기능별 화면·컴포넌트·상태·서비스: `src/features/<feature>/`
+- 기능별 API·DTO·Mapper·Repository: `src/features/<feature>/data/`
+- Repository 등록과 DI: `src/di/`
+- 공통 HTTP·인증 토큰 처리: `src/shared/api/`
+- SSE·WebSocket: `src/shared/realtime/`
+- 공통 UI·디자인 토큰: `src/shared/ui/`, `src/shared/design-system/`
+- Android/iOS 네이티브 설정: `android/`, `ios/`
+
+기능은 일반적으로 `Screen → Component/Hook → Service/Application → Repository → API client/DTO/Mapper` 순서로 추적한다. 모든 feature가 같은 하위 디렉터리를 갖는다고 가정하지 말고 실제 구조를 확인한다.
+
+### 백엔드
+
+기능별 기준 경로는 `/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/domain/<domain>/`이다.
+
+- HTTP 진입점: `controller/`
+- 요청·응답 계약: `dto/request/`, `dto/response/`
+- 비즈니스 규칙: `service/`
+- DB 모델과 상태 전이: `entity/`
+- DB 접근: `repository/`
+- 공통 응답·예외·설정: `/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/common/`
+- 인증·권한: `/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/infra/auth/`
+- OpenAPI 예시·스키마: `/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/infra/openapi/`
+- 환경 설정: `/Users/jisung/skuri-backend/src/main/resources/application*.yaml`
+- 테스트: `/Users/jisung/skuri-backend/src/test/java/`
+- 문서화된 API 계약: `/Users/jisung/skuri-backend/docs/api-specification.md`
+
+### 관리자 페이지
+
+- 라우트와 화면: `/Users/jisung/skuri-admin/src/app/(admin)/<module>/page.tsx`
+- 관리자 기능 컴포넌트: `/Users/jisung/skuri-admin/src/components/admin/`
+- 공통 UI: `/Users/jisung/skuri-admin/src/components/ui/`
+- 관리자 타입·모듈 정의: `/Users/jisung/skuri-admin/src/features/admin/`, `/Users/jisung/skuri-admin/src/lib/admin/`
+- 인증 상태: `/Users/jisung/skuri-admin/src/features/auth/`
+- 공통 API 인증 요청: `/Users/jisung/skuri-admin/src/lib/api/`
+- Firebase 로그인: `/Users/jisung/skuri-admin/src/lib/firebase/`
+- 환경 변수 접근: `/Users/jisung/skuri-admin/src/lib/env/`
+
+관리자 페이지의 일부 API 호출과 화면 전용 타입은 현재 각 `page.tsx`에 함께 있으므로 공통 API 디렉터리에만 구현이 있을 것으로 가정하지 않는다.
+
+## 저장소 간 변경 영향 확인
+
+- API 요청·응답 필드 또는 오류 계약 변경: 백엔드 Controller/DTO/Service/OpenAPI/테스트와 모바일·관리자 소비 코드를 함께 확인한다.
+- 권한·상태 전이·비즈니스 정책 변경: 백엔드를 기준으로 구현하고 모바일·관리자의 노출, 입력 제한, 오류 처리를 확인한다.
+- 관리자 운영 기능 변경: 관리자 화면뿐 아니라 대응하는 `/v1/admin/**` 백엔드 API를 확인한다.
+- 인증 변경: 모바일 Firebase 인증, 백엔드 토큰 검증, 관리자 로그인을 모두 확인한다.
+- 실시간 기능 변경: 모바일 `src/shared/realtime/` 및 관련 feature와 백엔드 WebSocket/SSE 구현을 함께 확인한다.
+- 네이티브 기능·권한·빌드 변경: TypeScript 코드뿐 아니라 `android/`, `ios/` 설정도 확인한다.
+- 앱 의존성 변경: `package.json` 수정 전에 `patches/README.md`를 확인한다.
+
+## 저장소별 도메인 이름 대응
+
+같은 기능이라도 저장소별 디렉터리 이름이 다를 수 있다.
+
+| 기능 | 모바일 앱 | 백엔드 | 관리자 페이지 |
+| --- | --- | --- | --- |
+| 택시 파티 | `features/taxi` | `domain/taxiparty` | `parties` |
+| 사용자·인증 | `features/member`, `features/user`, `features/auth` | `domain/member`, `infra/auth` | `users`, `features/auth` |
+| 문의 | `features/settings` | `domain/support` | `inquiries` |
+| 신고 | `features/report` 및 기능별 report service | `domain/support` | `reports` |
+| 학교 공지 | `features/notice` | `domain/notice` | `notices` |
+| 앱 공지 | `features/settings` | `domain/app` | `app-notices` |
+| 캠퍼스 정보 | `features/campus`, `features/timetable` | `domain/campus`, `domain/academic`, `domain/support` | `campus-banners`, `academic-schedules`, `cafeteria`, `courses` |
+
+- 정확한 파일 위치를 추측하지 말고 기능명, API 경로, DTO명으로 `rg` 검색하여 호출 흐름을 추적한다.
+- 일반 소스 탐색에서는 `node_modules/`, `.next/`, `build/`, `bin/`, `ios/Pods/`, `android/.gradle/`, `output/` 등 의존성·생성물을 제외한다.
+- `.env`, Firebase 설정 파일, 서비스 계정 파일 등 비밀정보의 실제 값을 읽거나 문서·로그·커밋에 복사하지 않는다.
+- 라이브러리·런타임·앱 버전은 문서의 고정 숫자를 신뢰하지 말고 `package.json`, lockfile, Gradle/Xcode 설정 등 현재 매니페스트에서 확인한다.
+
 ## 기본 작업 방식
 
 - 읽기 전용 조사, 설명, 상태 보고처럼 저장소를 수정하지 않는 작업에는 브랜치가 필요 없다.
