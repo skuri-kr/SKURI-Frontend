@@ -2,11 +2,11 @@
 
 > 성결대학교 학생을 위한 택시 동승, 공지, 커뮤니티, 채팅, 캠퍼스 생활 정보 통합 모바일 앱
 
-![React Native](https://img.shields.io/badge/React_Native-0.79.2-61DAFB?logo=react&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?logo=typescript&logoColor=white)
+![React Native](https://img.shields.io/badge/React_Native-0.85.3-61DAFB?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.8.3-3178C6?logo=typescript&logoColor=white)
 ![Spring API](https://img.shields.io/badge/Backend-Spring%20Boot-6DB33F?logo=spring&logoColor=white)
 ![Firebase Auth](https://img.shields.io/badge/Auth-Firebase-FFCA28?logo=firebase&logoColor=black)
-![Version](https://img.shields.io/badge/version-1.2.7-blue)
+![Version](https://img.shields.io/badge/version-2.0.1-blue)
 
 <p>
   <a href="https://apps.apple.com/kr/app/스쿠리-skuri/id6754636203">
@@ -47,12 +47,12 @@ Firebase는 완전히 제거된 것이 아니라 다음 용도로 계속 사용�
 
 ### 프론트엔드
 
-- React Native `0.79.2`
-- React `19.0.0`
-- TypeScript `5.0.4`
+- React Native `0.85.3`
+- React `19.2.3`
+- TypeScript `5.8.3`
 - React Navigation v7
 - Axios 기반 HTTP client
-- SSE(`xhrSseStream`) + STOMP(`@stomp/stompjs`) 실시간 통신
+- SSE(`xhrSseStream`) + native WebSocket 기반 STOMP(`MinimalStompClient`) 실시간 통신
 - Reanimated, Gesture Handler, Gorhom Bottom Sheet
 - react-native-maps, react-native-webview, react-native-image-picker
 
@@ -86,8 +86,8 @@ docs/
 
 ### 사전 요건
 
-- Node.js 18+
-- Yarn 1.x
+- Node.js `^20.19.4 || ^22.13.0 || ^24.3.0 || >= 25.0.0` (`package.json` 기준)
+- npm (`package-lock.json` 사용)
 - Java 21
 - Android Studio / Android SDK
 - Xcode, CocoaPods, Bundler

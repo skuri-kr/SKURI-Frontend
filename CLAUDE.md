@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 SKURI Taxi는 성결대학교 학생을 위한 택시 동승 + 캠퍼스 라이프 통합 React Native 모바일 앱이다.
 
-**Stack:** React Native 0.79.2 · React 19 · TypeScript 5 · Spring Boot 4.0.3 백엔드 · Firebase (Auth/Messaging/Analytics/Crashlytics)
+**Stack:** React Native 0.85.3 · React 19.2.3 · TypeScript 5.8.3 · Spring Boot 4.0.3 백엔드 · Firebase (Auth/Messaging/Analytics/Crashlytics)
 
 **핵심 기능:** 택시 동승(파티 생성/참여/채팅/정산), 학교 공지, 커뮤니티 게시판, 공개 채팅, 캠퍼스 생활정보(시간표/학식/학사일정)
 
@@ -16,18 +16,18 @@ SKURI Taxi는 성결대학교 학생을 위한 택시 동승 + 캠퍼스 라이�
 
 ```bash
 # Development
-yarn start              # Metro bundler
-yarn android            # Build and run Android
-yarn ios                # Build and run iOS simulator
+npm start               # Metro bundler
+npm run android         # Build and run Android
+npm run ios             # Build and run iOS simulator
 
 # Quality
-yarn lint               # ESLint check (required before PR)
-yarn test               # Jest tests
-yarn test -- path/to/test.test.ts   # Run single test file
-yarn test -- --testNamePattern="test name"  # Run specific test by name
+npm run lint            # ESLint check (required before PR)
+npm test                # Jest tests
+npm test -- path/to/test.test.ts   # Run single test file
+npm test -- --testNamePattern="test name"  # Run specific test by name
 
 # Patches
-yarn postinstall        # Apply patch-package patches (runs automatically after yarn install)
+npm run postinstall     # Apply patch-package patches (runs automatically after npm install)
 ```
 
 ## Architecture
@@ -55,7 +55,7 @@ import { something } from '@/features/...';
 
 ### Data Layer (Repository Pattern with DI)
 
-앱은 3-tier 구조를 따른다:
+앱의 데이터는 다음 계층형 흐름을 따른다:
 
 ```
 Spring REST / SSE / STOMP
@@ -70,11 +70,11 @@ Spring REST / SSE / STOMP
 - **Repository 인터페이스**: `I*Repository.ts` → 구현체: `Spring*Repository.ts`
 - **DI 진입점**: `src/di/RepositoryProvider.tsx`에서 모든 repository 일괄 등록
 - **Hook에서 접근**: `useRepository()` 또는 feature 단위 래퍼 훅 사용
-- Firebase는 Auth(토큰 발급)에만 사용, 도메인 데이터의 진실 공급원은 Spring 서버
+- 도메인 데이터의 진실 공급원은 Spring 서버다. Firebase는 Auth, Messaging, Analytics, Crashlytics 용도로 유지한다.
 
 ### Feature Module Convention
 
-각 feature는 다음 구조를 따른다:
+각 feature는 필요한 디렉터리만 선택적으로 사용하며, 일반적으로 다음 구조를 따른다:
 
 ```
 features/<feature>/
@@ -111,7 +111,7 @@ RootNavigator (auth state routing via useAuthEntryGuard)
 
 ### Real-time Communication
 
-- **채팅**: STOMP WebSocket (`@stomp/stompjs`) — `src/shared/realtime/minimalStompClient.ts`
+- **채팅**: STOMP WebSocket — 연결 옵션은 `src/shared/realtime/chatSocketClient.ts`, native transport는 `minimalStompClient.ts`
 - **알림**: SSE — `src/shared/realtime/sseClient.ts`
 - **API**: Axios HTTP client — `src/shared/api/httpClient.ts` (Firebase ID token as Authorization header)
 
@@ -129,7 +129,7 @@ RootNavigator (auth state routing via useAuthEntryGuard)
 1. **Architecture decisions**: `docs/spring-migration/frontend-architecture-guideline.md` 참고 — Repository vs Query/Assembler 구분, DI 정책, 레이어별 책임이 정의됨
 2. **Firestore schema changes**: `docs/references/legacy/firestore-data-structure.md` 참고 (legacy 참조용)
 3. **API contract**: `docs/spring-migration/api-specification.md` 참고
-4. **Lint check**: 기능 수정/추가/삭제 후 `yarn lint` 실행 필수 — warning도 무시하지 말 것
+4. **Lint check**: 기능 수정/추가/삭제 후 `npm run lint` 실행 필수 — warning도 무시하지 말 것
 5. **Ambiguous requirements**: 임의 결정 대신 확인 질문 리스트를 우선순위와 Best Practice 추천안과 함께 제시
 6. **New data access code**: Repository(도메인 CRUD) vs Query/Assembler(화면 조합) vs Hook(UI 상태) 구분하여 작성
 7. **서버 DTO를 hook/screen으로 직접 올리지 않는다** — 반드시 mapper를 거쳐 도메인 모델로 변환
@@ -138,7 +138,7 @@ RootNavigator (auth state routing via useAuthEntryGuard)
 
 - Jest + `@testing-library/react-native`
 - Firebase/RN 모듈 mock: `jest.setup.js`
-- Coverage threshold: global 60%, repositories 80%
+- Coverage threshold: global 60% (`jest.config.js`의 현재 설정을 기준으로 확인)
 - Test 위치: feature 내부 `__tests__/` 디렉토리 (colocated)
 
 ## Key Documentation
@@ -153,7 +153,7 @@ RootNavigator (auth state routing via useAuthEntryGuard)
 
 - Android: `android/app/google-services.json`
 - iOS: `ios/SKTaxi/GoogleService-Info.plist`
-- Firebase는 Auth(토큰 검증) + FCM(푸시) + Analytics + Crashlytics 용도로만 사용
+- Firebase는 Auth(로그인·토큰 발급) + FCM(푸시) + Analytics + Crashlytics 용도로만 사용
 
 ## 복잡한 질문이나 작업은 sequential-thinking mcp를 사용해서 step by step으로 문제를 해결해줘.
 ## 설계, 개발, 리팩토링 시 Context7 mcp를 사용하여 현재 날짜 기준 최신의 개발 문서를 검색하여 최신의 검증된 코드를 작성해줘.
