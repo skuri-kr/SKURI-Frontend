@@ -146,7 +146,7 @@ describe('ChatMessageList', () => {
     expect(onLoadOlderMessages).not.toHaveBeenCalled();
   });
 
-  it('사용자가 다시 끌어올릴 때에만 다음 이전 메시지 요청을 허용한다', async () => {
+  it('이전 메시지 경계를 벗어난 뒤 다시 끌어올릴 때에만 다음 요청을 허용한다', async () => {
     const onLoadOlderMessages = jest.fn(() => Promise.resolve());
     const view = render(
       <ChatMessageList
@@ -169,11 +169,76 @@ describe('ChatMessageList', () => {
     expect(onLoadOlderMessages).toHaveBeenCalledTimes(1);
 
     act(() => {
-      flatList.props.onScrollBeginDrag?.();
+      fireEvent.scroll(flatList, createScrollEvent(850));
+      fireEvent.scroll(flatList, createScrollEvent(1500));
       flatList.props.onEndReached?.({distanceFromEnd: 0});
     });
 
     await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(onLoadOlderMessages).toHaveBeenCalledTimes(2);
+  });
+
+  it('이전 메시지 경계에 머무른 채 아래로 끌기만 하면 다음 요청을 허용하지 않는다', async () => {
+    const onLoadOlderMessages = jest.fn(() => Promise.resolve());
+    const view = render(
+      <ChatMessageList
+        hasOlderMessages
+        items={items}
+        onLoadOlderMessages={onLoadOlderMessages}
+      />,
+    );
+    const flatList = view.UNSAFE_getByType(FlatList);
+
+    act(() => {
+      flatList.props.onEndReached?.({distanceFromEnd: 0});
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    act(() => {
+      fireEvent.scroll(flatList, createScrollEvent(1450));
+      flatList.props.onEndReached?.({distanceFromEnd: 0});
+    });
+
+    expect(onLoadOlderMessages).toHaveBeenCalledTimes(1);
+  });
+
+  it('이전 메시지 요청 실패를 내부에서 처리하고 다음 요청을 막지 않는다', async () => {
+    const onLoadOlderMessages = jest
+      .fn<Promise<void>, []>()
+      .mockRejectedValueOnce(new Error('network failed'))
+      .mockResolvedValueOnce(undefined);
+    const view = render(
+      <ChatMessageList
+        hasOlderMessages
+        items={items}
+        onLoadOlderMessages={onLoadOlderMessages}
+      />,
+    );
+    const flatList = view.UNSAFE_getByType(FlatList);
+
+    act(() => {
+      flatList.props.onEndReached?.({distanceFromEnd: 0});
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    act(() => {
+      fireEvent.scroll(flatList, createScrollEvent(850));
+      fireEvent.scroll(flatList, createScrollEvent(1500));
+      flatList.props.onEndReached?.({distanceFromEnd: 0});
+    });
+
+    await act(async () => {
+      await Promise.resolve();
       await Promise.resolve();
     });
 
