@@ -18,12 +18,11 @@ import {
   formatKoreanCompactDateTime,
 } from '@/shared/lib/date';
 import type {
-  ContentDetailBodyBlockViewData,
   ContentDetailCommentViewData,
   ContentDetailViewData,
 } from '@/shared/types/contentDetailViewData';
 
-import {normalizeNoticeHtml} from '../model/selectors';
+import {buildNoticeBodyBlocks} from '../model/noticeBodyBlocks';
 import type {Notice, NoticeCommentTreeNode} from '../model/types';
 import {
   getNoticeCategoryDisplayLabel,
@@ -36,107 +35,8 @@ const RECENT_NOTICE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const countComments = (comments: NoticeCommentTreeNode[]) =>
   flattenVisibleCommentTree(comments).length;
 
-const decodeHtmlEntities = (value: string) =>
-  value
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"');
-
-const TABLE_TOKEN_PATTERN = /\[\[TABLE:(\d+)\]\]/;
-const IMAGE_TOKEN_PATTERN = /\[\[IMG:([^\]]+)\]\]/;
-
 const formatViewCountLabel = (value?: number) =>
   typeof value === 'number' ? value.toLocaleString('ko-KR') : undefined;
-
-const buildBodyBlocks = (notice: Notice): ContentDetailBodyBlockViewData[] => {
-  const html = normalizeNoticeHtml(
-    notice.contentDetail || notice.content || '',
-  );
-
-  if (!html.trim()) {
-    return [
-      {
-        id: `${notice.id}-body-1`,
-        text: notice.title,
-        type: 'paragraph' as const,
-      },
-    ];
-  }
-
-  const tables: string[] = [];
-
-  const tokenized = html
-    .replace(/<table[\s\S]*?<\/table>/gi, match => {
-      const tableIndex = tables.push(match) - 1;
-      return `\n[[TABLE:${tableIndex}]]\n`;
-    })
-    .replace(
-      /<img[^>]*src=["']([^"']+)["'][^>]*>/gi,
-      (_match, imageUrl) => `\n[[IMG:${imageUrl}]]\n`,
-    )
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|section|article|h[1-6])>/gi, '\n\n')
-    .replace(/<li[^>]*>/gi, '- ')
-    .replace(/<\/li>/gi, '\n')
-    .replace(/<[^>]+>/g, '');
-
-  const blocks = tokenized
-    .split(/(\[\[TABLE:\d+\]\]|\[\[IMG:[^\]]+\]\])/g)
-    .reduce<ContentDetailBodyBlockViewData[]>((accumulator, segment, index) => {
-      const tableMatch = segment.match(TABLE_TOKEN_PATTERN);
-
-      if (tableMatch) {
-        const tableHtml = tables[Number(tableMatch[1])];
-
-        if (tableHtml) {
-          accumulator.push({
-            html: tableHtml,
-            id: `${notice.id}-table-${index + 1}`,
-            type: 'table',
-          });
-        }
-
-        return accumulator;
-      }
-
-      const imageMatch = segment.match(IMAGE_TOKEN_PATTERN);
-
-      if (imageMatch) {
-        accumulator.push({
-          id: `${notice.id}-image-${index + 1}`,
-          imageUrl: imageMatch[1] ?? '',
-          type: 'image',
-        });
-        return accumulator;
-      }
-
-      decodeHtmlEntities(segment)
-        .split(/\n{2,}/)
-        .map(paragraph => paragraph.trim())
-        .filter(Boolean)
-        .forEach((paragraph, paragraphIndex) => {
-          accumulator.push({
-            id: `${notice.id}-paragraph-${index + 1}-${paragraphIndex + 1}`,
-            text: paragraph,
-            type: 'paragraph',
-          });
-        });
-
-      return accumulator;
-    }, []);
-
-  return blocks.length > 0
-    ? blocks
-    : [
-        {
-          id: `${notice.id}-body-fallback`,
-          text: notice.content,
-          type: 'paragraph' as const,
-        },
-      ];
-};
 
 const isRecentNotice = (postedAt: unknown) => {
   const millis = new Date(String(postedAt)).getTime();
@@ -210,7 +110,7 @@ const toViewData = (
       id: `${notice.id}-attachment-${index + 1}`,
       sizeLabel: '첨부파일',
     })),
-    bodyBlocks: buildBodyBlocks(notice),
+    bodyBlocks: buildNoticeBodyBlocks(notice),
     commentInputPlaceholder: '댓글을 입력하세요...',
     comments,
     dateLabel: formatKoreanAbsoluteWithRelativeTime(notice.postedAt),
