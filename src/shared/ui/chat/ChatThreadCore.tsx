@@ -199,13 +199,24 @@ export const ChatThreadCore = <
 
   const handleScroll = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const {contentOffset, layoutMeasurement} = event.nativeEvent;
+      const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
       const distanceFromLatest = Math.max(0, contentOffset.y);
       const isNearBottom = distanceFromLatest <= AUTO_SCROLL_DISTANCE;
       const nextIsBeyondViewport =
         distanceFromLatest > layoutMeasurement.height;
+      const distanceFromOlderBoundary = Math.max(
+        0,
+        contentSize.height - layoutMeasurement.height - contentOffset.y,
+      );
+      const hasLeftOlderBoundary =
+        distanceFromOlderBoundary >
+        layoutMeasurement.height * LOAD_OLDER_THRESHOLD_RATIO;
 
       isNearBottomRef.current = isNearBottom;
+
+      if (hasLeftOlderBoundary) {
+        hasReachedOlderItemsBoundaryRef.current = false;
+      }
 
       setIsBeyondViewport(previousValue =>
         previousValue === nextIsBeyondViewport
@@ -238,14 +249,11 @@ export const ChatThreadCore = <
 
     Promise.resolve()
       .then(onLoadOlderItems)
+      .catch(() => undefined)
       .finally(() => {
         loadOlderInFlightRef.current = false;
       });
   }, [hasOlderItems, loadingOlderItems, onLoadOlderItems]);
-
-  const handleScrollBeginDrag = React.useCallback(() => {
-    hasReachedOlderItemsBoundaryRef.current = false;
-  }, []);
 
   const renderItem = React.useCallback(
     ({item, index}: {item: TItem; index: number}) => {
@@ -428,7 +436,6 @@ export const ChatThreadCore = <
         onEndReached={handleLoadOlderItems}
         onEndReachedThreshold={LOAD_OLDER_THRESHOLD_RATIO}
         onScroll={handleScroll}
-        onScrollBeginDrag={handleScrollBeginDrag}
         ref={listRef}
         renderItem={renderItem}
         scrollEventThrottle={16}
