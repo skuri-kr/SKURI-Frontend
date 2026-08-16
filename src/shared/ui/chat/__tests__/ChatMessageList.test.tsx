@@ -1,6 +1,6 @@
 import React from 'react';
 import {act, fireEvent, render} from '@testing-library/react-native';
-import {ScrollView, StyleSheet} from 'react-native';
+import {FlatList, StyleSheet, Text} from 'react-native';
 
 import {ChatMessageList} from '../ChatMessageList';
 import type {ChatThreadItemViewData} from '../types';
@@ -40,7 +40,7 @@ describe('ChatMessageList', () => {
     jest.useRealTimers();
   });
 
-  it('이전 메시지를 불러온 뒤에도 보고 있던 위치를 유지한다', async () => {
+  it('이전 메시지를 끝에 추가해도 보고 있던 위치를 네이티브 앵커로 유지한다', async () => {
     jest.useFakeTimers();
 
     let resolveLoad: (() => void) | undefined;
@@ -57,24 +57,27 @@ describe('ChatMessageList', () => {
         onLoadOlderMessages={onLoadOlderMessages}
       />,
     );
-    const scrollView = view.UNSAFE_getByType(ScrollView);
+    const flatList = view.UNSAFE_getByType(FlatList);
 
     act(() => {
       jest.runOnlyPendingTimers();
     });
 
-    fireEvent.scroll(scrollView, createScrollEvent(220));
-    expect(onLoadOlderMessages).not.toHaveBeenCalled();
-
-    fireEvent.scroll(scrollView, createScrollEvent(40));
-    fireEvent.scroll(scrollView, createScrollEvent(20));
+    act(() => {
+      flatList.props.onScrollBeginDrag?.();
+      flatList.props.onEndReached?.({distanceFromEnd: 0});
+      flatList.props.onEndReached?.({distanceFromEnd: 0});
+    });
 
     await act(async () => {
       await Promise.resolve();
     });
 
     expect(onLoadOlderMessages).toHaveBeenCalledTimes(1);
-    expect(scrollView.props.maintainVisibleContentPosition).toBeUndefined();
+    expect(flatList.props.inverted).toBe(true);
+    expect(flatList.props.maintainVisibleContentPosition).toEqual({
+      minIndexForVisible: 0,
+    });
 
     view.rerender(
       <ChatMessageList
@@ -97,12 +100,16 @@ describe('ChatMessageList', () => {
       />,
     );
 
-    scrollView.props.onContentSizeChange?.(360, 2450);
+    expect(flatList.props.data.map((item: ChatThreadItemViewData) => item.id)).toEqual([
+      'message-1',
+      'message-0',
+    ]);
 
-    expect(scrollView.instance.scrollTo).toHaveBeenCalledWith({
-      animated: false,
-      y: 490,
+    act(() => {
+      flatList.props.onEndReached?.({distanceFromEnd: 0});
     });
+
+    expect(onLoadOlderMessages).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       resolveLoad?.();
@@ -120,7 +127,9 @@ describe('ChatMessageList', () => {
       />,
     );
 
-    fireEvent.scroll(loadingView.UNSAFE_getByType(ScrollView), createScrollEvent(0));
+    loadingView.UNSAFE_getByType(FlatList).props.onEndReached?.({
+      distanceFromEnd: 0,
+    });
     expect(onLoadOlderMessages).not.toHaveBeenCalled();
 
     loadingView.rerender(
@@ -130,19 +139,70 @@ describe('ChatMessageList', () => {
         onLoadOlderMessages={onLoadOlderMessages}
       />,
     );
-    fireEvent.scroll(loadingView.UNSAFE_getByType(ScrollView), createScrollEvent(0));
+    loadingView.UNSAFE_getByType(FlatList).props.onEndReached?.({
+      distanceFromEnd: 0,
+    });
 
     expect(onLoadOlderMessages).not.toHaveBeenCalled();
   });
 
+  it('사용자가 다시 끌어올릴 때에만 다음 이전 메시지 요청을 허용한다', async () => {
+    const onLoadOlderMessages = jest.fn(() => Promise.resolve());
+    const view = render(
+      <ChatMessageList
+        hasOlderMessages
+        items={items}
+        onLoadOlderMessages={onLoadOlderMessages}
+      />,
+    );
+    const flatList = view.UNSAFE_getByType(FlatList);
+
+    act(() => {
+      flatList.props.onEndReached?.({distanceFromEnd: 0});
+      flatList.props.onEndReached?.({distanceFromEnd: 0});
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(onLoadOlderMessages).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      flatList.props.onScrollBeginDrag?.();
+      flatList.props.onEndReached?.({distanceFromEnd: 0});
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(onLoadOlderMessages).toHaveBeenCalledTimes(2);
+  });
+
+  it('inverted 목록의 상단 콘텐츠를 footer로 렌더링한다', () => {
+    const view = render(
+      <ChatMessageList
+        headerContent={
+          <Text>채팅방 요약</Text>
+        }
+        items={items}
+      />,
+    );
+    const flatList = view.UNSAFE_getByType(FlatList);
+
+    expect(flatList.props.ListFooterComponent).toBeTruthy();
+    expect(view.getByText('채팅방 요약')).toBeTruthy();
+  });
+
   it('과거 메시지를 읽는 중에는 신규 메시지 미리보기를 중앙에 표시하고 chevron 버튼을 숨긴다', () => {
     const view = render(<ChatMessageList items={items} />);
-    const scrollView = view.UNSAFE_getByType(ScrollView);
+    const flatList = view.UNSAFE_getByType(FlatList);
 
-    fireEvent.scroll(scrollView, createScrollEvent(850));
+    fireEvent.scroll(flatList, createScrollEvent(850));
 
     expect(view.getByLabelText('최신 메시지로 이동')).toBeTruthy();
-    expect(scrollView.props.showsVerticalScrollIndicator).toBe(true);
+    expect(flatList.props.showsVerticalScrollIndicator).toBe(true);
 
     view.rerender(
       <ChatMessageList
@@ -181,9 +241,9 @@ describe('ChatMessageList', () => {
 
   it('최하단에 가까우면 새 메시지 미리보기를 표시하지 않는다', () => {
     const view = render(<ChatMessageList items={items} />);
-    const scrollView = view.UNSAFE_getByType(ScrollView);
+    const flatList = view.UNSAFE_getByType(FlatList);
 
-    fireEvent.scroll(scrollView, createScrollEvent(1430));
+    fireEvent.scroll(flatList, createScrollEvent(72));
 
     view.rerender(
       <ChatMessageList
