@@ -466,7 +466,6 @@ const styles = StyleSheet.create({
   tableFrame: {
     backgroundColor: COLORS.background.surface,
     borderColor: COLORS.border.default,
-    borderRadius: RADIUS.lg,
     borderWidth: 1,
     overflow: 'hidden',
   },
