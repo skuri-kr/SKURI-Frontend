@@ -33,6 +33,14 @@ describe('taxiSettlementPrompt', () => {
       });
     });
 
+    it('날짜 형식의 숫자도 계좌 후보에서 제외하지 않는다', () => {
+      expect(findTaxiAccountCandidate('2026-08-17 허민재')).toEqual({
+        accountHolder: '허민재',
+        accountNumber: '20260817',
+        bankName: undefined,
+      });
+    });
+
     it('공백과 하이픈으로 나뉜 계좌번호와 은행명을 감지한다', () => {
       expect(
         findTaxiAccountCandidate('카뱅 3333 01 1234567 입금 부탁드려요'),
