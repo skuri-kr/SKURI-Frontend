@@ -1,4 +1,5 @@
 import React from 'react';
+import {AppState, type AppStateStatus} from 'react-native';
 
 import {getCurrentLocationSnapshotIfAuthorized} from '@/shared/lib/location/currentLocationSnapshot';
 
@@ -10,6 +11,7 @@ import {
   isTaxiSettlementTimeFallbackDue,
   isWithinTaxiSettlementLocationWindow,
   SETTLEMENT_PROMPT_LOCATION_EARLY_WINDOW_MS,
+  SETTLEMENT_PROMPT_LOCATION_LATE_WINDOW_MS,
   SETTLEMENT_PROMPT_TIME_FALLBACK_DELAY_MS,
   type TaxiAccountCandidate,
   type TaxiSettlementPromptReason,
@@ -21,6 +23,7 @@ import {
 } from '../services/taxiSettlementPromptStorage';
 
 const SETTLEMENT_PROMPT_DISMISS_DURATION_MS = 30 * 60_000;
+const LOCATION_REFRESH_INTERVAL_MS = 5_000;
 
 export interface TaxiSettlementPromptViewData {
   accountCandidate?: TaxiAccountCandidate;
@@ -34,6 +37,7 @@ interface UseTaxiSettlementPromptParams {
   destinationLocation?: PartyLocation;
   hasSettlementTarget: boolean;
   isLeader: boolean;
+  isScreenFocused: boolean;
   partyId?: string;
   partyStatus?: 'open' | 'closed' | 'arrived' | 'ended';
 }
@@ -55,6 +59,7 @@ const getNextTriggerTime = ({
       triggerTimes.push(
         departureTimeMs - SETTLEMENT_PROMPT_LOCATION_EARLY_WINDOW_MS,
         departureTimeMs + SETTLEMENT_PROMPT_TIME_FALLBACK_DELAY_MS,
+        departureTimeMs + SETTLEMENT_PROMPT_LOCATION_LATE_WINDOW_MS,
       );
     }
   }
@@ -71,10 +76,16 @@ export const useTaxiSettlementPrompt = ({
   destinationLocation,
   hasSettlementTarget,
   isLeader,
+  isScreenFocused,
   partyId,
   partyStatus,
 }: UseTaxiSettlementPromptParams) => {
   const [nowMs, setNowMs] = React.useState(() => Date.now());
+  const [isAppActive, setIsAppActive] = React.useState(
+    () =>
+      AppState.currentState !== 'background' &&
+      AppState.currentState !== 'inactive',
+  );
   const [location, setLocation] = React.useState<Awaited<
     ReturnType<typeof getCurrentLocationSnapshotIfAuthorized>
   >>(null);
@@ -104,6 +115,61 @@ export const useTaxiSettlementPrompt = ({
     departureTimeISO,
     nowMs,
   });
+  const isDismissed = (storageState?.dismissedUntilMs ?? 0) > nowMs;
+  const nearDestination = isNearTaxiSettlementDestination({
+    destination: destinationLocation,
+    location,
+    nowMs,
+  });
+  const timeFallbackDue = isTaxiSettlementTimeFallbackDue({
+    departureTimeISO,
+    nowMs,
+  });
+  const hasSeenTimeFallback = Boolean(storageState?.timeFallbackShown);
+  const timeFallbackAvailable =
+    timeFallbackDue && (!hasSeenTimeFallback || timeFallbackLatched);
+  const hasNonLocationPrompt = Boolean(
+    composerCandidate ||
+      clipboardCandidate ||
+      sentAccountCandidate ||
+      accountMessageSent ||
+      timeFallbackAvailable,
+  );
+  const canObserveLocation =
+    isEligible &&
+    isScreenFocused &&
+    isAppActive &&
+    Boolean(destinationLocation) &&
+    locationWindowOpen &&
+    storageState !== undefined;
+  const shouldRefreshLocation =
+    canObserveLocation &&
+    !isDismissed &&
+    !hasNonLocationPrompt &&
+    !nearDestination;
+
+  React.useEffect(() => {
+    const subscription = AppState.addEventListener(
+      'change',
+      (nextAppState: AppStateStatus) => {
+        setIsAppActive(nextAppState === 'active');
+
+        if (nextAppState === 'active') {
+          setNowMs(Date.now());
+        }
+      },
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (isScreenFocused) {
+      setNowMs(Date.now());
+    }
+  }, [isScreenFocused]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -152,42 +218,59 @@ export const useTaxiSettlementPrompt = ({
   }, [departureTimeISO, nowMs, storageState?.dismissedUntilMs]);
 
   React.useEffect(() => {
-    let mounted = true;
-
-    if (!isEligible || !destinationLocation || !locationWindowOpen) {
+    if (!canObserveLocation) {
       setLocation(null);
-      return () => {
-        mounted = false;
-      };
+      return;
     }
 
-    getCurrentLocationSnapshotIfAuthorized().then(nextLocation => {
-      if (mounted) {
-        setLocation(nextLocation);
-      }
-    });
+    if (!shouldRefreshLocation) {
+      return;
+    }
+
+    let active = true;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const refreshLocation = () => {
+      getCurrentLocationSnapshotIfAuthorized()
+        .then(nextLocation => {
+          if (!active) {
+            return;
+          }
+
+          setLocation(nextLocation);
+          setNowMs(Date.now());
+        })
+        .catch(() => {
+          if (active) {
+            setLocation(null);
+            setNowMs(Date.now());
+          }
+        })
+        .finally(() => {
+          if (active) {
+            timeoutId = setTimeout(
+              refreshLocation,
+              LOCATION_REFRESH_INTERVAL_MS,
+            );
+          }
+        });
+    };
+
+    refreshLocation();
 
     return () => {
-      mounted = false;
+      active = false;
+
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [
-    destinationLocation,
-    isEligible,
-    locationWindowOpen,
+    canObserveLocation,
+    destinationLocation?.lat,
+    destinationLocation?.lng,
+    shouldRefreshLocation,
   ]);
-
-  const nearDestination = isNearTaxiSettlementDestination({
-    destination: destinationLocation,
-    location,
-    nowMs,
-  });
-  const timeFallbackDue = isTaxiSettlementTimeFallbackDue({
-    departureTimeISO,
-    nowMs,
-  });
-  const hasSeenTimeFallback = Boolean(storageState?.timeFallbackShown);
-  const timeFallbackAvailable =
-    timeFallbackDue && (!hasSeenTimeFallback || timeFallbackLatched);
 
   const prompt = React.useMemo<TaxiSettlementPromptViewData | null>(() => {
     if (!isEligible || storageState === undefined) {
@@ -239,8 +322,6 @@ export const useTaxiSettlementPrompt = ({
     timeFallbackAvailable,
   ]);
 
-  const isDismissed =
-    (storageState?.dismissedUntilMs ?? 0) > Date.now();
   const visiblePrompt = isDismissed ? null : prompt;
 
   React.useEffect(() => {

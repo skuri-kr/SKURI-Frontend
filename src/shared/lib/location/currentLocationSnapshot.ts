@@ -2,6 +2,8 @@ import Geolocation from '@react-native-community/geolocation';
 import {Platform} from 'react-native';
 import {check, PERMISSIONS, RESULTS} from 'react-native-permissions';
 
+export const CURRENT_LOCATION_SNAPSHOT_MAXIMUM_AGE_MS = 5_000;
+
 export interface CurrentLocationSnapshot {
   accuracyMeters: number;
   latitude: number;
@@ -58,7 +60,7 @@ export const getCurrentLocationSnapshotIfAuthorized = async (): Promise<CurrentL
         },
         {
           enableHighAccuracy: true,
-          maximumAge: 60_000,
+          maximumAge: CURRENT_LOCATION_SNAPSHOT_MAXIMUM_AGE_MS,
           timeout: 15_000,
         },
       );

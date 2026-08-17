@@ -9,7 +9,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import {useNavigation, useRoute} from '@react-navigation/native';
+import {useIsFocused, useNavigation, useRoute} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -175,6 +175,7 @@ const toAccountPrefill = (
 export const ChatScreen = () => {
   useScreenView();
 
+  const isScreenFocused = useIsFocused();
   const navigation = useNavigation<TaxiChatNavigationProp>();
   const route =
     useRoute<NativeStackScreenProps<TaxiStackParamList, 'Chat'>['route']>();
@@ -287,6 +288,7 @@ export const ChatScreen = () => {
     destinationLocation: data?.summary.destinationLocation,
     hasSettlementTarget,
     isLeader: Boolean(data?.summary.management.isLeader),
+    isScreenFocused,
     partyId: route.params?.partyId,
     partyStatus: data?.summary.partyStatus,
   });
