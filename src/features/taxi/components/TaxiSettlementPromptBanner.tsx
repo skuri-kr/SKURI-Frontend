@@ -4,8 +4,6 @@ import Icon from 'react-native-vector-icons/Ionicons';
 
 import {COLORS, RADIUS, SPACING} from '@/shared/design-system/tokens';
 
-export const TAXI_SETTLEMENT_PROMPT_BANNER_HEIGHT = 158;
-
 interface TaxiSettlementPromptBannerProps {
   onDismiss: () => void;
   onPressAccountOnly: () => void;

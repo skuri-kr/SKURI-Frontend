@@ -52,10 +52,7 @@ import {TaxiChatHeaderMenu} from '../components/TaxiChatHeaderMenu';
 import {TaxiChatMessageList} from '../components/TaxiChatMessageList';
 import {TaxiChatSummaryCard} from '../components/TaxiChatSummaryCard';
 import {TaxiPartyEditSheet} from '../components/TaxiPartyEditSheet';
-import {
-  TAXI_SETTLEMENT_PROMPT_BANNER_HEIGHT,
-  TaxiSettlementPromptBanner,
-} from '../components/TaxiSettlementPromptBanner';
+import {TaxiSettlementPromptBanner} from '../components/TaxiSettlementPromptBanner';
 import {TaxiSettlementStatusSheet} from '../components/TaxiSettlementStatusSheet';
 import {
   TaxiTaxiCallSheet,
@@ -952,9 +949,6 @@ export const ChatScreen = () => {
   const settlementMembers = data?.summary.members ?? [];
   const threadBottomPadding =
     TAXI_CHAT_COMPOSER_BAR_HEIGHT +
-    (visibleSettlementPrompt
-      ? TAXI_SETTLEMENT_PROMPT_BANNER_HEIGHT + SPACING.md
-      : 0) +
     (editingMessage ? CHAT_COMPOSER_EDITING_BAR_HEIGHT : 0) +
     insets.bottom +
     SPACING.md +
