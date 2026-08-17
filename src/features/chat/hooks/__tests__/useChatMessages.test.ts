@@ -1,7 +1,10 @@
 import {act, renderHook, waitFor} from '@testing-library/react-native';
 
 import type {IChatRepository} from '../../data/repositories/IChatRepository';
-import type {ChatMessage} from '../../model/types';
+import type {
+  ChatMessage,
+  MessageSubscriptionCallbacks,
+} from '../../model/types';
 import {useChatMessages} from '../useChatMessages';
 import {useChatRepository} from '../useChatRepository';
 
@@ -65,9 +68,7 @@ describe('useChatMessages', () => {
       repository as unknown as IChatRepository,
     );
 
-    const {result} = renderHook(() =>
-      useChatMessages('public:game:minecraft'),
-    );
+    const {result} = renderHook(() => useChatMessages('public:game:minecraft'));
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -119,5 +120,58 @@ describe('useChatMessages', () => {
     });
 
     expect(repository.getOlderMessages).toHaveBeenCalledTimes(2);
+  });
+
+  it('수정 또는 삭제 이벤트는 같은 ID의 기존 메시지만 제자리에서 교체한다', async () => {
+    let callbacks: MessageSubscriptionCallbacks | undefined;
+    const repository = {
+      getInitialMessages: jest.fn().mockResolvedValue({
+        cursor: null,
+        data: [
+          createMessage('message-2', '2026-08-11T10:02:00'),
+          createMessage('message-1', '2026-08-11T10:01:00'),
+        ],
+        hasMore: false,
+      }),
+      getOlderMessages: jest.fn(),
+      subscribeToNewMessages: jest.fn(
+        (
+          _roomId: string,
+          _timestamp: unknown,
+          nextCallbacks: MessageSubscriptionCallbacks,
+        ) => {
+          callbacks = nextCallbacks;
+          return jest.fn();
+        },
+      ),
+    };
+
+    mockedUseChatRepository.mockReturnValue(
+      repository as unknown as IChatRepository,
+    );
+
+    const {result} = renderHook(() => useChatMessages('public:game:minecraft'));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await act(async () => {
+      callbacks?.onMessageMutation({
+        ...createMessage('message-1', '2026-08-11T10:01:00'),
+        editedAt: '2026-08-11T10:03:00',
+        text: '수정된 메시지',
+      });
+      callbacks?.onMessageMutation(
+        createMessage('not-loaded-yet', '2026-08-11T09:59:00'),
+      );
+    });
+
+    expect(result.current.messages.map(message => message.id)).toEqual([
+      'message-1',
+      'message-2',
+    ]);
+    expect(result.current.messages[0]?.text).toBe('수정된 메시지');
+    expect(result.current.messages[0]?.editedAt).toBe('2026-08-11T10:03:00');
   });
 });

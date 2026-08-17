@@ -40,12 +40,12 @@ describe('SpringTaxiChatRepository', () => {
   });
 
   it('이전 페이지를 앞에 병합하고 이후 최신 스냅샷에도 이미 읽은 이력을 보존한다', async () => {
-    jest.spyOn(taxiHomeApiClient, 'getParty').mockResolvedValue(
-      partyResponse as never,
-    );
-    jest.spyOn(taxiChatApiClient, 'getChatRoom').mockResolvedValue(
-      roomResponse as never,
-    );
+    jest
+      .spyOn(taxiHomeApiClient, 'getParty')
+      .mockResolvedValue(partyResponse as never);
+    jest
+      .spyOn(taxiChatApiClient, 'getChatRoom')
+      .mockResolvedValue(roomResponse as never);
     const getMessages = jest
       .spyOn(taxiChatApiClient, 'getMessages')
       .mockResolvedValueOnce({
@@ -106,5 +106,80 @@ describe('SpringTaxiChatRepository', () => {
     await repository.loadOlderMessages('party-1');
 
     expect(getMessages).toHaveBeenCalledTimes(3);
+  });
+
+  it('삭제 응답은 기존 위치를 유지한 tombstone으로 교체하고 최신 계좌 정보를 다시 계산한다', async () => {
+    jest
+      .spyOn(taxiHomeApiClient, 'getParty')
+      .mockResolvedValue(partyResponse as never);
+    jest
+      .spyOn(taxiChatApiClient, 'getChatRoom')
+      .mockResolvedValue(roomResponse as never);
+    jest.spyOn(taxiChatApiClient, 'getMessages').mockResolvedValue({
+      data: {
+        hasNext: false,
+        messages: [
+          {
+            accountData: {
+              accountHolder: '최근 계좌',
+              accountNumber: '2222',
+              bankName: '스쿠리은행',
+            },
+            chatRoomId: 'party:party-1',
+            createdAt: '2026-08-13T10:02:00',
+            id: 'account-latest',
+            isDeleted: false,
+            senderId: 'member-1',
+            senderName: '택시 친구',
+            text: '스쿠리은행 2222',
+            type: 'ACCOUNT',
+          },
+          {
+            accountData: {
+              accountHolder: '이전 계좌',
+              accountNumber: '1111',
+              bankName: '스쿠리은행',
+            },
+            chatRoomId: 'party:party-1',
+            createdAt: '2026-08-13T10:01:00',
+            id: 'account-previous',
+            isDeleted: false,
+            senderId: 'member-1',
+            senderName: '택시 친구',
+            text: '스쿠리은행 1111',
+            type: 'ACCOUNT',
+          },
+        ],
+        nextCursor: null,
+      },
+    } as never);
+    jest.spyOn(taxiChatApiClient, 'deleteMessage').mockResolvedValue({
+      data: {
+        chatRoomId: 'party:party-1',
+        createdAt: '2026-08-13T10:02:00',
+        deletedAt: '2026-08-13T10:03:00',
+        id: 'account-latest',
+        isDeleted: true,
+        senderId: 'member-1',
+        senderName: '택시 친구',
+        text: '삭제된 메시지입니다.',
+        type: 'TEXT',
+      },
+    } as never);
+    const repository = new SpringTaxiChatRepository();
+
+    await repository.getPartyChat('party-1');
+    const mutated = await repository.deleteMessage('party-1', 'account-latest');
+
+    expect(mutated?.messages.map(message => message.id)).toEqual([
+      'account-previous',
+      'account-latest',
+    ]);
+    expect(mutated?.messages[1]).toMatchObject({
+      isDeleted: true,
+      text: '삭제된 메시지입니다.',
+      type: 'text',
+    });
+    expect(mutated?.latestAccountData?.accountNumber).toBe('1111');
   });
 });
