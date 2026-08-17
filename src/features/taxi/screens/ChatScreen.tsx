@@ -34,6 +34,8 @@ import {
   ChatHeader,
   ChatMessagePopupMenu,
   resolveChatMenuPosition,
+  resolveCurrentMessage,
+  type ChatMessageMenuState,
 } from '@/shared/ui/chat';
 import {isWithinChatMessageEditWindow} from '@/shared/ui/chat/chatMessageMutationPolicy';
 import {ReportReasonModal} from '@/shared/ui/ReportReasonModal';
@@ -205,11 +207,8 @@ export const ChatScreen = () => {
     draft: string;
     id: string;
   } | null>(null);
-  const [messageMenuState, setMessageMenuState] = React.useState<{
-    message: TaxiChatAccountMessageViewData | TaxiChatTextMessageViewData;
-    right: number;
-    top: number;
-  } | null>(null);
+  const [messageMenuState, setMessageMenuState] =
+    React.useState<ChatMessageMenuState | null>(null);
   const [isReportSubmitting, setIsReportSubmitting] = React.useState(false);
   const [isReportVisible, setIsReportVisible] = React.useState(false);
   const [reportReason, setReportReason] = React.useState('');
@@ -223,6 +222,13 @@ export const ChatScreen = () => {
     () => getLatestPlayableMessageId(data?.items),
     [data?.items],
   );
+  const currentMessageMenuMessage = React.useMemo(() => {
+    const item = resolveCurrentMessage(data?.items, messageMenuState);
+
+    return item?.type === 'text-message' || item?.type === 'account-message'
+      ? item
+      : null;
+  }, [data?.items, messageMenuState]);
 
   usePlayChatSoundOnNewMessage(data?.roomId, latestPlayableMessageId);
 
@@ -356,7 +362,7 @@ export const ChatScreen = () => {
       const position = resolveChatMenuPosition({pageX, pageY});
 
       setMessageMenuState({
-        message,
+        messageId: message.id,
         ...position,
       });
     },
@@ -364,7 +370,7 @@ export const ChatScreen = () => {
   );
 
   const handleCopyMessage = React.useCallback(() => {
-    const message = messageMenuState?.message;
+    const message = currentMessageMenuMessage;
 
     if (!message) {
       return;
@@ -384,7 +390,7 @@ export const ChatScreen = () => {
 
     Clipboard.setString(text);
     Alert.alert('복사 완료', '메시지가 클립보드에 복사되었습니다.');
-  }, [messageMenuState]);
+  }, [currentMessageMenuMessage]);
 
   const handleCancelEdit = React.useCallback(() => {
     if (!editingMessage || messageMutationInFlight) {
@@ -396,7 +402,7 @@ export const ChatScreen = () => {
   }, [editingMessage, messageMutationInFlight]);
 
   const handleEditMessage = React.useCallback(() => {
-    const message = messageMenuState?.message;
+    const message = currentMessageMenuMessage;
 
     if (
       !message ||
@@ -417,10 +423,10 @@ export const ChatScreen = () => {
       id: message.id,
     });
     setComposerValue(message.text);
-  }, [composerValue, messageMenuState]);
+  }, [composerValue, currentMessageMenuMessage]);
 
   const handleDeleteMessage = React.useCallback(() => {
-    const message = messageMenuState?.message;
+    const message = currentMessageMenuMessage;
 
     if (
       !message ||
@@ -452,10 +458,10 @@ export const ChatScreen = () => {
         },
       },
     ]);
-  }, [deleteMessage, messageMenuState, messageMutationInFlight]);
+  }, [deleteMessage, currentMessageMenuMessage, messageMutationInFlight]);
 
   const handleOpenMessageReport = React.useCallback(() => {
-    const messageId = messageMenuState?.message.id;
+    const messageId = currentMessageMenuMessage?.id;
 
     if (!messageId) {
       return;
@@ -466,7 +472,18 @@ export const ChatScreen = () => {
     setSelectedReportCategory(null);
     setReportReason('');
     setIsReportVisible(true);
-  }, [messageMenuState]);
+  }, [currentMessageMenuMessage]);
+
+  React.useEffect(() => {
+    if (
+      messageMenuState &&
+      (!currentMessageMenuMessage ||
+        (currentMessageMenuMessage.type === 'text-message' &&
+          currentMessageMenuMessage.isDeleted))
+    ) {
+      setMessageMenuState(null);
+    }
+  }, [currentMessageMenuMessage, messageMenuState]);
 
   const handleSubmitReport = React.useCallback(async () => {
     if (!reportTarget) {
@@ -1068,30 +1085,30 @@ export const ChatScreen = () => {
 
         <ChatMessagePopupMenu
           canCopy={Boolean(
-            messageMenuState &&
-              (messageMenuState.message.type === 'account-message' ||
-                (!messageMenuState.message.isDeleted &&
-                  messageMenuState.message.messageKind !== 'image')),
+            currentMessageMenuMessage &&
+              (currentMessageMenuMessage.type === 'account-message' ||
+                (!currentMessageMenuMessage.isDeleted &&
+                  currentMessageMenuMessage.messageKind !== 'image')),
           )}
           canDelete={Boolean(
-            messageMenuState &&
-              messageMenuState.message.direction === 'outgoing' &&
-              (messageMenuState.message.type === 'account-message' ||
-                !messageMenuState.message.isDeleted),
+            currentMessageMenuMessage &&
+              currentMessageMenuMessage.direction === 'outgoing' &&
+              (currentMessageMenuMessage.type === 'account-message' ||
+                !currentMessageMenuMessage.isDeleted),
           )}
           canEdit={Boolean(
-            messageMenuState &&
-              messageMenuState.message.type === 'text-message' &&
-              messageMenuState.message.direction === 'outgoing' &&
-              !messageMenuState.message.isDeleted &&
-              messageMenuState.message.messageKind === 'text' &&
-              isWithinChatMessageEditWindow(messageMenuState.message.createdAt),
+            currentMessageMenuMessage &&
+              currentMessageMenuMessage.type === 'text-message' &&
+              currentMessageMenuMessage.direction === 'outgoing' &&
+              !currentMessageMenuMessage.isDeleted &&
+              currentMessageMenuMessage.messageKind === 'text' &&
+              isWithinChatMessageEditWindow(currentMessageMenuMessage.createdAt),
           )}
           canReport={Boolean(
-            messageMenuState &&
-              messageMenuState.message.direction !== 'outgoing' &&
-              (messageMenuState.message.type === 'account-message' ||
-                !messageMenuState.message.isDeleted),
+            currentMessageMenuMessage &&
+              currentMessageMenuMessage.direction !== 'outgoing' &&
+              (currentMessageMenuMessage.type === 'account-message' ||
+                !currentMessageMenuMessage.isDeleted),
           )}
           onClose={() => setMessageMenuState(null)}
           onCopy={handleCopyMessage}
@@ -1100,7 +1117,7 @@ export const ChatScreen = () => {
           onReport={handleOpenMessageReport}
           right={messageMenuState?.right ?? 12}
           top={messageMenuState?.top ?? 64}
-          visible={messageMenuState !== null}
+          visible={Boolean(messageMenuState && currentMessageMenuMessage)}
         />
 
         <ReportReasonModal

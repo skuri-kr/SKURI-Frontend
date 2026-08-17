@@ -12,6 +12,8 @@ export type {ChatComposerEditingState} from './ChatComposerBar';
 export {ChatThreadCore} from './ChatThreadCore';
 export {ChatThreadScrollActions} from './ChatThreadScrollActions';
 export {resolveChatMenuPosition} from './chatMenuPosition';
+export {resolveCurrentMessage} from './messageMenuState';
+export type {ChatMessageMenuState} from './messageMenuState';
 export type {
   ChatAvatarViewData,
   ChatThreadDateDividerViewData,

@@ -40,6 +40,8 @@ import {
   ChatMessageList,
   ChatPopupMenu,
   resolveChatMenuPosition,
+  resolveCurrentMessage,
+  type ChatMessageMenuState,
   type ChatThreadItemViewData,
   type ChatThreadMessageViewData,
 } from '@/shared/ui/chat';
@@ -123,11 +125,8 @@ export const ChatDetailScreen = () => {
     id: string;
   } | null>(null);
   const [menuVisible, setMenuVisible] = React.useState(false);
-  const [messageMenuState, setMessageMenuState] = React.useState<{
-    message: ChatThreadMessageViewData;
-    right: number;
-    top: number;
-  } | null>(null);
+  const [messageMenuState, setMessageMenuState] =
+    React.useState<ChatMessageMenuState | null>(null);
   const [isReportSubmitting, setIsReportSubmitting] = React.useState(false);
   const [isReportVisible, setIsReportVisible] = React.useState(false);
   const [reportReason, setReportReason] = React.useState('');
@@ -145,6 +144,11 @@ export const ChatDetailScreen = () => {
     () => getLatestPlayableMessageId(data?.items),
     [data?.items],
   );
+  const currentMessageMenuMessage = React.useMemo(() => {
+    const item = resolveCurrentMessage(data?.items, messageMenuState);
+
+    return item?.type === 'text-message' ? item : null;
+  }, [data?.items, messageMenuState]);
 
   usePlayChatSoundOnNewMessage(data?.roomId, latestPlayableMessageId);
 
@@ -217,7 +221,7 @@ export const ChatDetailScreen = () => {
   }, [editingMessage, messageMutationInFlight]);
 
   const handleEditMessage = React.useCallback(() => {
-    const message = messageMenuState?.message;
+    const message = currentMessageMenuMessage;
 
     if (
       !message ||
@@ -237,10 +241,10 @@ export const ChatDetailScreen = () => {
       id: message.id,
     });
     setComposerValue(message.text);
-  }, [composerValue, isMinecraftChatRoom, messageMenuState]);
+  }, [composerValue, currentMessageMenuMessage, isMinecraftChatRoom]);
 
   const handleDeleteMessage = React.useCallback(() => {
-    const message = messageMenuState?.message;
+    const message = currentMessageMenuMessage;
 
     if (
       !message ||
@@ -277,8 +281,8 @@ export const ChatDetailScreen = () => {
     ]);
   }, [
     deleteMessage,
+    currentMessageMenuMessage,
     isMinecraftChatRoom,
-    messageMenuState,
     messageMutationInFlight,
   ]);
 
@@ -397,7 +401,7 @@ export const ChatDetailScreen = () => {
       const position = resolveChatMenuPosition({pageX, pageY});
 
       setMessageMenuState({
-        message,
+        messageId: message.id,
         ...position,
       });
     },
@@ -405,7 +409,7 @@ export const ChatDetailScreen = () => {
   );
 
   const handleCopyMessage = React.useCallback(() => {
-    const message = messageMenuState?.message;
+    const message = currentMessageMenuMessage;
 
     if (!message) {
       return;
@@ -425,10 +429,10 @@ export const ChatDetailScreen = () => {
 
     Clipboard.setString(text);
     Alert.alert('복사 완료', '메시지가 클립보드에 복사되었습니다.');
-  }, [messageMenuState]);
+  }, [currentMessageMenuMessage]);
 
   const handleOpenMessageReport = React.useCallback(() => {
-    const messageId = messageMenuState?.message.id;
+    const messageId = currentMessageMenuMessage?.id;
 
     if (!messageId) {
       return;
@@ -439,7 +443,16 @@ export const ChatDetailScreen = () => {
     setSelectedReportCategory(null);
     setReportReason('');
     setIsReportVisible(true);
-  }, [messageMenuState]);
+  }, [currentMessageMenuMessage]);
+
+  React.useEffect(() => {
+    if (
+      messageMenuState &&
+      (!currentMessageMenuMessage || currentMessageMenuMessage.isDeleted)
+    ) {
+      setMessageMenuState(null);
+    }
+  }, [currentMessageMenuMessage, messageMenuState]);
 
   const handleSubmitReport = React.useCallback(async () => {
     if (!reportTarget) {
@@ -701,28 +714,28 @@ export const ChatDetailScreen = () => {
 
         <ChatMessagePopupMenu
           canCopy={Boolean(
-            messageMenuState &&
-              !messageMenuState.message.isDeleted &&
-              messageMenuState.message.messageKind !== 'image',
+            currentMessageMenuMessage &&
+              !currentMessageMenuMessage.isDeleted &&
+              currentMessageMenuMessage.messageKind !== 'image',
           )}
           canDelete={Boolean(
-            messageMenuState &&
+            currentMessageMenuMessage &&
               !isMinecraftChatRoom &&
-              !messageMenuState.message.isDeleted &&
-              messageMenuState.message.direction === 'outgoing',
+              !currentMessageMenuMessage.isDeleted &&
+              currentMessageMenuMessage.direction === 'outgoing',
           )}
           canEdit={Boolean(
-            messageMenuState &&
+            currentMessageMenuMessage &&
               !isMinecraftChatRoom &&
-              !messageMenuState.message.isDeleted &&
-              messageMenuState.message.direction === 'outgoing' &&
-              messageMenuState.message.messageKind === 'text' &&
-              isWithinChatMessageEditWindow(messageMenuState.message.createdAt),
+              !currentMessageMenuMessage.isDeleted &&
+              currentMessageMenuMessage.direction === 'outgoing' &&
+              currentMessageMenuMessage.messageKind === 'text' &&
+              isWithinChatMessageEditWindow(currentMessageMenuMessage.createdAt),
           )}
           canReport={Boolean(
-            messageMenuState &&
-              !messageMenuState.message.isDeleted &&
-              messageMenuState.message.direction !== 'outgoing',
+            currentMessageMenuMessage &&
+              !currentMessageMenuMessage.isDeleted &&
+              currentMessageMenuMessage.direction !== 'outgoing',
           )}
           onClose={() => setMessageMenuState(null)}
           onCopy={handleCopyMessage}
@@ -731,7 +744,7 @@ export const ChatDetailScreen = () => {
           onReport={handleOpenMessageReport}
           right={messageMenuState?.right ?? 12}
           top={messageMenuState?.top ?? 64}
-          visible={messageMenuState !== null}
+          visible={Boolean(messageMenuState && currentMessageMenuMessage)}
         />
 
         <ReportReasonModal
