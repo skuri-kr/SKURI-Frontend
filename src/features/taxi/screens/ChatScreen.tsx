@@ -35,6 +35,7 @@ import {
   ChatMessagePopupMenu,
   resolveChatMenuPosition,
   resolveCurrentMessage,
+  restoreComposerDraftAfterEdit,
   type ChatMessageMenuState,
 } from '@/shared/ui/chat';
 import {isWithinChatMessageEditWindow} from '@/shared/ui/chat/chatMessageMutationPolicy';
@@ -680,9 +681,17 @@ export const ChatScreen = () => {
 
       try {
         if (editingMessage) {
+          const submittedEdit = editingMessage;
+
           setMessageMutationInFlight(true);
-          await updateMessage(editingMessage.id, messageText);
-          setComposerValue(editingMessage.draft);
+          await updateMessage(submittedEdit.id, messageText);
+          setComposerValue(currentValue =>
+            restoreComposerDraftAfterEdit({
+              currentValue,
+              previousDraft: submittedEdit.draft,
+              submittedValue: messageText,
+            }),
+          );
           setEditingMessage(null);
           return;
         }

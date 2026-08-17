@@ -41,6 +41,7 @@ import {
   ChatPopupMenu,
   resolveChatMenuPosition,
   resolveCurrentMessage,
+  restoreComposerDraftAfterEdit,
   type ChatMessageMenuState,
   type ChatThreadItemViewData,
   type ChatThreadMessageViewData,
@@ -186,9 +187,17 @@ export const ChatDetailScreen = () => {
 
       try {
         if (editingMessage) {
+          const submittedEdit = editingMessage;
+
           setMessageMutationInFlight(true);
-          await updateMessage(editingMessage.id, messageText);
-          setComposerValue(editingMessage.draft);
+          await updateMessage(submittedEdit.id, messageText);
+          setComposerValue(currentValue =>
+            restoreComposerDraftAfterEdit({
+              currentValue,
+              previousDraft: submittedEdit.draft,
+              submittedValue: messageText,
+            }),
+          );
           setEditingMessage(null);
           return;
         }
