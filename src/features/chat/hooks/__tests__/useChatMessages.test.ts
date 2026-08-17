@@ -281,4 +281,342 @@ describe('useChatMessages', () => {
       expect(result.current.messages[0]?.text).toBe('수정된 메시지');
     });
   });
+
+  it('동일한 시각의 이전 메시지를 실시간 보정 후에도 보존한다', async () => {
+    const subscriptionReady = createDeferred<void>();
+    const firstCursor = {
+      createdAt: '2026-08-11T10:01:00',
+      id: 'message-boundary',
+    };
+    const repository = {
+      getInitialMessages: jest
+        .fn()
+        .mockResolvedValueOnce({
+          cursor: firstCursor,
+          data: [
+            createMessage('message-new', '2026-08-11T10:02:00'),
+            createMessage('message-boundary', '2026-08-11T10:01:00'),
+          ],
+          hasMore: true,
+        })
+        .mockResolvedValueOnce({
+          cursor: firstCursor,
+          data: [
+            createMessage('message-new', '2026-08-11T10:02:00'),
+            createMessage('message-boundary', '2026-08-11T10:01:00'),
+          ],
+          hasMore: true,
+        }),
+      getOlderMessages: jest.fn().mockResolvedValue({
+        cursor: null,
+        data: [createMessage('message-tied', '2026-08-11T10:01:00')],
+        hasMore: false,
+      }),
+      subscribeToNewMessages: jest.fn(() => ({
+        ready: subscriptionReady.promise,
+        unsubscribe: jest.fn(),
+      })),
+    };
+
+    mockedUseChatRepository.mockReturnValue(
+      repository as unknown as IChatRepository,
+    );
+
+    const {result} = renderHook(() => useChatMessages('public:game:minecraft'));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.loadMore();
+    });
+
+    await act(async () => {
+      subscriptionReady.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.messages.map(message => message.id)).toEqual([
+        'message-tied',
+        'message-boundary',
+        'message-new',
+      ]);
+    });
+  });
+
+  it('보정 요청이 실패해도 버퍼링한 이벤트와 이후 이벤트를 계속 반영한다', async () => {
+    const reconciliationSnapshot = createDeferred<{
+      cursor: null;
+      data: ChatMessage[];
+      hasMore: boolean;
+    }>();
+    const subscriptionReady = createDeferred<void>();
+    const consoleError = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    let callbacks: MessageSubscriptionCallbacks | undefined;
+    const repository = {
+      getInitialMessages: jest
+        .fn()
+        .mockResolvedValueOnce({
+          cursor: null,
+          data: [createMessage('message-1', '2026-08-11T10:01:00')],
+          hasMore: false,
+        })
+        .mockReturnValueOnce(reconciliationSnapshot.promise),
+      getOlderMessages: jest.fn(),
+      subscribeToNewMessages: jest.fn(
+        (
+          _roomId: string,
+          _timestamp: unknown,
+          nextCallbacks: MessageSubscriptionCallbacks,
+        ) => {
+          callbacks = nextCallbacks;
+          return {
+            ready: subscriptionReady.promise,
+            unsubscribe: jest.fn(),
+          };
+        },
+      ),
+    };
+
+    mockedUseChatRepository.mockReturnValue(
+      repository as unknown as IChatRepository,
+    );
+
+    const {result} = renderHook(() => useChatMessages('public:game:minecraft'));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await act(async () => {
+      subscriptionReady.resolve();
+    });
+
+    await waitFor(() => {
+      expect(repository.getInitialMessages).toHaveBeenCalledTimes(2);
+    });
+
+    await act(async () => {
+      callbacks?.onMessageMutation({
+        ...createMessage('message-1', '2026-08-11T10:01:00'),
+        editedAt: '2026-08-11T10:03:00',
+        text: '수정된 메시지',
+      });
+      callbacks?.onNewMessages([
+        createMessage('message-2', '2026-08-11T10:02:00'),
+      ]);
+      reconciliationSnapshot.reject(new Error('보정 실패'));
+    });
+
+    await waitFor(() => {
+      expect(result.current.messages.map(message => message.id)).toEqual([
+        'message-1',
+        'message-2',
+      ]);
+      expect(result.current.messages[0]?.text).toBe('수정된 메시지');
+    });
+
+    await act(async () => {
+      callbacks?.onNewMessages([
+        createMessage('message-3', '2026-08-11T10:03:00'),
+      ]);
+    });
+
+    expect(result.current.messages.map(message => message.id)).toEqual([
+      'message-1',
+      'message-2',
+      'message-3',
+    ]);
+    consoleError.mockRestore();
+  });
+
+  it('초기 요청 실패 후 실시간 보정이 성공하면 오류를 해제한다', async () => {
+    const consoleError = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const repository = {
+      getInitialMessages: jest
+        .fn()
+        .mockRejectedValueOnce(new Error('초기 요청 실패'))
+        .mockResolvedValueOnce({
+          cursor: null,
+          data: [createMessage('message-1', '2026-08-11T10:01:00')],
+          hasMore: false,
+        }),
+      getOlderMessages: jest.fn(),
+      subscribeToNewMessages: jest.fn(createReadySubscription),
+    };
+
+    mockedUseChatRepository.mockReturnValue(
+      repository as unknown as IChatRepository,
+    );
+
+    const {result} = renderHook(() => useChatMessages('public:game:minecraft'));
+
+    await waitFor(() => {
+      expect(repository.getInitialMessages).toHaveBeenCalledTimes(2);
+      expect(result.current.messages[0]?.id).toBe('message-1');
+      expect(result.current.error).toBeNull();
+    });
+    consoleError.mockRestore();
+  });
+
+  it('연결이 다시 준비될 때마다 최신 스냅샷으로 공개 채팅을 보정한다', async () => {
+    const neverReady = new Promise<void>(() => undefined);
+    let callbacks: MessageSubscriptionCallbacks | undefined;
+    const repository = {
+      getInitialMessages: jest
+        .fn()
+        .mockResolvedValueOnce({
+          cursor: null,
+          data: [createMessage('message-1', '2026-08-11T10:01:00')],
+          hasMore: false,
+        })
+        .mockResolvedValueOnce({
+          cursor: null,
+          data: [
+            {
+              ...createMessage('message-1', '2026-08-11T10:01:00'),
+              editedAt: '2026-08-11T10:02:00',
+              text: '첫 연결 보정',
+            },
+          ],
+          hasMore: false,
+        })
+        .mockResolvedValueOnce({
+          cursor: null,
+          data: [
+            {
+              ...createMessage('message-1', '2026-08-11T10:01:00'),
+              deletedAt: '2026-08-11T10:03:00',
+              isDeleted: true,
+              text: '삭제된 메시지입니다.',
+            },
+          ],
+          hasMore: false,
+        }),
+      getOlderMessages: jest.fn(),
+      subscribeToNewMessages: jest.fn(
+        (
+          _roomId: string,
+          _timestamp: unknown,
+          nextCallbacks: MessageSubscriptionCallbacks,
+        ) => {
+          callbacks = nextCallbacks;
+          return {
+            ready: neverReady,
+            unsubscribe: jest.fn(),
+          };
+        },
+      ),
+    };
+
+    mockedUseChatRepository.mockReturnValue(
+      repository as unknown as IChatRepository,
+    );
+
+    const {result} = renderHook(() => useChatMessages('public:game:minecraft'));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await act(async () => {
+      callbacks?.onRealtimeReady?.();
+    });
+
+    await waitFor(() => {
+      expect(result.current.messages[0]?.text).toBe('첫 연결 보정');
+    });
+
+    await act(async () => {
+      callbacks?.onRealtimeReady?.();
+    });
+
+    await waitFor(() => {
+      expect(repository.getInitialMessages).toHaveBeenCalledTimes(3);
+      expect(result.current.messages[0]).toMatchObject({
+        isDeleted: true,
+        text: '삭제된 메시지입니다.',
+      });
+    });
+  });
+
+  it('이전 페이지 로딩 중 받은 수정 이벤트를 오래된 응답보다 우선한다', async () => {
+    const olderSnapshot = createDeferred<{
+      cursor: null;
+      data: ChatMessage[];
+      hasMore: boolean;
+    }>();
+    const subscriptionReady = createDeferred<void>();
+    let callbacks: MessageSubscriptionCallbacks | undefined;
+    const repository = {
+      getInitialMessages: jest.fn().mockResolvedValue({
+        cursor: {
+          createdAt: '2026-08-11T10:02:00',
+          id: 'message-2',
+        },
+        data: [
+          createMessage('message-3', '2026-08-11T10:03:00'),
+          createMessage('message-2', '2026-08-11T10:02:00'),
+        ],
+        hasMore: true,
+      }),
+      getOlderMessages: jest.fn(() => olderSnapshot.promise),
+      subscribeToNewMessages: jest.fn(
+        (
+          _roomId: string,
+          _timestamp: unknown,
+          nextCallbacks: MessageSubscriptionCallbacks,
+        ) => {
+          callbacks = nextCallbacks;
+          return {
+            ready: subscriptionReady.promise,
+            unsubscribe: jest.fn(),
+          };
+        },
+      ),
+    };
+
+    mockedUseChatRepository.mockReturnValue(
+      repository as unknown as IChatRepository,
+    );
+
+    const {result} = renderHook(() => useChatMessages('public:game:minecraft'));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    let loadingOlderMessages: Promise<void> | undefined;
+    await act(async () => {
+      loadingOlderMessages = result.current.loadMore();
+    });
+
+    await act(async () => {
+      callbacks?.onMessageMutation({
+        ...createMessage('message-1', '2026-08-11T10:01:00'),
+        deletedAt: '2026-08-11T10:04:00',
+        isDeleted: true,
+        text: '삭제된 메시지입니다.',
+      });
+      olderSnapshot.resolve({
+        cursor: null,
+        data: [createMessage('message-1', '2026-08-11T10:01:00')],
+        hasMore: false,
+      });
+      await loadingOlderMessages;
+    });
+
+    await waitFor(() => {
+      expect(result.current.messages[0]).toMatchObject({
+        id: 'message-1',
+        isDeleted: true,
+        text: '삭제된 메시지입니다.',
+      });
+    });
+  });
 });
