@@ -25,12 +25,7 @@ import {
   DetailNotFoundState,
   StateCard,
 } from '@/shared/design-system/components';
-import {
-  COLORS,
-  RADIUS,
-  SHADOWS,
-  SPACING,
-} from '@/shared/design-system/tokens';
+import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
 import {
   usePlayChatSoundOnNewMessage,
   useScreenEnterAnimation,
@@ -48,6 +43,7 @@ import {
   type ChatThreadItemViewData,
   type ChatThreadMessageViewData,
 } from '@/shared/ui/chat';
+import {isWithinChatMessageEditWindow} from '@/shared/ui/chat/chatMessageMutationPolicy';
 import {ReportReasonModal} from '@/shared/ui/ReportReasonModal';
 import {MinecraftServerGuideModal} from '@/features/minecraft/components/MinecraftServerGuideModal';
 import {
@@ -67,7 +63,7 @@ import {
 type ChatDetailNavigationProp = NativeStackNavigationProp<
   CommunityStackParamList,
   'ChatDetail'
->
+>;
 
 const getLatestPlayableMessageId = (
   items: ChatThreadItemViewData[] | undefined,
@@ -114,10 +110,18 @@ export const ChatDetailScreen = () => {
     sendMessage,
     sendImageMessage,
     toggleNotification,
+    updateMessage,
+    deleteMessage,
   } = useChatDetailData(route.params?.chatRoomId);
   const {serverUrl} = useMinecraftServerOverview();
   const [composerValue, setComposerValue] = React.useState('');
   const [imageSending, setImageSending] = React.useState(false);
+  const [messageMutationInFlight, setMessageMutationInFlight] =
+    React.useState(false);
+  const [editingMessage, setEditingMessage] = React.useState<{
+    draft: string;
+    id: string;
+  } | null>(null);
   const [menuVisible, setMenuVisible] = React.useState(false);
   const [messageMenuState, setMessageMenuState] = React.useState<{
     message: ChatThreadMessageViewData;
@@ -132,9 +136,7 @@ export const ChatDetailScreen = () => {
   const [isMinecraftGuideVisible, setMinecraftGuideVisible] =
     React.useState(false);
   const [reportTarget, setReportTarget] = React.useState<
-    | {id: string; type: 'message'}
-    | {id: string; type: 'room'}
-    | null
+    {id: string; type: 'message'} | {id: string; type: 'room'} | null
   >(null);
   const isMinecraftChatRoom =
     route.params?.chatRoomId === MINECRAFT_CHAT_ROOM_ID;
@@ -174,20 +176,111 @@ export const ChatDetailScreen = () => {
 
   const handleSend = React.useCallback(
     async (messageText: string) => {
+      if (messageMutationInFlight) {
+        return;
+      }
+
       try {
+        if (editingMessage) {
+          setMessageMutationInFlight(true);
+          await updateMessage(editingMessage.id, messageText);
+          setComposerValue(editingMessage.draft);
+          setEditingMessage(null);
+          return;
+        }
+
         await sendMessage(messageText);
         setComposerValue('');
       } catch (sendError) {
         Alert.alert(
-          '메시지 전송 실패',
+          editingMessage ? '메시지 수정 실패' : '메시지 전송 실패',
           sendError instanceof Error
             ? sendError.message
+            : editingMessage
+            ? '메시지를 수정하지 못했습니다.'
             : '메시지를 전송하지 못했습니다.',
         );
+      } finally {
+        setMessageMutationInFlight(false);
       }
     },
-    [sendMessage],
+    [editingMessage, messageMutationInFlight, sendMessage, updateMessage],
   );
+
+  const handleCancelEdit = React.useCallback(() => {
+    if (!editingMessage || messageMutationInFlight) {
+      return;
+    }
+
+    setComposerValue(editingMessage.draft);
+    setEditingMessage(null);
+  }, [editingMessage, messageMutationInFlight]);
+
+  const handleEditMessage = React.useCallback(() => {
+    const message = messageMenuState?.message;
+
+    if (
+      !message ||
+      message.direction !== 'outgoing' ||
+      message.messageKind !== 'text' ||
+      message.isDeleted ||
+      isMinecraftChatRoom ||
+      !isWithinChatMessageEditWindow(message.createdAt)
+    ) {
+      return;
+    }
+
+    setMenuVisible(false);
+    setMessageMenuState(null);
+    setEditingMessage({
+      draft: composerValue,
+      id: message.id,
+    });
+    setComposerValue(message.text);
+  }, [composerValue, isMinecraftChatRoom, messageMenuState]);
+
+  const handleDeleteMessage = React.useCallback(() => {
+    const message = messageMenuState?.message;
+
+    if (
+      !message ||
+      message.direction !== 'outgoing' ||
+      message.isDeleted ||
+      isMinecraftChatRoom ||
+      messageMutationInFlight
+    ) {
+      return;
+    }
+
+    setMessageMenuState(null);
+    Alert.alert('메시지 삭제', '이 메시지를 삭제할까요?', [
+      {text: '취소', style: 'cancel'},
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: () => {
+          setMessageMutationInFlight(true);
+          deleteMessage(message.id)
+            .catch(deleteError => {
+              Alert.alert(
+                '메시지 삭제 실패',
+                deleteError instanceof Error
+                  ? deleteError.message
+                  : '메시지를 삭제하지 못했습니다.',
+              );
+            })
+            .finally(() => {
+              setMessageMutationInFlight(false);
+            });
+        },
+      },
+    ]);
+  }, [
+    deleteMessage,
+    isMinecraftChatRoom,
+    messageMenuState,
+    messageMutationInFlight,
+  ]);
 
   const handleJoin = React.useCallback(async () => {
     try {
@@ -284,10 +377,19 @@ export const ChatDetailScreen = () => {
 
   const handleLongPressMessage = React.useCallback(
     (message: ChatThreadMessageViewData, pageX: number, pageY: number) => {
-      const canCopy = message.messageKind !== 'image';
-      const canReport = message.direction !== 'outgoing';
+      const isOwnMessage = message.direction === 'outgoing';
+      const canCopy = !message.isDeleted && message.messageKind !== 'image';
+      const canEdit =
+        !isMinecraftChatRoom &&
+        isOwnMessage &&
+        !message.isDeleted &&
+        message.messageKind === 'text' &&
+        isWithinChatMessageEditWindow(message.createdAt);
+      const canDelete =
+        !isMinecraftChatRoom && isOwnMessage && !message.isDeleted;
+      const canReport = !message.isDeleted && !isOwnMessage;
 
-      if (!canCopy && !canReport) {
+      if (!canCopy && !canEdit && !canDelete && !canReport) {
         return;
       }
 
@@ -299,7 +401,7 @@ export const ChatDetailScreen = () => {
         ...position,
       });
     },
-    [],
+    [isMinecraftChatRoom],
   );
 
   const handleCopyMessage = React.useCallback(() => {
@@ -538,13 +640,21 @@ export const ChatDetailScreen = () => {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 keyboardVerticalOffset={0}>
                 <ChatComposerBar
-                  imageButtonDisabled={imageSending}
+                  editing={
+                    editingMessage ? {onCancel: handleCancelEdit} : undefined
+                  }
+                  imageButtonDisabled={imageSending || Boolean(editingMessage)}
                   onChangeText={setComposerValue}
                   onPressImage={() => {
                     handlePickImage().catch(() => undefined);
                   }}
                   onSend={handleSend}
-                  placeholder={data.composerPlaceholder}
+                  placeholder={
+                    editingMessage
+                      ? '수정할 메시지를 입력하세요'
+                      : data.composerPlaceholder
+                  }
+                  sendDisabled={messageMutationInFlight}
                   value={composerValue}
                 />
               </KeyboardAvoidingView>
@@ -592,14 +702,32 @@ export const ChatDetailScreen = () => {
         <ChatMessagePopupMenu
           canCopy={Boolean(
             messageMenuState &&
+              !messageMenuState.message.isDeleted &&
               messageMenuState.message.messageKind !== 'image',
+          )}
+          canDelete={Boolean(
+            messageMenuState &&
+              !isMinecraftChatRoom &&
+              !messageMenuState.message.isDeleted &&
+              messageMenuState.message.direction === 'outgoing',
+          )}
+          canEdit={Boolean(
+            messageMenuState &&
+              !isMinecraftChatRoom &&
+              !messageMenuState.message.isDeleted &&
+              messageMenuState.message.direction === 'outgoing' &&
+              messageMenuState.message.messageKind === 'text' &&
+              isWithinChatMessageEditWindow(messageMenuState.message.createdAt),
           )}
           canReport={Boolean(
             messageMenuState &&
+              !messageMenuState.message.isDeleted &&
               messageMenuState.message.direction !== 'outgoing',
           )}
           onClose={() => setMessageMenuState(null)}
           onCopy={handleCopyMessage}
+          onDelete={handleDeleteMessage}
+          onEdit={handleEditMessage}
           onReport={handleOpenMessageReport}
           right={messageMenuState?.right ?? 12}
           top={messageMenuState?.top ?? 64}
@@ -617,7 +745,9 @@ export const ChatDetailScreen = () => {
           reason={reportReason}
           selectedCategory={selectedReportCategory}
           submitting={isReportSubmitting}
-          title={reportTarget?.type === 'message' ? '메시지 신고' : '채팅방 신고'}
+          title={
+            reportTarget?.type === 'message' ? '메시지 신고' : '채팅방 신고'
+          }
           visible={isReportVisible}
         />
 

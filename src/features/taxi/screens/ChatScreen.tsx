@@ -30,10 +30,12 @@ import {
 import {pickImageAsset} from '@/shared/lib/media/pickImageAsset';
 import type {UserAccountInfo as AccountInfo} from '@/shared/types/user';
 import {
+  CHAT_COMPOSER_EDITING_BAR_HEIGHT,
   ChatHeader,
   ChatMessagePopupMenu,
   resolveChatMenuPosition,
 } from '@/shared/ui/chat';
+import {isWithinChatMessageEditWindow} from '@/shared/ui/chat/chatMessageMutationPolicy';
 import {ReportReasonModal} from '@/shared/ui/ReportReasonModal';
 
 import {TaxiAccountSheet} from '../components/TaxiAccountSheet';
@@ -155,7 +157,8 @@ export const ChatScreen = () => {
     useRoute<NativeStackScreenProps<TaxiStackParamList, 'Chat'>['route']>();
   const reportRepository = useReportRepository();
   const insets = useSafeAreaInsets();
-  const {height: keyboardHeight, isVisible: keyboardVisible} = useKeyboardInset();
+  const {height: keyboardHeight, isVisible: keyboardVisible} =
+    useKeyboardInset();
   const screenAnimatedStyle = useScreenEnterAnimation();
   const {user} = useAuth();
   const {
@@ -164,6 +167,7 @@ export const ChatScreen = () => {
     closeParty,
     confirmSettlement,
     data,
+    deleteMessage,
     endParty,
     error,
     hasOlderMessages,
@@ -179,6 +183,7 @@ export const ChatScreen = () => {
     sendMessage,
     startSettlement,
     toggleNotification,
+    updateMessage,
     updateParty,
   } = useTaxiChatDetailData(route.params?.partyId);
   const [composerValue, setComposerValue] = React.useState('');
@@ -194,6 +199,12 @@ export const ChatScreen = () => {
     React.useState<AccountInfo | null>(null);
   const [sendingAccount, setSendingAccount] = React.useState(false);
   const [sendingImage, setSendingImage] = React.useState(false);
+  const [messageMutationInFlight, setMessageMutationInFlight] =
+    React.useState(false);
+  const [editingMessage, setEditingMessage] = React.useState<{
+    draft: string;
+    id: string;
+  } | null>(null);
   const [messageMenuState, setMessageMenuState] = React.useState<{
     message: TaxiChatAccountMessageViewData | TaxiChatTextMessageViewData;
     right: number;
@@ -205,9 +216,7 @@ export const ChatScreen = () => {
   const [selectedReportCategory, setSelectedReportCategory] =
     React.useState<ReportCategory | null>(null);
   const [reportTarget, setReportTarget] = React.useState<
-    | {id: string; type: 'message'}
-    | {id: string; type: 'party'}
-    | null
+    {id: string; type: 'message'} | {id: string; type: 'party'} | null
   >(null);
   const accountInfo = user?.accountInfo ?? user?.account ?? null;
   const latestPlayableMessageId = React.useMemo(
@@ -324,11 +333,22 @@ export const ChatScreen = () => {
       pageX: number,
       pageY: number,
     ) => {
+      const isOwnMessage = message.direction === 'outgoing';
+      const isDeleted =
+        message.type === 'text-message' && Boolean(message.isDeleted);
       const canCopy =
-        message.type === 'account-message' || message.messageKind !== 'image';
-      const canReport = message.direction !== 'outgoing';
+        message.type === 'account-message' ||
+        (!isDeleted && message.messageKind !== 'image');
+      const canEdit =
+        message.type === 'text-message' &&
+        isOwnMessage &&
+        !isDeleted &&
+        message.messageKind === 'text' &&
+        isWithinChatMessageEditWindow(message.createdAt);
+      const canDelete = isOwnMessage && !isDeleted;
+      const canReport = !isDeleted && !isOwnMessage;
 
-      if (!canCopy && !canReport) {
+      if (!canCopy && !canEdit && !canDelete && !canReport) {
         return;
       }
 
@@ -365,6 +385,74 @@ export const ChatScreen = () => {
     Clipboard.setString(text);
     Alert.alert('복사 완료', '메시지가 클립보드에 복사되었습니다.');
   }, [messageMenuState]);
+
+  const handleCancelEdit = React.useCallback(() => {
+    if (!editingMessage || messageMutationInFlight) {
+      return;
+    }
+
+    setComposerValue(editingMessage.draft);
+    setEditingMessage(null);
+  }, [editingMessage, messageMutationInFlight]);
+
+  const handleEditMessage = React.useCallback(() => {
+    const message = messageMenuState?.message;
+
+    if (
+      !message ||
+      message.type !== 'text-message' ||
+      message.direction !== 'outgoing' ||
+      message.messageKind !== 'text' ||
+      message.isDeleted ||
+      !isWithinChatMessageEditWindow(message.createdAt)
+    ) {
+      return;
+    }
+
+    setMenuVisible(false);
+    setActionTrayVisible(false);
+    setMessageMenuState(null);
+    setEditingMessage({
+      draft: composerValue,
+      id: message.id,
+    });
+    setComposerValue(message.text);
+  }, [composerValue, messageMenuState]);
+
+  const handleDeleteMessage = React.useCallback(() => {
+    const message = messageMenuState?.message;
+
+    if (
+      !message ||
+      message.direction !== 'outgoing' ||
+      ('isDeleted' in message && message.isDeleted) ||
+      messageMutationInFlight
+    ) {
+      return;
+    }
+
+    setMessageMenuState(null);
+    Alert.alert('메시지 삭제', '이 메시지를 삭제할까요?', [
+      {text: '취소', style: 'cancel'},
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: () => {
+          setMessageMutationInFlight(true);
+          deleteMessage(message.id)
+            .catch(deleteError => {
+              Alert.alert(
+                '메시지 삭제 실패',
+                getErrorMessage(deleteError, '메시지를 삭제하지 못했습니다.'),
+              );
+            })
+            .finally(() => {
+              setMessageMutationInFlight(false);
+            });
+        },
+      },
+    ]);
+  }, [deleteMessage, messageMenuState, messageMutationInFlight]);
 
   const handleOpenMessageReport = React.useCallback(() => {
     const messageId = messageMenuState?.message.id;
@@ -569,17 +657,36 @@ export const ChatScreen = () => {
 
   const handleSend = React.useCallback(
     async (messageText: string) => {
+      if (messageMutationInFlight) {
+        return;
+      }
+
       try {
+        if (editingMessage) {
+          setMessageMutationInFlight(true);
+          await updateMessage(editingMessage.id, messageText);
+          setComposerValue(editingMessage.draft);
+          setEditingMessage(null);
+          return;
+        }
+
         await sendMessage(messageText);
         setComposerValue('');
       } catch (sendError) {
         Alert.alert(
-          '메시지 전송 실패',
-          getErrorMessage(sendError, '메시지를 전송하지 못했습니다.'),
+          editingMessage ? '메시지 수정 실패' : '메시지 전송 실패',
+          getErrorMessage(
+            sendError,
+            editingMessage
+              ? '메시지를 수정하지 못했습니다.'
+              : '메시지를 전송하지 못했습니다.',
+          ),
         );
+      } finally {
+        setMessageMutationInFlight(false);
       }
     },
-    [sendMessage],
+    [editingMessage, messageMutationInFlight, sendMessage, updateMessage],
   );
 
   const handlePickImage = React.useCallback(async () => {
@@ -716,6 +823,7 @@ export const ChatScreen = () => {
   const settlementMembers = data?.summary.members ?? [];
   const threadBottomPadding =
     TAXI_CHAT_COMPOSER_BAR_HEIGHT +
+    (editingMessage ? CHAT_COMPOSER_EDITING_BAR_HEIGHT : 0) +
     insets.bottom +
     SPACING.md +
     keyboardHeight;
@@ -795,7 +903,10 @@ export const ChatScreen = () => {
               <TaxiChatComposer
                 actionTrayActions={data.actionTrayActions}
                 actionTrayVisible={actionTrayVisible}
-                imageButtonDisabled={sendingImage}
+                editing={
+                  editingMessage ? {onCancel: handleCancelEdit} : undefined
+                }
+                imageButtonDisabled={sendingImage || Boolean(editingMessage)}
                 keyboardVisible={keyboardVisible}
                 onChangeText={setComposerValue}
                 onPressAction={handleActionTrayAction}
@@ -806,7 +917,12 @@ export const ChatScreen = () => {
                   setActionTrayVisible(current => !current);
                 }}
                 onSend={handleSend}
-                placeholder={data.composerPlaceholder}
+                placeholder={
+                  editingMessage
+                    ? '수정할 메시지를 입력하세요'
+                    : data.composerPlaceholder
+                }
+                sendDisabled={messageMutationInFlight}
                 value={composerValue}
               />
             </KeyboardAvoidingView>
@@ -954,14 +1070,33 @@ export const ChatScreen = () => {
           canCopy={Boolean(
             messageMenuState &&
               (messageMenuState.message.type === 'account-message' ||
-                messageMenuState.message.messageKind !== 'image'),
+                (!messageMenuState.message.isDeleted &&
+                  messageMenuState.message.messageKind !== 'image')),
+          )}
+          canDelete={Boolean(
+            messageMenuState &&
+              messageMenuState.message.direction === 'outgoing' &&
+              (messageMenuState.message.type === 'account-message' ||
+                !messageMenuState.message.isDeleted),
+          )}
+          canEdit={Boolean(
+            messageMenuState &&
+              messageMenuState.message.type === 'text-message' &&
+              messageMenuState.message.direction === 'outgoing' &&
+              !messageMenuState.message.isDeleted &&
+              messageMenuState.message.messageKind === 'text' &&
+              isWithinChatMessageEditWindow(messageMenuState.message.createdAt),
           )}
           canReport={Boolean(
             messageMenuState &&
-              messageMenuState.message.direction !== 'outgoing',
+              messageMenuState.message.direction !== 'outgoing' &&
+              (messageMenuState.message.type === 'account-message' ||
+                !messageMenuState.message.isDeleted),
           )}
           onClose={() => setMessageMenuState(null)}
           onCopy={handleCopyMessage}
+          onDelete={handleDeleteMessage}
+          onEdit={handleEditMessage}
           onReport={handleOpenMessageReport}
           right={messageMenuState?.right ?? 12}
           top={messageMenuState?.top ?? 64}
@@ -979,7 +1114,9 @@ export const ChatScreen = () => {
           reason={reportReason}
           selectedCategory={selectedReportCategory}
           submitting={isReportSubmitting}
-          title={reportTarget?.type === 'message' ? '메시지 신고' : '택시파티 신고'}
+          title={
+            reportTarget?.type === 'message' ? '메시지 신고' : '택시파티 신고'
+          }
           visible={isReportVisible}
         />
       </Animated.View>
