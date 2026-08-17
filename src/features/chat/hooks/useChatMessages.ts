@@ -6,24 +6,6 @@ import {useChatRepository} from './useChatRepository';
 
 const MESSAGES_PER_PAGE = 30;
 
-const toTimestamp = (value: unknown) => {
-  if (value instanceof Date) {
-    return value.getTime();
-  }
-
-  if (typeof value === 'number') {
-    return value;
-  }
-
-  if (typeof value === 'string') {
-    const timestamp = Date.parse(value);
-
-    return Number.isNaN(timestamp) ? null : timestamp;
-  }
-
-  return null;
-};
-
 type BufferedRealtimeEvent =
   | {messages: ChatMessage[]; type: 'new-messages'}
   | {message: ChatMessage; type: 'mutation'};
@@ -42,6 +24,11 @@ const appendNewMessages = (
     : messages;
 };
 
+const toMessageIdSet = (messages: ChatMessage[]) =>
+  new Set(
+    messages.flatMap(message => (message.id ? [message.id] : [])),
+  );
+
 const applyBufferedRealtimeEvents = (
   messages: ChatMessage[],
   events: BufferedRealtimeEvent[],
@@ -53,6 +40,30 @@ const applyBufferedRealtimeEvents = (
 
     return replaceChatMessageById(currentMessages, event.message);
   }, messages);
+
+const mergeSnapshotWithLoadedHistory = (
+  previousMessages: ChatMessage[],
+  snapshotMessages: ChatMessage[],
+  preserveLoadedHistory: boolean,
+) => {
+  if (!preserveLoadedHistory) {
+    return snapshotMessages;
+  }
+
+  const snapshotMessageById = new Map(
+    snapshotMessages.map(message => [message.id, message]),
+  );
+  const previousMessageIds = new Set(
+    previousMessages.map(message => message.id),
+  );
+
+  return [
+    ...previousMessages.map(
+      message => snapshotMessageById.get(message.id) ?? message,
+    ),
+    ...snapshotMessages.filter(message => !previousMessageIds.has(message.id)),
+  ];
+};
 
 export interface UseChatMessagesResult {
   applyMessageMutation: (message: ChatMessage) => void;
@@ -96,7 +107,9 @@ export const useChatMessages = (
   const [error, setError] = useState<Error | null>(null);
 
   const oldestCursorRef = useRef<unknown>(null);
-  const newestTimestampRef = useRef<unknown>(null);
+  const isLoadingOlderPageRef = useRef(false);
+  const loadedMessageIdsRef = useRef(new Set<string>());
+  const pendingOlderPageMutationsRef = useRef(new Map<string, ChatMessage>());
   const realtimeUnsubscribeRef = useRef<(() => void) | null>(null);
   const isMountedRef = useRef(true);
   const loadGenerationRef = useRef(0);
@@ -108,9 +121,21 @@ export const useChatMessages = (
   }, []);
 
   const applyMessageMutation = useCallback((message: ChatMessage) => {
-    setMessages(previousMessages =>
-      replaceChatMessageById(previousMessages, message),
-    );
+    if (
+      isLoadingOlderPageRef.current &&
+      message.id &&
+      !loadedMessageIdsRef.current.has(message.id)
+    ) {
+      pendingOlderPageMutationsRef.current.set(message.id, message);
+    }
+
+    setMessages(previousMessages => {
+      const nextMessages = replaceChatMessageById(previousMessages, message);
+
+      loadedMessageIdsRef.current = toMessageIdSet(nextMessages);
+
+      return nextMessages;
+    });
   }, []);
 
   const loadInitialMessages = useCallback(
@@ -122,12 +147,28 @@ export const useChatMessages = (
       });
       const bufferedRealtimeEvents: BufferedRealtimeEvent[] = [];
       let hasInitialSnapshot = false;
+      let hasScheduledInitialReconciliation = false;
+      let reconciliationPromise = Promise.resolve();
       const isCurrentLoad = () =>
         isMountedRef.current && loadGenerationRef.current === loadGeneration;
+
+      const retainUnknownMutationForLoadingPage = (message: ChatMessage) => {
+        if (
+          isLoadingOlderPageRef.current &&
+          message.id &&
+          !loadedMessageIdsRef.current.has(message.id)
+        ) {
+          pendingOlderPageMutationsRef.current.set(message.id, message);
+        }
+      };
 
       const applyRealtimeEvent = (event: BufferedRealtimeEvent) => {
         if (!isCurrentLoad()) {
           return;
+        }
+
+        if (event.type === 'mutation') {
+          retainUnknownMutationForLoadingPage(event.message);
         }
 
         if (bufferingRealtimeEvents) {
@@ -139,9 +180,26 @@ export const useChatMessages = (
           const nextMessages = applyBufferedRealtimeEvents(previousMessages, [
             event,
           ]);
+          loadedMessageIdsRef.current = toMessageIdSet(nextMessages);
 
-          newestTimestampRef.current =
-            nextMessages[nextMessages.length - 1]?.createdAt ?? null;
+          return nextMessages;
+        });
+      };
+
+      const resumeRealtimeEvents = () => {
+        const pendingEvents = bufferedRealtimeEvents.splice(0);
+        bufferingRealtimeEvents = false;
+
+        if (pendingEvents.length === 0) {
+          return;
+        }
+
+        setMessages(previousMessages => {
+          const nextMessages = applyBufferedRealtimeEvents(
+            previousMessages,
+            pendingEvents,
+          );
+          loadedMessageIdsRef.current = toMessageIdSet(nextMessages);
 
           return nextMessages;
         });
@@ -156,32 +214,19 @@ export const useChatMessages = (
 
         bufferingRealtimeEvents = false;
         setMessages(previousMessages => {
-          const oldestSnapshotTimestamp = toTimestamp(
-            sortedMessages[0]?.createdAt,
-          );
-          const olderMessages =
-            preserveLoadedHistory && oldestSnapshotTimestamp !== null
-              ? previousMessages.filter(
-                  message => {
-                    const messageTimestamp = toTimestamp(message.createdAt);
-
-                    return (
-                      messageTimestamp !== null &&
-                      messageTimestamp < oldestSnapshotTimestamp
-                    );
-                  },
-                )
-              : [];
           const nextMessages = applyBufferedRealtimeEvents(
-            [...olderMessages, ...sortedMessages],
+            mergeSnapshotWithLoadedHistory(
+              previousMessages,
+              sortedMessages,
+              preserveLoadedHistory,
+            ),
             pendingEvents,
           );
-
-          newestTimestampRef.current =
-            nextMessages[nextMessages.length - 1]?.createdAt ?? null;
+          loadedMessageIdsRef.current = toMessageIdSet(nextMessages);
 
           return nextMessages;
         });
+        setError(null);
 
         if (!preserveLoadedHistory) {
           setHasMore(result.hasMore);
@@ -189,35 +234,46 @@ export const useChatMessages = (
         }
       };
 
-      const reconcileAfterRealtimeReady = async () => {
-        await initialLoadFinishedPromise;
+      const reconcileAfterRealtimeReady = () => {
+        const nextReconciliation = reconciliationPromise
+          .catch(() => undefined)
+          .then(async () => {
+            await initialLoadFinishedPromise;
 
-        if (!isCurrentLoad()) {
-          return;
-        }
+            if (!isCurrentLoad()) {
+              return;
+            }
 
-        bufferingRealtimeEvents = true;
+            bufferingRealtimeEvents = true;
 
-        try {
-          const result = await chatRepository.getInitialMessages(
-            roomId,
-            MESSAGES_PER_PAGE,
-          );
+            try {
+              const result = await chatRepository.getInitialMessages(
+                roomId,
+                MESSAGES_PER_PAGE,
+              );
 
-          if (!isCurrentLoad()) {
-            return;
-          }
+              if (!isCurrentLoad()) {
+                return;
+              }
 
-          applySnapshot(
-            result,
-            hasInitialSnapshot && hasLoadedOlderMessagesRef.current,
-          );
-          hasInitialSnapshot = true;
-        } catch (error) {
-          if (isCurrentLoad()) {
-            console.error('실시간 구독 후 메시지 보정 실패:', error);
-          }
-        }
+              applySnapshot(
+                result,
+                hasInitialSnapshot && hasLoadedOlderMessagesRef.current,
+              );
+              hasInitialSnapshot = true;
+            } catch (reconciliationError) {
+              if (isCurrentLoad()) {
+                resumeRealtimeEvents();
+                console.error(
+                  '실시간 구독 후 메시지 보정 실패:',
+                  reconciliationError,
+                );
+              }
+            }
+          });
+
+        reconciliationPromise = nextReconciliation.catch(() => undefined);
+        return nextReconciliation;
       };
 
       try {
@@ -241,15 +297,33 @@ export const useChatMessages = (
             onError: err => {
               console.error('실시간 메시지 구독 실패:', err);
             },
+            onRealtimeReady: () => {
+              if (!hasScheduledInitialReconciliation) {
+                hasScheduledInitialReconciliation = true;
+              }
+
+              reconcileAfterRealtimeReady().catch(() => undefined);
+            },
           },
         );
         realtimeUnsubscribeRef.current = subscription.unsubscribe;
 
-        void subscription.ready
-          .then(reconcileAfterRealtimeReady)
-          .catch(error => {
+        subscription.ready
+          .then(() => {
+            if (hasScheduledInitialReconciliation) {
+              return;
+            }
+
+            hasScheduledInitialReconciliation = true;
+            return reconcileAfterRealtimeReady();
+          })
+          .catch(subscriptionError => {
             if (isCurrentLoad()) {
-              console.error('실시간 메시지 구독 준비 실패:', error);
+              resumeRealtimeEvents();
+              console.error(
+                '실시간 메시지 구독 준비 실패:',
+                subscriptionError,
+              );
             }
           });
 
@@ -287,6 +361,7 @@ export const useChatMessages = (
 
     try {
       setLoadingMore(true);
+      isLoadingOlderPageRef.current = true;
 
       const result = await chatRepository.getOlderMessages(
         chatRoomId,
@@ -303,7 +378,20 @@ export const useChatMessages = (
         return;
       }
 
-      const sortedMessages = [...result.data].reverse();
+      const sortedMessages = [...result.data]
+        .reverse()
+        .map(
+          message =>
+            (message.id
+              ? pendingOlderPageMutationsRef.current.get(message.id)
+              : undefined) ?? message,
+        );
+
+      result.data.forEach(message => {
+        if (message.id) {
+          pendingOlderPageMutationsRef.current.delete(message.id);
+        }
+      });
 
       setMessages(prevMessages => {
         const existingIds = new Set(prevMessages.map(message => message.id));
@@ -317,8 +405,10 @@ export const useChatMessages = (
         }
 
         hasLoadedOlderMessagesRef.current = true;
+        const nextMessages = [...uniqueMessages, ...prevMessages];
+        loadedMessageIdsRef.current = toMessageIdSet(nextMessages);
 
-        return [...uniqueMessages, ...prevMessages];
+        return nextMessages;
       });
 
       oldestCursorRef.current = result.cursor;
@@ -329,6 +419,7 @@ export const useChatMessages = (
         setError(err as Error);
       }
     } finally {
+      isLoadingOlderPageRef.current = false;
       if (isMountedRef.current) {
         setLoadingMore(false);
       }
@@ -345,7 +436,9 @@ export const useChatMessages = (
       setLoading(false);
       setHasMore(true);
       oldestCursorRef.current = null;
-      newestTimestampRef.current = null;
+      isLoadingOlderPageRef.current = false;
+      loadedMessageIdsRef.current.clear();
+      pendingOlderPageMutationsRef.current.clear();
       hasLoadedOlderMessagesRef.current = false;
       realtimeUnsubscribeRef.current?.();
       realtimeUnsubscribeRef.current = null;
@@ -353,6 +446,9 @@ export const useChatMessages = (
     }
 
     hasLoadedOlderMessagesRef.current = false;
+    isLoadingOlderPageRef.current = false;
+    loadedMessageIdsRef.current.clear();
+    pendingOlderPageMutationsRef.current.clear();
     loadInitialMessages(chatRoomId, loadGeneration);
 
     return () => {

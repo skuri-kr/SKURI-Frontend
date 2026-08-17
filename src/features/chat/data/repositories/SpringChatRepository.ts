@@ -822,6 +822,12 @@ export class SpringChatRepository implements IChatRepository {
     );
   }
 
+  private notifyRoomRealtimeReady(chatRoomId: string) {
+    this.messageRealtimeStates.get(chatRoomId)?.callbacks.forEach(callbacks => {
+      callbacks.onRealtimeReady?.();
+    });
+  }
+
   private ensureSummarySubscription() {
     if (
       !this.stompClient?.connected ||
@@ -922,10 +928,16 @@ export class SpringChatRepository implements IChatRepository {
           this.ensureErrorSubscription();
           this.ensureSummarySubscription();
           this.messageRealtimeStates.forEach((_, chatRoomId) => {
-            this.ensureRoomMessageSubscription(chatRoomId).catch(
-              () => undefined,
-            );
-            this.ensureRoomMutationSubscription(chatRoomId);
+            this.ensureRoomMessageSubscription(chatRoomId)
+              .then(() => {
+                if (!this.isCurrentStompClient(client, generation)) {
+                  return;
+                }
+
+                this.ensureRoomMutationSubscription(chatRoomId);
+                this.notifyRoomRealtimeReady(chatRoomId);
+              })
+              .catch(() => undefined);
           });
 
           if (!settled) {

@@ -95,6 +95,7 @@ export interface MessageSubscriptionCallbacks {
   onNewMessages: (messages: ChatMessage[]) => void;
   onMessageMutation: (message: ChatMessage) => void;
   onError: (error: Error) => void;
+  onRealtimeReady?: () => void;
 }
 
 export interface MessageSubscription {
