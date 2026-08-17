@@ -50,6 +50,8 @@ const getActionIconName = (actionId: TaxiChatActionTrayActionId) => {
       return 'car-outline';
     case 'sendAccount':
       return 'card-outline';
+    case 'pasteAccount':
+      return 'clipboard-outline';
     case 'close':
       return 'pause-outline';
     case 'reopen':
@@ -76,6 +78,11 @@ const getActionToneStyle = (action: TaxiChatActionTrayActionViewData) => {
       return {
         backgroundColor: COLORS.accent.blueSoft,
         iconColor: COLORS.accent.blue,
+      };
+    case 'pasteAccount':
+      return {
+        backgroundColor: COLORS.accent.purpleSoft,
+        iconColor: COLORS.accent.purple,
       };
     case 'reopen':
     case 'arrive':
@@ -254,7 +261,7 @@ const styles = StyleSheet.create({
     left: 0,
     minHeight: TAXI_CHAT_ACTION_TRAY_HEIGHT,
     paddingBottom: SPACING.xxl,
-    paddingHorizontal: SPACING.xl,
+    paddingHorizontal: SPACING.md,
     paddingTop: SPACING.xl,
     position: 'absolute',
     right: 0,
@@ -270,19 +277,19 @@ const styles = StyleSheet.create({
   trayActionIconWrap: {
     alignItems: 'center',
     borderRadius: RADIUS.lg,
-    height: 56,
+    height: 48,
     justifyContent: 'center',
-    width: 56,
+    width: 48,
   },
   trayActionLabel: {
     color: COLORS.text.strong,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '500',
     lineHeight: 14,
     textAlign: 'center',
   },
   trayGrid: {
     flexDirection: 'row',
-    gap: SPACING.md,
+    gap: SPACING.xs,
   },
 });

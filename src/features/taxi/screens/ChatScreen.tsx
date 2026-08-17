@@ -52,12 +52,17 @@ import {TaxiChatHeaderMenu} from '../components/TaxiChatHeaderMenu';
 import {TaxiChatMessageList} from '../components/TaxiChatMessageList';
 import {TaxiChatSummaryCard} from '../components/TaxiChatSummaryCard';
 import {TaxiPartyEditSheet} from '../components/TaxiPartyEditSheet';
+import {
+  TAXI_SETTLEMENT_PROMPT_BANNER_HEIGHT,
+  TaxiSettlementPromptBanner,
+} from '../components/TaxiSettlementPromptBanner';
 import {TaxiSettlementStatusSheet} from '../components/TaxiSettlementStatusSheet';
 import {
   TaxiTaxiCallSheet,
   type TaxiCallProvider,
 } from '../components/TaxiTaxiCallSheet';
 import {useTaxiChatDetailData} from '../hooks/useTaxiChatDetailData';
+import {useTaxiSettlementPrompt} from '../hooks/useTaxiSettlementPrompt';
 import type {TaxiStackParamList} from '../model/navigation';
 import type {
   TaxiChatAccountMessageViewData,
@@ -65,6 +70,7 @@ import type {
   TaxiChatThreadItemViewData,
   TaxiChatTextMessageViewData,
 } from '../model/taxiChatViewData';
+import type {TaxiAccountCandidate} from '../services/taxiSettlementPrompt';
 import {
   CHAT_REPORT_CATEGORIES,
   submitChatMessageReport,
@@ -152,6 +158,20 @@ const getLatestPlayableMessageId = (
   return null;
 };
 
+const toAccountPrefill = (
+  candidate?: TaxiAccountCandidate,
+): Partial<AccountInfo> | null => {
+  if (!candidate) {
+    return null;
+  }
+
+  return {
+    accountHolder: candidate.accountHolder,
+    accountNumber: candidate.accountNumber,
+    bankName: candidate.bankName,
+  };
+};
+
 export const ChatScreen = () => {
   useScreenView();
 
@@ -200,6 +220,8 @@ export const ChatScreen = () => {
     React.useState(false);
   const [sessionAccountInfo, setSessionAccountInfo] =
     React.useState<AccountInfo | null>(null);
+  const [settlementPromptAccountPrefill, setSettlementPromptAccountPrefill] =
+    React.useState<Partial<AccountInfo> | null>(null);
   const [sendingAccount, setSendingAccount] = React.useState(false);
   const [sendingImage, setSendingImage] = React.useState(false);
   const [messageMutationInFlight, setMessageMutationInFlight] =
@@ -250,6 +272,25 @@ export const ChatScreen = () => {
 
   const resolvedAccountInfo =
     sessionAccountInfo ?? snapshotAccountInfo ?? accountInfo;
+  const hasSettlementTarget =
+    data?.summary.members.some(member => !member.isLeader) ?? false;
+  const {
+    dismissPrompt: dismissSettlementPrompt,
+    noteAccountMessageSent,
+    noteOutgoingText,
+    presentClipboardCandidate,
+    prompt: settlementPrompt,
+  } = useTaxiSettlementPrompt({
+    actionInFlight: Boolean(actionInFlightId) || sendingAccount,
+    composerValue,
+    departureTimeISO: data?.summary.departureTimeISO,
+    destinationLocation: data?.summary.destinationLocation,
+    hasSettlementTarget,
+    isLeader: Boolean(data?.summary.management.isLeader),
+    partyId: route.params?.partyId,
+    partyStatus: data?.summary.partyStatus,
+  });
+  const visibleSettlementPrompt = editingMessage ? null : settlementPrompt;
 
   React.useEffect(() => {
     if ((data?.actionTrayActions.length ?? 0) === 0 && actionTrayVisible) {
@@ -584,6 +625,25 @@ export const ChatScreen = () => {
     ]);
   }, [endParty, runAction]);
 
+  const handlePasteAccountFromClipboard = React.useCallback(async () => {
+    try {
+      const clipboardText = await Clipboard.getString();
+      const candidate = presentClipboardCandidate(clipboardText);
+
+      if (!candidate) {
+        Alert.alert(
+          '계좌 정보를 찾지 못했습니다',
+          '계좌번호와 은행명 또는 예금주가 함께 복사되어 있는지 확인해주세요.',
+        );
+      }
+    } catch {
+      Alert.alert(
+        '클립보드 불러오기 실패',
+        '클립보드의 계좌 정보를 불러오지 못했습니다. 직접 입력해주세요.',
+      );
+    }
+  }, [presentClipboardCandidate]);
+
   const handleActionTrayAction = React.useCallback(
     (actionId: TaxiChatActionTrayActionId) => {
       setActionTrayVisible(false);
@@ -594,11 +654,18 @@ export const ChatScreen = () => {
       }
 
       if (actionId === 'sendAccount') {
+        setSettlementPromptAccountPrefill(null);
         setAccountSheetVisible(true);
         return;
       }
 
+      if (actionId === 'pasteAccount') {
+        handlePasteAccountFromClipboard().catch(() => undefined);
+        return;
+      }
+
       if (actionId === 'arrive') {
+        setSettlementPromptAccountPrefill(null);
         setArriveSheetVisible(true);
         return;
       }
@@ -649,8 +716,30 @@ export const ChatScreen = () => {
         },
       ]);
     },
-    [closeParty, endParty, reopenParty, runAction],
+    [
+      closeParty,
+      endParty,
+      handlePasteAccountFromClipboard,
+      reopenParty,
+      runAction,
+    ],
   );
+
+  const handlePromptAccountOnly = React.useCallback(() => {
+    dismissSettlementPrompt();
+    setSettlementPromptAccountPrefill(
+      toAccountPrefill(visibleSettlementPrompt?.accountCandidate),
+    );
+    setAccountSheetVisible(true);
+  }, [dismissSettlementPrompt, visibleSettlementPrompt?.accountCandidate]);
+
+  const handlePromptSettlement = React.useCallback(() => {
+    dismissSettlementPrompt();
+    setSettlementPromptAccountPrefill(
+      toAccountPrefill(visibleSettlementPrompt?.accountCandidate),
+    );
+    setArriveSheetVisible(true);
+  }, [dismissSettlementPrompt, visibleSettlementPrompt?.accountCandidate]);
 
   const handleSubmitArrive = React.useCallback(
     (payload: {
@@ -662,6 +751,7 @@ export const ChatScreen = () => {
         fallbackMessage: '도착 처리에 실패했습니다.',
         onSuccess: () => {
           setArriveSheetVisible(false);
+          setSettlementPromptAccountPrefill(null);
         },
         task: async () => {
           setSessionAccountInfo(payload.account);
@@ -698,6 +788,7 @@ export const ChatScreen = () => {
         }
 
         await sendMessage(messageText);
+        noteOutgoingText(messageText);
         setComposerValue('');
       } catch (sendError) {
         Alert.alert(
@@ -717,6 +808,7 @@ export const ChatScreen = () => {
       composerValue,
       editingMessage,
       messageMutationInFlight,
+      noteOutgoingText,
       sendMessage,
       updateMessage,
     ],
@@ -822,12 +914,14 @@ export const ChatScreen = () => {
           ...nextAccountInfo,
           remember,
         });
+        noteAccountMessageSent();
         logAccountSheetEvent('submit-success', {
           bankName,
           hideName,
           remember,
         });
         setSessionAccountInfo(nextAccountInfo);
+        setSettlementPromptAccountPrefill(null);
         setAccountSheetVisible(false);
       } catch (submitError) {
         logAccountSheetEvent('submit-error', {
@@ -850,12 +944,15 @@ export const ChatScreen = () => {
         setSendingAccount(false);
       }
     },
-    [sendAccountMessage],
+    [noteAccountMessageSent, sendAccountMessage],
   );
 
   const settlementMembers = data?.summary.members ?? [];
   const threadBottomPadding =
     TAXI_CHAT_COMPOSER_BAR_HEIGHT +
+    (visibleSettlementPrompt
+      ? TAXI_SETTLEMENT_PROMPT_BANNER_HEIGHT + SPACING.md
+      : 0) +
     (editingMessage ? CHAT_COMPOSER_EDITING_BAR_HEIGHT : 0) +
     insets.bottom +
     SPACING.md +
@@ -933,6 +1030,13 @@ export const ChatScreen = () => {
               keyboardVerticalOffset={0}
               pointerEvents="box-none"
               style={styles.composerOverlay}>
+              {visibleSettlementPrompt ? (
+                <TaxiSettlementPromptBanner
+                  onDismiss={dismissSettlementPrompt}
+                  onPressAccountOnly={handlePromptAccountOnly}
+                  onPressSettlement={handlePromptSettlement}
+                />
+              ) : null}
               <TaxiChatComposer
                 actionTrayActions={data.actionTrayActions}
                 actionTrayVisible={actionTrayVisible}
@@ -1034,10 +1138,13 @@ export const ChatScreen = () => {
             />
 
             <TaxiAccountSheet
-              initialAccountInfo={resolvedAccountInfo}
+              initialAccountInfo={
+                settlementPromptAccountPrefill ?? resolvedAccountInfo
+              }
               loading={sendingAccount}
               onClose={() => {
                 setAccountSheetVisible(false);
+                setSettlementPromptAccountPrefill(null);
               }}
               onSubmit={payload => {
                 handleSubmitAccount(payload).catch(() => undefined);
@@ -1068,11 +1175,14 @@ export const ChatScreen = () => {
             />
 
             <TaxiArriveSettlementSheet
-              initialAccountInfo={resolvedAccountInfo}
+              initialAccountInfo={
+                settlementPromptAccountPrefill ?? resolvedAccountInfo
+              }
               loading={actionInFlightId === 'arrive'}
               members={settlementMembers}
               onClose={() => {
                 setArriveSheetVisible(false);
+                setSettlementPromptAccountPrefill(null);
               }}
               onSubmit={handleSubmitArrive}
               visible={arriveSheetVisible}
