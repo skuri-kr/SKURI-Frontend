@@ -155,6 +155,8 @@ export class MinimalStompClient {
 
   private connectedState = false;
 
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
   private socket: StompSocket | null = null;
 
   private subscriptionSequence = 0;
@@ -175,6 +177,7 @@ export class MinimalStompClient {
     params: DeactivateParams = {},
   ): Promise<void> {
     this.active = false;
+    this.clearReconnectTimer();
 
     const socket = this.socket;
     this.socket = null;
@@ -312,11 +315,42 @@ export class MinimalStompClient {
     }
   }
 
+  private clearReconnectTimer() {
+    if (!this.reconnectTimer) {
+      return;
+    }
+
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+  }
+
+  private scheduleReconnect() {
+    if (
+      !this.active ||
+      this.reconnectDelay <= 0 ||
+      this.reconnectTimer ||
+      this.socket ||
+      this.connectedState
+    ) {
+      return;
+    }
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+
+      if (!this.active || this.socket || this.connectedState) {
+        return;
+      }
+
+      this.openSocket().catch(() => undefined);
+    }, this.reconnectDelay);
+  }
+
   private async openSocket() {
     try {
       await this.beforeConnect();
     } catch {
-      this.active = false;
+      this.scheduleReconnect();
       return;
     }
 
@@ -334,7 +368,16 @@ export class MinimalStompClient {
 
     this.debug('Opening Web Socket...');
 
-    const socket = socketFactory();
+    let socket: StompSocket;
+
+    try {
+      socket = socketFactory();
+    } catch (error) {
+      this.onWebSocketError(error);
+      this.scheduleReconnect();
+      return;
+    }
+
     this.socket = socket;
     this.buffer = '';
 
@@ -349,14 +392,14 @@ export class MinimalStompClient {
       this.handleIncomingData(event?.data);
     };
     socket.onclose = event => {
+      if (this.socket !== socket) {
+        return;
+      }
+
       const wasConnected = this.connectedState;
 
       this.connectedState = false;
-      this.active = false;
-
-      if (this.socket === socket) {
-        this.socket = null;
-      }
+      this.socket = null;
 
       this.debug(`Connection closed to ${socket.url}`);
       this.onWebSocketClose(event);
@@ -364,6 +407,8 @@ export class MinimalStompClient {
       if (wasConnected) {
         this.onDisconnect();
       }
+
+      this.scheduleReconnect();
     };
 
     const sendConnectFrame = () => {
