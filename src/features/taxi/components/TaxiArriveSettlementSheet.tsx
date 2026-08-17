@@ -14,32 +14,12 @@ import type {UserAccountInfo as AccountInfo} from '@/shared/types/user';
 import {AccountBankDropdown} from '@/features/user/components/AccountBankDropdown';
 
 import {useBottomSheetInputVisibility} from '../hooks/useBottomSheetInputVisibility';
+import {TAXI_ACCOUNT_BANK_NAMES} from '../model/accountBank';
 import type {TaxiChatSettlementMemberViewData} from '../model/taxiChatViewData';
 import {TaxiChatBottomSheet} from './TaxiChatBottomSheet';
 
-const BANK_NAMES: string[] = [
-  '카카오뱅크',
-  '토스뱅크',
-  '국민은행',
-  '신한은행',
-  '하나은행',
-  '우리은행',
-  '기업은행',
-  '농협은행',
-  'SC제일은행',
-  '씨티은행',
-  '대구은행',
-  '부산은행',
-  '경남은행',
-  '광주은행',
-  '전북은행',
-  '제주은행',
-  'SH수협은행',
-  '케이뱅크',
-];
-
 interface TaxiArriveSettlementSheetProps {
-  initialAccountInfo?: AccountInfo | null;
+  initialAccountInfo?: Partial<AccountInfo> | null;
   loading?: boolean;
   members: TaxiChatSettlementMemberViewData[];
   onClose: () => void;
@@ -158,7 +138,7 @@ export const TaxiArriveSettlementSheet = ({
       <View style={styles.formSection}>
         <Text style={styles.fieldLabel}>은행명</Text>
         <AccountBankDropdown
-          bankNames={BANK_NAMES}
+          bankNames={TAXI_ACCOUNT_BANK_NAMES}
           isOpen={bankDropdownOpen}
           selectedBankName={bankName}
           onPressSelect={nextBankName => {
