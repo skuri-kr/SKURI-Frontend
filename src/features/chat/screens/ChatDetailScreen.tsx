@@ -750,7 +750,7 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.md,
   },
   threadContentWithGuideButton: {
-    paddingTop: 56,
+    paddingBottom: 56,
   },
   threadWrap: {
     flex: 1,

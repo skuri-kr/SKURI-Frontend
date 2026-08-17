@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -110,14 +110,8 @@ const isSameGroup = (
       adjacentMessage.minuteKey === currentMessage.minuteKey,
   );
 
-const LOAD_OLDER_THRESHOLD = 200;
 const AUTO_SCROLL_DISTANCE = 72;
-
-interface PendingOlderScrollRestore {
-  contentHeight: number
-  firstItemId: string
-  offsetY: number
-}
+const LOAD_OLDER_THRESHOLD_RATIO = 0.4;
 
 export const ChatThreadCore = <
   TItem extends {id: string; type: string} = ChatThreadItemViewData,
@@ -135,10 +129,9 @@ export const ChatThreadCore = <
   onLongPressMessage,
   renderCustomItem,
 }: ChatThreadCoreProps<TItem>) => {
-  const scrollViewRef = React.useRef<ScrollView>(null);
+  const listRef = React.useRef<FlatList<TItem>>(null);
   const loadOlderInFlightRef = React.useRef(false);
-  const pendingOlderScrollRestoreRef =
-    React.useRef<PendingOlderScrollRestore | null>(null);
+  const hasReachedOlderItemsBoundaryRef = React.useRef(false);
   const previousItemCountRef = React.useRef(0);
   const previousLastItemIdRef = React.useRef<string | undefined>(undefined);
   const previousAutoScrollKeyRef = React.useRef<number | string | undefined>(
@@ -149,40 +142,14 @@ export const ChatThreadCore = <
   const [newMessagePreview, setNewMessagePreview] =
     React.useState<ChatThreadNewMessagePreviewViewData | null>(null);
   const lastItemId = items[items.length - 1]?.id;
+  const invertedItems = React.useMemo(() => [...items].reverse(), [items]);
 
   const scrollToBottom = React.useCallback((animated = true) => {
     setNewMessagePreview(null);
     setIsBeyondViewport(false);
     isNearBottomRef.current = true;
-    scrollViewRef.current?.scrollToEnd({animated});
+    listRef.current?.scrollToOffset({animated, offset: 0});
   }, []);
-
-  const handleContentSizeChange = React.useCallback(
-    (_contentWidth: number, contentHeight: number) => {
-      const pendingRestore = pendingOlderScrollRestoreRef.current;
-
-      if (!pendingRestore || contentHeight <= pendingRestore.contentHeight) {
-        return;
-      }
-
-      const originalFirstItemIndex = items.findIndex(
-        item => item.id === pendingRestore.firstItemId,
-      );
-
-      if (originalFirstItemIndex <= 0) {
-        return;
-      }
-
-      pendingOlderScrollRestoreRef.current = null;
-      scrollViewRef.current?.scrollTo({
-        animated: false,
-        y:
-          pendingRestore.offsetY +
-          (contentHeight - pendingRestore.contentHeight),
-      });
-    },
-    [items],
-  );
 
   React.useEffect(() => {
     const previousItemCount = previousItemCountRef.current;
@@ -233,15 +200,23 @@ export const ChatThreadCore = <
   const handleScroll = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
-      const distanceFromBottom = Math.max(
+      const distanceFromLatest = Math.max(0, contentOffset.y);
+      const isNearBottom = distanceFromLatest <= AUTO_SCROLL_DISTANCE;
+      const nextIsBeyondViewport =
+        distanceFromLatest > layoutMeasurement.height;
+      const distanceFromOlderBoundary = Math.max(
         0,
         contentSize.height - layoutMeasurement.height - contentOffset.y,
       );
-      const isNearBottom = distanceFromBottom <= AUTO_SCROLL_DISTANCE;
-      const nextIsBeyondViewport =
-        distanceFromBottom > layoutMeasurement.height;
+      const hasLeftOlderBoundary =
+        distanceFromOlderBoundary >
+        layoutMeasurement.height * LOAD_OLDER_THRESHOLD_RATIO;
 
       isNearBottomRef.current = isNearBottom;
+
+      if (hasLeftOlderBoundary) {
+        hasReachedOlderItemsBoundaryRef.current = false;
+      }
 
       setIsBeyondViewport(previousValue =>
         previousValue === nextIsBeyondViewport
@@ -254,120 +229,136 @@ export const ChatThreadCore = <
           previousPreview ? null : previousPreview,
         );
       }
-
-      if (
-        !onLoadOlderItems ||
-        !hasOlderItems ||
-        loadingOlderItems ||
-        loadOlderInFlightRef.current ||
-        contentOffset.y > LOAD_OLDER_THRESHOLD
-      ) {
-        return;
-      }
-
-      loadOlderInFlightRef.current = true;
-      const firstItemId = items[0]?.id;
-
-      if (firstItemId) {
-        pendingOlderScrollRestoreRef.current = {
-          contentHeight: contentSize.height,
-          firstItemId,
-          offsetY: contentOffset.y,
-        };
-      }
-
-      Promise.resolve()
-        .then(onLoadOlderItems)
-        .catch(() => {
-          pendingOlderScrollRestoreRef.current = null;
-        })
-        .finally(() => {
-          loadOlderInFlightRef.current = false;
-        });
     },
-    [hasOlderItems, items, loadingOlderItems, onLoadOlderItems],
+    [],
   );
 
-  return (
-    <View style={styles.threadContainer}>
-      <ScrollView
-        contentContainerStyle={[styles.contentContainer, contentContainerStyle]}
-        keyboardDismissMode="interactive"
-        keyboardShouldPersistTaps="handled"
-        onContentSizeChange={handleContentSizeChange}
-        onScroll={handleScroll}
-        ref={scrollViewRef}
-        scrollEventThrottle={16}
-        showsVerticalScrollIndicator>
-      {onLoadOlderItems ? (
+  const handleLoadOlderItems = React.useCallback(() => {
+    if (
+      !onLoadOlderItems ||
+      !hasOlderItems ||
+      loadingOlderItems ||
+      loadOlderInFlightRef.current ||
+      hasReachedOlderItemsBoundaryRef.current
+    ) {
+      return;
+    }
+
+    hasReachedOlderItemsBoundaryRef.current = true;
+    loadOlderInFlightRef.current = true;
+
+    Promise.resolve()
+      .then(onLoadOlderItems)
+      .catch(() => undefined)
+      .finally(() => {
+        loadOlderInFlightRef.current = false;
+      });
+  }, [hasOlderItems, loadingOlderItems, onLoadOlderItems]);
+
+  const renderItem = React.useCallback(
+    ({item, index}: {item: TItem; index: number}) => {
+      const chronologicalIndex = items.length - index - 1;
+
+      if (isDateDivider(item)) {
+        return (
+          <View style={styles.dateDividerRow}>
+            <View style={styles.dateDividerLine} />
+            <Text style={styles.dateDividerLabel}>{item.label}</Text>
+            <View style={styles.dateDividerLine} />
+          </View>
+        );
+      }
+
+      if (isSystemMessage(item)) {
+        return (
+          <View style={styles.systemMessageWrap}>
+            <Text style={styles.systemMessageLabel}>{item.text}</Text>
+          </View>
+        );
+      }
+
+      if (!isTextMessage(item)) {
+        const customItem = renderCustomItem?.(item, chronologicalIndex);
+
+        return customItem == null ? null : <>{customItem}</>;
+      }
+
+      const previousMessage = getPreviousMessage(items, chronologicalIndex);
+      const nextMessage = getNextMessage(items, chronologicalIndex);
+      const isGroupStart = !isSameGroup(item, previousMessage);
+      const isGroupEnd = !isSameGroup(item, nextMessage);
+      const wrapperStyle =
+        item.direction === 'outgoing'
+          ? styles.outgoingMessageWrap
+          : styles.incomingMessageWrap;
+
+      if (item.direction === 'outgoing') {
+        return (
+          <View
+            style={[
+              styles.messageWrap,
+              wrapperStyle,
+              !isGroupEnd ? styles.messageWrapCompact : null,
+              isGroupStart ? styles.messageWrapSpaced : null,
+            ]}>
+            <View style={styles.outgoingRow}>
+              {isGroupEnd ? (
+                <Text style={[styles.timeLabel, styles.outgoingTimeLabel]}>
+                  {item.timeLabel}
+                </Text>
+              ) : null}
+              <TouchableOpacity
+                activeOpacity={0.92}
+                delayLongPress={220}
+                disabled={!onLongPressMessage || Boolean(item.imageUrl)}
+                style={styles.pressableBubble}
+                onLongPress={event => {
+                  onLongPressMessage?.(item, event);
+                }}>
+                <View
+                  style={[
+                    styles.bubble,
+                    styles.outgoingBubble,
+                    item.messageKind === 'image' ? styles.imageBubble : null,
+                  ]}>
+                  {item.imageUrl ? (
+                    <MessageImageBubble
+                      onLongPress={event => {
+                        onLongPressMessage?.(item, event);
+                      }}
+                      uri={item.imageUrl}
+                    />
+                  ) : (
+                    <Text
+                      style={[styles.messageText, styles.outgoingMessageText]}>
+                      {item.text}
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+      }
+
+      return (
         <View
-          accessibilityLabel={
-            loadingOlderItems ? '이전 메시지 불러오는 중' : undefined
-          }
-          accessibilityRole={loadingOlderItems ? 'progressbar' : undefined}
-          style={styles.loadingOlderWrap}>
-          {loadingOlderItems ? (
-            <ActivityIndicator color={COLORS.brand.primary} size="small" />
-          ) : null}
-        </View>
-      ) : null}
-
-      {headerContent}
-
-        {items.map((item, index) => {
-        if (isDateDivider(item)) {
-          return (
-            <View key={item.id} style={styles.dateDividerRow}>
-              <View style={styles.dateDividerLine} />
-              <Text style={styles.dateDividerLabel}>{item.label}</Text>
-              <View style={styles.dateDividerLine} />
+          style={[
+            styles.messageWrap,
+            wrapperStyle,
+            !isGroupEnd ? styles.messageWrapCompact : null,
+            isGroupStart ? styles.messageWrapSpaced : null,
+          ]}>
+          <View style={styles.incomingRow}>
+            <View style={styles.avatarWrap}>
+              {isGroupStart ? <ChatAvatar avatar={item.avatar} /> : <ChatAvatar />}
             </View>
-          );
-        }
 
-        if (isSystemMessage(item)) {
-          return (
-            <View key={item.id} style={styles.systemMessageWrap}>
-              <Text style={styles.systemMessageLabel}>{item.text}</Text>
-            </View>
-          );
-        }
-
-        if (!isTextMessage(item)) {
-          const customItem = renderCustomItem?.(item, index);
-
-          if (customItem == null) {
-            return null;
-          }
-
-          return <React.Fragment key={item.id}>{customItem}</React.Fragment>;
-        }
-
-        const previousMessage = getPreviousMessage(items, index);
-        const nextMessage = getNextMessage(items, index);
-        const isGroupStart = !isSameGroup(item, previousMessage);
-        const isGroupEnd = !isSameGroup(item, nextMessage);
-        const wrapperStyle =
-          item.direction === 'outgoing'
-            ? styles.outgoingMessageWrap
-            : styles.incomingMessageWrap;
-
-        if (item.direction === 'outgoing') {
-          return (
-            <View
-              key={item.id}
-              style={[
-                styles.messageWrap,
-                wrapperStyle,
-                !isGroupEnd ? styles.messageWrapCompact : null,
-                isGroupStart ? styles.messageWrapSpaced : null,
-              ]}>
-              <View style={styles.outgoingRow}>
-                {isGroupEnd ? (
-                  <Text style={[styles.timeLabel, styles.outgoingTimeLabel]}>
-                    {item.timeLabel}
-                  </Text>
-                ) : null}
+            <View style={styles.incomingContent}>
+              {isGroupStart ? (
+                <Text style={styles.senderName}>{item.senderName}</Text>
+              ) : null}
+              <View style={styles.incomingBubbleRow}>
                 <TouchableOpacity
                   activeOpacity={0.92}
                   delayLongPress={220}
@@ -379,7 +370,7 @@ export const ChatThreadCore = <
                   <View
                     style={[
                       styles.bubble,
-                      styles.outgoingBubble,
+                      styles.incomingBubble,
                       item.messageKind === 'image' ? styles.imageBubble : null,
                     ]}>
                     {item.imageUrl ? (
@@ -390,72 +381,66 @@ export const ChatThreadCore = <
                         uri={item.imageUrl}
                       />
                     ) : (
-                      <Text style={[styles.messageText, styles.outgoingMessageText]}>
-                        {item.text}
-                      </Text>
+                      <Text style={styles.messageText}>{item.text}</Text>
                     )}
                   </View>
                 </TouchableOpacity>
-              </View>
-            </View>
-          );
-        }
-
-        return (
-          <View
-            key={item.id}
-            style={[
-              styles.messageWrap,
-              wrapperStyle,
-              !isGroupEnd ? styles.messageWrapCompact : null,
-              isGroupStart ? styles.messageWrapSpaced : null,
-            ]}>
-            <View style={styles.incomingRow}>
-              <View style={styles.avatarWrap}>
-                {isGroupStart ? <ChatAvatar avatar={item.avatar} /> : <ChatAvatar />}
-              </View>
-
-              <View style={styles.incomingContent}>
-                {isGroupStart ? (
-                  <Text style={styles.senderName}>{item.senderName}</Text>
+                {isGroupEnd ? (
+                  <Text style={styles.timeLabel}>{item.timeLabel}</Text>
                 ) : null}
-                <View style={styles.incomingBubbleRow}>
-                  <TouchableOpacity
-                    activeOpacity={0.92}
-                    delayLongPress={220}
-                    disabled={!onLongPressMessage || Boolean(item.imageUrl)}
-                    style={styles.pressableBubble}
-                    onLongPress={event => {
-                      onLongPressMessage?.(item, event);
-                    }}>
-                    <View
-                      style={[
-                        styles.bubble,
-                        styles.incomingBubble,
-                        item.messageKind === 'image' ? styles.imageBubble : null,
-                      ]}>
-                      {item.imageUrl ? (
-                        <MessageImageBubble
-                          onLongPress={event => {
-                            onLongPressMessage?.(item, event);
-                          }}
-                          uri={item.imageUrl}
-                        />
-                      ) : (
-                        <Text style={styles.messageText}>{item.text}</Text>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                  {isGroupEnd ? (
-                    <Text style={styles.timeLabel}>{item.timeLabel}</Text>
-                  ) : null}
-                </View>
               </View>
             </View>
           </View>
-        );
-        })}
-      </ScrollView>
+        </View>
+      );
+    },
+    [items, onLongPressMessage, renderCustomItem],
+  );
+
+  const listFooter = React.useMemo(() => {
+    if (!headerContent && !onLoadOlderItems) {
+      return null;
+    }
+
+    return (
+      <>
+        {onLoadOlderItems ? (
+          <View
+            accessibilityLabel={
+              loadingOlderItems ? '이전 메시지 불러오는 중' : undefined
+            }
+            accessibilityRole={loadingOlderItems ? 'progressbar' : undefined}
+            style={styles.loadingOlderWrap}>
+            {loadingOlderItems ? (
+              <ActivityIndicator color={COLORS.brand.primary} size="small" />
+            ) : null}
+          </View>
+        ) : null}
+
+        {headerContent}
+      </>
+    );
+  }, [headerContent, loadingOlderItems, onLoadOlderItems]);
+
+  return (
+    <View style={styles.threadContainer}>
+      <FlatList
+        contentContainerStyle={[styles.contentContainer, contentContainerStyle]}
+        data={invertedItems}
+        inverted
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+        keyExtractor={item => item.id}
+        ListFooterComponent={listFooter}
+        maintainVisibleContentPosition={{minIndexForVisible: 0}}
+        onEndReached={handleLoadOlderItems}
+        onEndReachedThreshold={LOAD_OLDER_THRESHOLD_RATIO}
+        onScroll={handleScroll}
+        ref={listRef}
+        renderItem={renderItem}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator
+      />
 
       <ChatThreadScrollActions
         bottomInset={bottomOverlayInset}

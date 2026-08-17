@@ -768,7 +768,7 @@ export const ChatScreen = () => {
                 contentContainerStyle={[
                   styles.threadContent,
                   {
-                    paddingBottom: threadBottomPadding,
+                    paddingTop: threadBottomPadding,
                   },
                 ]}
                 hasOlderMessages={hasOlderMessages}
