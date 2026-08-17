@@ -109,13 +109,11 @@ export const ChatComposerBar = ({
           activeOpacity={sendEnabled ? 0.82 : 1}
           disabled={!sendEnabled}
           onPress={() => {
-            const trimmed = value.trim();
-
-            if (!trimmed) {
+            if (!value.trim()) {
               return;
             }
 
-            onSend(trimmed);
+            onSend(value);
           }}
           style={[
             styles.sendButton,

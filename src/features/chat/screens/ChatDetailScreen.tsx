@@ -188,6 +188,7 @@ export const ChatDetailScreen = () => {
       try {
         if (editingMessage) {
           const submittedEdit = editingMessage;
+          const submittedComposerValue = composerValue;
 
           setMessageMutationInFlight(true);
           await updateMessage(submittedEdit.id, messageText);
@@ -195,7 +196,7 @@ export const ChatDetailScreen = () => {
             restoreComposerDraftAfterEdit({
               currentValue,
               previousDraft: submittedEdit.draft,
-              submittedValue: messageText,
+              submittedValue: submittedComposerValue,
             }),
           );
           setEditingMessage(null);
@@ -217,7 +218,13 @@ export const ChatDetailScreen = () => {
         setMessageMutationInFlight(false);
       }
     },
-    [editingMessage, messageMutationInFlight, sendMessage, updateMessage],
+    [
+      composerValue,
+      editingMessage,
+      messageMutationInFlight,
+      sendMessage,
+      updateMessage,
+    ],
   );
 
   const handleCancelEdit = React.useCallback(() => {
@@ -739,7 +746,9 @@ export const ChatDetailScreen = () => {
               !currentMessageMenuMessage.isDeleted &&
               currentMessageMenuMessage.direction === 'outgoing' &&
               currentMessageMenuMessage.messageKind === 'text' &&
-              isWithinChatMessageEditWindow(currentMessageMenuMessage.createdAt),
+              isWithinChatMessageEditWindow(
+                currentMessageMenuMessage.createdAt,
+              ),
           )}
           canReport={Boolean(
             currentMessageMenuMessage &&

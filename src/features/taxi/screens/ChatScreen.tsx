@@ -682,6 +682,7 @@ export const ChatScreen = () => {
       try {
         if (editingMessage) {
           const submittedEdit = editingMessage;
+          const submittedComposerValue = composerValue;
 
           setMessageMutationInFlight(true);
           await updateMessage(submittedEdit.id, messageText);
@@ -689,7 +690,7 @@ export const ChatScreen = () => {
             restoreComposerDraftAfterEdit({
               currentValue,
               previousDraft: submittedEdit.draft,
-              submittedValue: messageText,
+              submittedValue: submittedComposerValue,
             }),
           );
           setEditingMessage(null);
@@ -712,7 +713,13 @@ export const ChatScreen = () => {
         setMessageMutationInFlight(false);
       }
     },
-    [editingMessage, messageMutationInFlight, sendMessage, updateMessage],
+    [
+      composerValue,
+      editingMessage,
+      messageMutationInFlight,
+      sendMessage,
+      updateMessage,
+    ],
   );
 
   const handlePickImage = React.useCallback(async () => {
@@ -1111,7 +1118,9 @@ export const ChatScreen = () => {
               currentMessageMenuMessage.direction === 'outgoing' &&
               !currentMessageMenuMessage.isDeleted &&
               currentMessageMenuMessage.messageKind === 'text' &&
-              isWithinChatMessageEditWindow(currentMessageMenuMessage.createdAt),
+              isWithinChatMessageEditWindow(
+                currentMessageMenuMessage.createdAt,
+              ),
           )}
           canReport={Boolean(
             currentMessageMenuMessage &&
