@@ -1,4 +1,5 @@
 import {SpringTaxiChatRepository} from '../SpringTaxiChatRepository';
+import type {StompFrame} from '@/shared/realtime';
 import {taxiChatApiClient} from '../../api/taxiChatApiClient';
 import {taxiHomeApiClient} from '../../api/taxiHomeApiClient';
 
@@ -32,6 +33,15 @@ const roomResponse = {
     isMuted: false,
     name: '택시 파티',
   },
+};
+
+const createDeferred = <T,>() => {
+  let resolvePromise!: (value: T) => void;
+  const promise = new Promise<T>(resolve => {
+    resolvePromise = resolve;
+  });
+
+  return {promise, resolve: resolvePromise};
 };
 
 describe('SpringTaxiChatRepository', () => {
@@ -181,5 +191,70 @@ describe('SpringTaxiChatRepository', () => {
       type: 'text',
     });
     expect(mutated?.latestAccountData?.accountNumber).toBe('1111');
+  });
+
+  it('스냅샷 로드 중 수신한 수정 이벤트를 오래된 응답보다 우선한다', async () => {
+    jest
+      .spyOn(taxiHomeApiClient, 'getParty')
+      .mockResolvedValue(partyResponse as never);
+    jest
+      .spyOn(taxiChatApiClient, 'getChatRoom')
+      .mockResolvedValue(roomResponse as never);
+    const messagesResponse = createDeferred<{
+      data: {
+        hasNext: boolean;
+        messages: ReturnType<typeof createMessage>[];
+        nextCursor: null;
+      };
+    }>();
+    jest
+      .spyOn(taxiChatApiClient, 'getMessages')
+      .mockReturnValue(messagesResponse.promise as never);
+    const repository = new SpringTaxiChatRepository();
+    const internals = repository as unknown as {
+      handleIncomingMessageMutation: (
+        partyId: string,
+        frame: StompFrame,
+      ) => void;
+      loadPartyChat: (
+        partyId: string,
+        forceRefresh: boolean,
+      ) => Promise<unknown>;
+      getOrCreatePartyState: (partyId: string) => {
+        source: {messages: Array<Record<string, unknown>>} | null;
+      };
+    };
+
+    const loadingSnapshot = internals.loadPartyChat('party-1', true);
+    internals.handleIncomingMessageMutation(
+      'party-1',
+      {
+        body: JSON.stringify({
+          message: {
+            ...createMessage('message-1', '2026-08-13T10:01:00'),
+            editedAt: '2026-08-13T10:02:00',
+            text: '수정된 메시지',
+          },
+        }),
+      } as StompFrame,
+    );
+
+    messagesResponse.resolve({
+      data: {
+        hasNext: false,
+        messages: [createMessage('message-1', '2026-08-13T10:01:00')],
+        nextCursor: null,
+      },
+    });
+
+    await loadingSnapshot;
+
+    const source = internals.getOrCreatePartyState('party-1').source;
+
+    expect(source?.messages[0]).toMatchObject({
+      editedAt: '2026-08-13T10:02:00',
+      id: 'message-1',
+      text: '수정된 메시지',
+    });
   });
 });

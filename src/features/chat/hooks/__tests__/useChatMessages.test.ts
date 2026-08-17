@@ -23,6 +23,22 @@ const createMessage = (id: string, createdAt: string): ChatMessage => ({
   type: 'text',
 });
 
+const createDeferred = <T,>() => {
+  let reject: (error: Error) => void;
+  let resolve: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+
+  return {promise, reject: reject!, resolve: resolve!};
+};
+
+const createReadySubscription = () => ({
+  ready: Promise.resolve(),
+  unsubscribe: jest.fn(),
+});
+
 describe('useChatMessages', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -61,7 +77,7 @@ describe('useChatMessages', () => {
           data: [createMessage('message-1', '2026-08-11T10:00:00')],
           hasMore: false,
         }),
-      subscribeToNewMessages: jest.fn(() => jest.fn()),
+      subscribeToNewMessages: jest.fn(createReadySubscription),
     };
 
     mockedUseChatRepository.mockReturnValue(
@@ -141,7 +157,7 @@ describe('useChatMessages', () => {
           nextCallbacks: MessageSubscriptionCallbacks,
         ) => {
           callbacks = nextCallbacks;
-          return jest.fn();
+          return createReadySubscription();
         },
       ),
     };
@@ -173,5 +189,96 @@ describe('useChatMessages', () => {
     ]);
     expect(result.current.messages[0]?.text).toBe('수정된 메시지');
     expect(result.current.messages[0]?.editedAt).toBe('2026-08-11T10:03:00');
+  });
+
+  it('실시간 구독 준비 후 최신 스냅샷과 그 사이 이벤트를 함께 반영한다', async () => {
+    const initialSnapshot = createDeferred<{
+      cursor: null;
+      data: ChatMessage[];
+      hasMore: boolean;
+    }>();
+    const reconciliationSnapshot = createDeferred<{
+      cursor: null;
+      data: ChatMessage[];
+      hasMore: boolean;
+    }>();
+    const subscriptionReady = createDeferred<void>();
+    let callbacks: MessageSubscriptionCallbacks | undefined;
+    const repository = {
+      getInitialMessages: jest
+        .fn()
+        .mockReturnValueOnce(initialSnapshot.promise)
+        .mockReturnValueOnce(reconciliationSnapshot.promise),
+      getOlderMessages: jest.fn(),
+      subscribeToNewMessages: jest.fn(
+        (
+          _roomId: string,
+          _timestamp: unknown,
+          nextCallbacks: MessageSubscriptionCallbacks,
+        ) => {
+          callbacks = nextCallbacks;
+
+          return {
+            ready: subscriptionReady.promise,
+            unsubscribe: jest.fn(),
+          };
+        },
+      ),
+    };
+
+    mockedUseChatRepository.mockReturnValue(
+      repository as unknown as IChatRepository,
+    );
+
+    const {result} = renderHook(() => useChatMessages('public:game:minecraft'));
+
+    await waitFor(() => {
+      expect(repository.getInitialMessages).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      initialSnapshot.resolve({
+        cursor: null,
+        data: [createMessage('message-1', '2026-08-11T10:01:00')],
+        hasMore: false,
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+      expect(result.current.messages[0]?.text).toBe('message-1');
+    });
+
+    await act(async () => {
+      subscriptionReady.resolve();
+    });
+
+    await waitFor(() => {
+      expect(repository.getInitialMessages).toHaveBeenCalledTimes(2);
+    });
+
+    await act(async () => {
+      callbacks?.onMessageMutation({
+        ...createMessage('message-1', '2026-08-11T10:01:00'),
+        editedAt: '2026-08-11T10:03:00',
+        text: '수정된 메시지',
+      });
+      callbacks?.onNewMessages([
+        createMessage('message-2', '2026-08-11T10:02:00'),
+      ]);
+      reconciliationSnapshot.resolve({
+        cursor: null,
+        data: [createMessage('message-1', '2026-08-11T10:01:00')],
+        hasMore: false,
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.messages.map(message => message.id)).toEqual([
+        'message-1',
+        'message-2',
+      ]);
+      expect(result.current.messages[0]?.text).toBe('수정된 메시지');
+    });
   });
 });
