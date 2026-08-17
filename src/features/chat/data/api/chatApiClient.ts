@@ -2,6 +2,7 @@ import {httpClient, type ApiSuccessResponse} from '@/shared/api';
 
 import type {
   ChatMessagePageResponseDto,
+  ChatMessageResponseDto,
   ChatReadUpdateRequestDto,
   ChatReadUpdateResponseDto,
   ChatRoomDetailResponseDto,
@@ -9,13 +10,11 @@ import type {
   ChatRoomSettingsResponseDto,
   ChatRoomSummaryResponseDto,
   CreateChatRoomRequestDto,
+  UpdateChatMessageRequestDto,
 } from '../dto/chatDto';
 
 export class ChatApiClient {
-  getChatRooms(params?: {
-    joined?: boolean;
-    type?: string;
-  }) {
+  getChatRooms(params?: {joined?: boolean; type?: string}) {
     return httpClient.get<ApiSuccessResponse<ChatRoomSummaryResponseDto[]>>(
       '/v1/chat-rooms',
       {
@@ -62,6 +61,23 @@ export class ChatApiClient {
       {
         params,
       },
+    );
+  }
+
+  updateMessage(
+    chatRoomId: string,
+    messageId: string,
+    request: UpdateChatMessageRequestDto,
+  ) {
+    return httpClient.patch<
+      ApiSuccessResponse<ChatMessageResponseDto>,
+      UpdateChatMessageRequestDto
+    >(`/v1/chat-rooms/${chatRoomId}/messages/${messageId}`, request);
+  }
+
+  deleteMessage(chatRoomId: string, messageId: string) {
+    return httpClient.delete<ApiSuccessResponse<ChatMessageResponseDto>>(
+      `/v1/chat-rooms/${chatRoomId}/messages/${messageId}`,
     );
   }
 

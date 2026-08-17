@@ -8,10 +8,7 @@ import type {
 } from '@/shared/ui/chat';
 
 import type {TaxiRecruitDraft} from './taxiRecruitData';
-import type {
-  AccountMessageDraft,
-  PartyLocation,
-} from './types';
+import type {AccountMessageDraft, PartyLocation} from './types';
 
 export const TAXI_CHAT_CURRENT_USER_ID = 'current-user';
 export const TAXI_CHAT_CURRENT_USER_NAME = '나';
@@ -132,12 +129,16 @@ export interface TaxiChatSourceMessageItem {
   arrivalData?: TaxiChatSourceArrivalData;
   avatar?: ChatAvatarViewData;
   createdAt: string;
+  deletedAt?: string;
+  editedAt?: string;
   id: string;
   imageUrl?: string;
+  isDeleted?: boolean;
   senderId: string;
   senderName: string;
   text: string;
   type: 'text' | 'image' | 'system' | 'account' | 'arrived' | 'end';
+  updatedAt?: string;
 }
 
 export interface TaxiChatSourceData {
@@ -170,6 +171,7 @@ export type TaxiChatSystemMessageViewData = ChatThreadSystemMessageViewData;
 export interface TaxiChatAccountMessageViewData {
   accountData: TaxiChatSourceAccountData;
   avatar?: ChatAvatarViewData;
+  createdAt?: string;
   direction: 'incoming' | 'outgoing';
   id: string;
   senderName: string;

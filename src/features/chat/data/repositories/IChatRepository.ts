@@ -16,7 +16,10 @@ import type {
 } from '../../model/types';
 
 export interface IChatRepository {
-  subscribeToChatRooms(userId: string, callbacks: SubscriptionCallbacks<ChatRoom[]>): Unsubscribe;
+  subscribeToChatRooms(
+    userId: string,
+    callbacks: SubscriptionCallbacks<ChatRoom[]>,
+  ): Unsubscribe;
 
   subscribeToChatRoomsByCategory(
     filter: ChatRoomFilter,
@@ -53,10 +56,15 @@ export interface IChatRepository {
     callbacks: MessageSubscriptionCallbacks,
   ): Unsubscribe;
 
-  sendMessage(
+  sendMessage(chatRoomId: string, message: ChatMessageDraft): Promise<void>;
+
+  updateMessage(
     chatRoomId: string,
-    message: ChatMessageDraft,
-  ): Promise<void>;
+    messageId: string,
+    text: string,
+  ): Promise<ChatMessage>;
+
+  deleteMessage(chatRoomId: string, messageId: string): Promise<ChatMessage>;
 
   uploadImage(image: ChatImageUploadInput): Promise<string>;
 

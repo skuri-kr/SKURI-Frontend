@@ -2,9 +2,11 @@ import {httpClient, type ApiSuccessResponse} from '@/shared/api';
 
 import type {
   ChatMessagePageResponseDto,
+  ChatMessageResponseDto,
   ChatReadUpdateResponseDto,
   ChatRoomDetailResponseDto,
   ChatRoomSettingsResponseDto,
+  UpdateChatMessageRequestDto,
 } from '../dto/taxiChatDto';
 
 export class TaxiChatApiClient {
@@ -27,6 +29,23 @@ export class TaxiChatApiClient {
       {
         params,
       },
+    );
+  }
+
+  updateMessage(
+    chatRoomId: string,
+    messageId: string,
+    request: UpdateChatMessageRequestDto,
+  ) {
+    return httpClient.patch<
+      ApiSuccessResponse<ChatMessageResponseDto>,
+      UpdateChatMessageRequestDto
+    >(`/v1/chat-rooms/${chatRoomId}/messages/${messageId}`, request);
+  }
+
+  deleteMessage(chatRoomId: string, messageId: string) {
+    return httpClient.delete<ApiSuccessResponse<ChatMessageResponseDto>>(
+      `/v1/chat-rooms/${chatRoomId}/messages/${messageId}`,
     );
   }
 

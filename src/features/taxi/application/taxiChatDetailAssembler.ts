@@ -76,7 +76,9 @@ const buildMessageAvatar = ({
     return undefined;
   }
 
-  const participant = partyChat.participants.find(member => member.id === senderId);
+  const participant = partyChat.participants.find(
+    member => member.id === senderId,
+  );
 
   if (participant?.photoUrl) {
     return {
@@ -204,7 +206,8 @@ const buildSettlementNotice = (
   const isCompleted =
     partyChat.settlement.status === 'completed' ||
     (totalCount > 0 && completedCount === totalCount);
-  const accountData = partyChat.settlement.accountData ?? partyChat.latestAccountData;
+  const accountData =
+    partyChat.settlement.accountData ?? partyChat.latestAccountData;
 
   return {
     accountData,
@@ -265,8 +268,8 @@ const buildItems = (
             partyChat,
             senderId: message.senderId,
           }),
-        direction:
-          message.senderId === currentUserId ? 'outgoing' : 'incoming',
+        direction: message.senderId === currentUserId ? 'outgoing' : 'incoming',
+        createdAt: message.createdAt,
         id: message.id,
         senderName: message.senderName,
         text: message.text,
@@ -279,7 +282,8 @@ const buildItems = (
     if (message.type === 'arrived') {
       const accountData =
         message.arrivalData?.accountData ?? partyChat.settlement?.accountData;
-      const splitMemberIds = message.arrivalData?.settlementTargetMemberIds ?? [];
+      const splitMemberIds =
+        message.arrivalData?.settlementTargetMemberIds ?? [];
       const splitMembers = partyChat.participants.filter(participant =>
         splitMemberIds.includes(participant.id),
       );
@@ -327,11 +331,17 @@ const buildItems = (
           partyChat,
           senderId: message.senderId,
         }),
-      direction:
-        message.senderId === currentUserId ? 'outgoing' : 'incoming',
+      direction: message.senderId === currentUserId ? 'outgoing' : 'incoming',
+      createdAt: message.createdAt,
+      editedAt: message.editedAt,
       id: message.id,
-      imageUrl: message.type === 'image' ? message.imageUrl : undefined,
-      messageKind: message.type === 'image' ? 'image' : 'text',
+      imageUrl:
+        !message.isDeleted && message.type === 'image'
+          ? message.imageUrl
+          : undefined,
+      isDeleted: message.isDeleted,
+      messageKind:
+        !message.isDeleted && message.type === 'image' ? 'image' : 'text',
       minuteKey: format(createdDate, 'yyyy-MM-dd HH:mm'),
       senderId: message.senderId,
       senderName: message.senderName,
@@ -374,7 +384,9 @@ export const buildTaxiChatViewData = ({
       departureLabel: partyChat.departureLocation.name,
       departureLocation: partyChat.departureLocation,
       departureTimeISO: partyChat.departureTimeISO,
-      departureTimeLabel: formatTaxiChatDepartureTime(partyChat.departureTimeISO),
+      departureTimeLabel: formatTaxiChatDepartureTime(
+        partyChat.departureTimeISO,
+      ),
       detail: partyChat.detail,
       destinationLabel: partyChat.destinationLocation.name,
       destinationLocation: partyChat.destinationLocation,

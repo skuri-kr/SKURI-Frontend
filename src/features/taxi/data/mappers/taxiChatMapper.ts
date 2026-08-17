@@ -176,12 +176,16 @@ export const mapTaxiChatMessageDto = (
       }
     : undefined,
   createdAt: message.createdAt,
+  deletedAt: message.deletedAt ?? undefined,
+  editedAt: message.editedAt ?? undefined,
   id: message.id,
   imageUrl: message.imageUrl ?? undefined,
+  isDeleted: message.isDeleted,
   senderId: message.senderId ?? 'system',
   senderName: message.senderName ?? '안내',
   text: resolveMessageText(message),
   type: resolveMessageType(message),
+  updatedAt: message.updatedAt ?? undefined,
 });
 
 export const buildTaxiChatSourceData = ({
@@ -202,31 +206,34 @@ export const buildTaxiChatSourceData = ({
   const participantById = new Map(
     party.members.map(member => [member.id, member] as const),
   );
-  const participants: TaxiChatSourceParticipant[] = party.members.map(member => {
-    const settlement = settlementByMemberId.get(member.id);
+  const participants: TaxiChatSourceParticipant[] = party.members.map(
+    member => {
+      const settlement = settlementByMemberId.get(member.id);
 
-    return {
-      id: member.id,
-      isLeader: member.isLeader,
-      name: resolveParticipantName(party, member),
-      photoUrl: member.photoUrl ?? undefined,
-      settled: settlement?.settled ?? false,
-      settledAt: settlement?.settledAt ?? undefined,
-    };
-  });
-  const settlementMembers: TaxiChatSourceSettlementMember[] =
-    (party.settlement?.memberSettlements ?? []).map(memberSettlement => ({
-      id: memberSettlement.memberId,
-      label: resolveSettlementMemberName({
-        dtoName: memberSettlement.displayName,
-        fallbackParticipant: participantById.get(memberSettlement.memberId),
-        party,
-      }),
-      leftAt: memberSettlement.leftAt ?? undefined,
-      leftParty: Boolean(memberSettlement.leftParty),
-      settled: memberSettlement.settled,
-      settledAt: memberSettlement.settledAt ?? undefined,
-    }));
+      return {
+        id: member.id,
+        isLeader: member.isLeader,
+        name: resolveParticipantName(party, member),
+        photoUrl: member.photoUrl ?? undefined,
+        settled: settlement?.settled ?? false,
+        settledAt: settlement?.settledAt ?? undefined,
+      };
+    },
+  );
+  const settlementMembers: TaxiChatSourceSettlementMember[] = (
+    party.settlement?.memberSettlements ?? []
+  ).map(memberSettlement => ({
+    id: memberSettlement.memberId,
+    label: resolveSettlementMemberName({
+      dtoName: memberSettlement.displayName,
+      fallbackParticipant: participantById.get(memberSettlement.memberId),
+      party,
+    }),
+    leftAt: memberSettlement.leftAt ?? undefined,
+    leftParty: Boolean(memberSettlement.leftParty),
+    settled: memberSettlement.settled,
+    settledAt: memberSettlement.settledAt ?? undefined,
+  }));
   const memberCount = participants.length;
   const tags = normalizePartyTags(party.tags);
   const mappedMessages = [...messages].reverse().map(mapTaxiChatMessageDto);
@@ -268,7 +275,7 @@ export const buildTaxiChatSourceData = ({
     participants,
     partyStatus: mapPartyStatusDto(party.status),
     settlement: party.settlement
-        ? {
+      ? {
           accountData: mapAccountData(party.settlement.account),
           members: settlementMembers,
           perPersonAmount: party.settlement.perPersonAmount ?? 0,

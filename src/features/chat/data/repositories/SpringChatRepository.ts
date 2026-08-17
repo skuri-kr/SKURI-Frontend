@@ -2,10 +2,7 @@ import type {
   SubscriptionCallbacks,
   Unsubscribe,
 } from '@/shared/types/subscription';
-import {
-  RepositoryError,
-  RepositoryErrorCode,
-} from '@/shared/lib/errors';
+import {RepositoryError, RepositoryErrorCode} from '@/shared/lib/errors';
 import {uploadImage as uploadSharedImage} from '@/shared/api/imageUploadClient';
 import {
   chatSocketClient,
@@ -28,6 +25,7 @@ import type {
 } from '../../model/types';
 import {chatApiClient} from '../api/chatApiClient';
 import type {
+  ChatMessageMutationEventResponseDto,
   ChatMessageResponseDto,
   ChatMessageCursorResponseDto,
   ChatRoomSummaryEventResponseDto,
@@ -51,6 +49,7 @@ interface ListSubscription {
 
 interface RoomMessageRealtimeState {
   callbacks: Set<MessageSubscriptionCallbacks>;
+  mutationSubscription: StompSubscription | null;
   subscription: StompSubscription | null;
 }
 
@@ -144,13 +143,9 @@ const createStompRepositoryError = (
   message: string,
   context?: Record<string, unknown>,
 ) =>
-  new RepositoryError(
-    RepositoryErrorCode.SUBSCRIPTION_FAILED,
-    message,
-    {
-      context,
-    },
-  );
+  new RepositoryError(RepositoryErrorCode.SUBSCRIPTION_FAILED, message, {
+    context,
+  });
 
 const isGeneralChatRoom = (room: ChatRoom) => room.type !== 'party';
 
@@ -208,7 +203,10 @@ export class SpringChatRepository implements IChatRepository {
     Set<SubscriptionCallbacks<ChatRoom | null>>
   >();
 
-  private readonly roomLoadPromises = new Map<string, Promise<ChatRoom | null>>();
+  private readonly roomLoadPromises = new Map<
+    string,
+    Promise<ChatRoom | null>
+  >();
 
   private readonly stateSubscribers = new Map<
     string,
@@ -325,7 +323,10 @@ export class SpringChatRepository implements IChatRepository {
     const response = await chatApiClient.createChatRoom(
       mapChatRoomCreateDraftToDto(chatRoom),
     );
-    const mapped = mapChatRoomDetailDto(response.data, this.roomCache.get(response.data.id));
+    const mapped = mapChatRoomDetailDto(
+      response.data,
+      this.roomCache.get(response.data.id),
+    );
 
     this.roomCache.set(mapped.id!, mapped);
     this.publishRoom(mapped.id!);
@@ -336,7 +337,10 @@ export class SpringChatRepository implements IChatRepository {
     return cloneRoom(mapped);
   }
 
-  async joinChatRoom(chatRoomId: string, _userId: string): Promise<ChatRoom | null> {
+  async joinChatRoom(
+    chatRoomId: string,
+    _userId: string,
+  ): Promise<ChatRoom | null> {
     try {
       const response = await chatApiClient.joinChatRoom(chatRoomId);
       const mapped = mapChatRoomDetailDto(
@@ -364,7 +368,10 @@ export class SpringChatRepository implements IChatRepository {
     }
   }
 
-  async leaveChatRoom(chatRoomId: string, _userId: string): Promise<ChatRoom | null> {
+  async leaveChatRoom(
+    chatRoomId: string,
+    _userId: string,
+  ): Promise<ChatRoom | null> {
     const response = await chatApiClient.leaveChatRoom(chatRoomId);
     const mapped = toLeftRoom(
       mapChatRoomDetailDto(response.data, this.roomCache.get(chatRoomId)),
@@ -437,6 +444,7 @@ export class SpringChatRepository implements IChatRepository {
   ): Unsubscribe {
     const realtimeState = this.messageRealtimeStates.get(chatRoomId) ?? {
       callbacks: new Set<MessageSubscriptionCallbacks>(),
+      mutationSubscription: null,
       subscription: null,
     };
 
@@ -447,6 +455,7 @@ export class SpringChatRepository implements IChatRepository {
       .then(() => {
         this.ensureErrorSubscription();
         this.ensureRoomMessageSubscription(chatRoomId);
+        this.ensureRoomMutationSubscription(chatRoomId);
       })
       .catch(error => {
         callbacks.onError(error as Error);
@@ -463,6 +472,7 @@ export class SpringChatRepository implements IChatRepository {
 
       if (currentState.callbacks.size === 0) {
         currentState.subscription?.unsubscribe();
+        currentState.mutationSubscription?.unsubscribe();
         this.messageRealtimeStates.delete(chatRoomId);
       }
 
@@ -482,6 +492,27 @@ export class SpringChatRepository implements IChatRepository {
       body: JSON.stringify(mapChatMessageDraftToDto(message)),
       destination: `/app/chat/${chatRoomId}`,
     });
+  }
+
+  async updateMessage(
+    chatRoomId: string,
+    messageId: string,
+    text: string,
+  ): Promise<ChatMessage> {
+    const response = await chatApiClient.updateMessage(chatRoomId, messageId, {
+      text: text.trim(),
+    });
+
+    return cloneMessage(mapChatMessageDto(response.data));
+  }
+
+  async deleteMessage(
+    chatRoomId: string,
+    messageId: string,
+  ): Promise<ChatMessage> {
+    const response = await chatApiClient.deleteMessage(chatRoomId, messageId);
+
+    return cloneMessage(mapChatMessageDto(response.data));
   }
 
   async getNotificationSetting(
@@ -663,23 +694,19 @@ export class SpringChatRepository implements IChatRepository {
   private buildNotificationMap() {
     return this.getCachedGeneralChatRooms()
       .filter(isJoinedRoom)
-      .reduce<Record<string, boolean>>(
-      (accumulator, room) => {
+      .reduce<Record<string, boolean>>((accumulator, room) => {
         if (room.id) {
           accumulator[room.id] = room.isMuted !== true;
         }
 
         return accumulator;
-      },
-      {},
-    );
+      }, {});
   }
 
   private buildStatesMap(): ChatRoomStatesMap {
     return this.getCachedGeneralChatRooms()
       .filter(isJoinedRoom)
-      .reduce<ChatRoomStatesMap>(
-      (accumulator, room) => {
+      .reduce<ChatRoomStatesMap>((accumulator, room) => {
         if (room.id) {
           accumulator[room.id] = {
             lastReadAt: room.lastReadAt,
@@ -687,9 +714,7 @@ export class SpringChatRepository implements IChatRepository {
         }
 
         return accumulator;
-      },
-      {},
-    );
+      }, {});
   }
 
   private clearStompSubscriptions() {
@@ -702,6 +727,8 @@ export class SpringChatRepository implements IChatRepository {
     this.messageRealtimeStates.forEach(state => {
       state.subscription?.unsubscribe();
       state.subscription = null;
+      state.mutationSubscription?.unsubscribe();
+      state.mutationSubscription = null;
     });
   }
 
@@ -761,7 +788,29 @@ export class SpringChatRepository implements IChatRepository {
     realtimeState.subscription = this.stompClient.subscribe(
       `/topic/chat/${chatRoomId}`,
       frame => {
-        this.handleIncomingRoomMessage(chatRoomId, frame).catch(() => undefined);
+        this.handleIncomingRoomMessage(chatRoomId, frame).catch(
+          () => undefined,
+        );
+      },
+    );
+  }
+
+  private ensureRoomMutationSubscription(chatRoomId: string) {
+    const realtimeState = this.messageRealtimeStates.get(chatRoomId);
+
+    if (
+      !realtimeState ||
+      realtimeState.callbacks.size === 0 ||
+      realtimeState.mutationSubscription ||
+      !this.stompClient?.connected
+    ) {
+      return;
+    }
+
+    realtimeState.mutationSubscription = this.stompClient.subscribe(
+      `/topic/chat/${chatRoomId}/events`,
+      frame => {
+        this.handleIncomingRoomMutation(chatRoomId, frame);
       },
     );
   }
@@ -799,135 +848,144 @@ export class SpringChatRepository implements IChatRepository {
     const client = this.stompClient;
     const generation = ++this.stompClientGeneration;
 
-    this.stompConnectionPromise = new Promise<MinimalStompClient>((resolve, reject) => {
-      let settled = false;
-      let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-        safeReject(
-          createStompRepositoryError('채팅 실시간 연결 시간이 초과되었습니다.', {
-            timeoutMs: STOMP_CONNECT_TIMEOUT_MS,
-          }),
-        );
-        this.deactivateStompClient().catch(() => undefined);
-      }, STOMP_CONNECT_TIMEOUT_MS);
-
-      const clearTimeoutId = () => {
-        if (!timeoutId) {
-          return;
-        }
-
-        clearTimeout(timeoutId);
-        timeoutId = null;
-      };
-
-      const safeReject = (error: RepositoryError) => {
-        if (settled) {
-          return;
-        }
-
-        settled = true;
-        clearTimeoutId();
-        reject(error);
-      };
-
-      client.beforeConnect = async () => {
-        try {
-          const options = await chatSocketClient.buildConnectionOptions({
-            endpointPath: buildNativeStompWebSocketPath(),
-          });
-
-          client.connectHeaders = options.connectHeaders;
-          client.webSocketFactory = () => createNativeStompSocket(options.url);
-          client.heartbeatIncoming = options.heartbeatIncomingMs;
-          client.heartbeatOutgoing = options.heartbeatOutgoingMs;
-          client.reconnectDelay = options.reconnectDelayMs;
-        } catch (error) {
-          const repositoryError = createStompRepositoryError(
-            '채팅 실시간 연결 준비에 실패했습니다.',
-            {
-              cause: error,
-            },
+    this.stompConnectionPromise = new Promise<MinimalStompClient>(
+      (resolve, reject) => {
+        let settled = false;
+        let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+          safeReject(
+            createStompRepositoryError(
+              '채팅 실시간 연결 시간이 초과되었습니다.',
+              {
+                timeoutMs: STOMP_CONNECT_TIMEOUT_MS,
+              },
+            ),
           );
+          this.deactivateStompClient().catch(() => undefined);
+        }, STOMP_CONNECT_TIMEOUT_MS);
 
-          safeReject(repositoryError);
-          throw repositoryError;
-        }
-      };
+        const clearTimeoutId = () => {
+          if (!timeoutId) {
+            return;
+          }
 
-      client.onConnect = () => {
-        if (!this.isCurrentStompClient(client, generation)) {
-          return;
-        }
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        };
 
-        this.ensureErrorSubscription();
-        this.ensureSummarySubscription();
-        this.messageRealtimeStates.forEach((_, chatRoomId) => {
-          this.ensureRoomMessageSubscription(chatRoomId).catch(() => undefined);
-        });
+        const safeReject = (error: RepositoryError) => {
+          if (settled) {
+            return;
+          }
 
-        if (!settled) {
           settled = true;
           clearTimeoutId();
-          resolve(client);
-        }
-      };
+          reject(error);
+        };
 
-      client.onDisconnect = () => {
-        if (!this.isCurrentStompClient(client, generation)) {
-          return;
-        }
+        client.beforeConnect = async () => {
+          try {
+            const options = await chatSocketClient.buildConnectionOptions({
+              endpointPath: buildNativeStompWebSocketPath(),
+            });
 
-        this.clearStompSubscriptions();
-      };
+            client.connectHeaders = options.connectHeaders;
+            client.webSocketFactory = () =>
+              createNativeStompSocket(options.url);
+            client.heartbeatIncoming = options.heartbeatIncomingMs;
+            client.heartbeatOutgoing = options.heartbeatOutgoingMs;
+            client.reconnectDelay = options.reconnectDelayMs;
+          } catch (error) {
+            const repositoryError = createStompRepositoryError(
+              '채팅 실시간 연결 준비에 실패했습니다.',
+              {
+                cause: error,
+              },
+            );
 
-      client.onStompError = frame => {
-        if (!this.isCurrentStompClient(client, generation)) {
-          return;
-        }
+            safeReject(repositoryError);
+            throw repositoryError;
+          }
+        };
 
-        const error = createStompRepositoryError(
-          frame.headers.message ||
-            this.parseFrameBody<StompApiErrorDto>(frame)?.message ||
-            '채팅 실시간 연결에 실패했습니다.',
-          {
-            frameBody: frame.body,
-          },
-        );
-        this.notifyRealtimeSubscribers(error);
-        safeReject(error);
-      };
+        client.onConnect = () => {
+          if (!this.isCurrentStompClient(client, generation)) {
+            return;
+          }
 
-      client.onWebSocketClose = event => {
-        if (!this.isCurrentStompClient(client, generation)) {
-          return;
-        }
+          this.ensureErrorSubscription();
+          this.ensureSummarySubscription();
+          this.messageRealtimeStates.forEach((_, chatRoomId) => {
+            this.ensureRoomMessageSubscription(chatRoomId).catch(
+              () => undefined,
+            );
+            this.ensureRoomMutationSubscription(chatRoomId);
+          });
 
-        this.clearStompSubscriptions();
+          if (!settled) {
+            settled = true;
+            clearTimeoutId();
+            resolve(client);
+          }
+        };
 
-        if (!settled) {
+        client.onDisconnect = () => {
+          if (!this.isCurrentStompClient(client, generation)) {
+            return;
+          }
+
+          this.clearStompSubscriptions();
+        };
+
+        client.onStompError = frame => {
+          if (!this.isCurrentStompClient(client, generation)) {
+            return;
+          }
+
+          const error = createStompRepositoryError(
+            frame.headers.message ||
+              this.parseFrameBody<StompApiErrorDto>(frame)?.message ||
+              '채팅 실시간 연결에 실패했습니다.',
+            {
+              frameBody: frame.body,
+            },
+          );
+          this.notifyRealtimeSubscribers(error);
+          safeReject(error);
+        };
+
+        client.onWebSocketClose = event => {
+          if (!this.isCurrentStompClient(client, generation)) {
+            return;
+          }
+
+          this.clearStompSubscriptions();
+
+          if (!settled) {
+            safeReject(
+              createStompRepositoryError('채팅 실시간 연결이 닫혔습니다.', {
+                closeCode: event.code,
+                closeReason: event.reason,
+                wasClean: event.wasClean,
+              }),
+            );
+          }
+        };
+
+        client.onWebSocketError = event => {
+          if (!this.isCurrentStompClient(client, generation)) {
+            return;
+          }
+
           safeReject(
-            createStompRepositoryError('채팅 실시간 연결이 닫혔습니다.', {
-              closeCode: event.code,
-              closeReason: event.reason,
-              wasClean: event.wasClean,
+            createStompRepositoryError('채팅 실시간 연결을 열지 못했습니다.', {
+              event,
             }),
           );
-        }
-      };
+        };
 
-      client.onWebSocketError = event => {
-        if (!this.isCurrentStompClient(client, generation)) {
-          return;
-        }
-
-        safeReject(
-          createStompRepositoryError('채팅 실시간 연결을 열지 못했습니다.', {
-            event,
-          }),
-        );
-      };
-
-      client.activate();
-    }).finally(() => {
+        client.activate();
+      },
+    ).finally(() => {
       if (this.isCurrentStompClient(client, generation)) {
         this.stompConnectionPromise = null;
       }
@@ -976,12 +1034,17 @@ export class SpringChatRepository implements IChatRepository {
     });
 
     this.reconcileRoomCache(subscription.filter, nextRoomIds);
-    subscription.callbacks.onData(this.resolveRoomsForFilter(subscription.filter));
+    subscription.callbacks.onData(
+      this.resolveRoomsForFilter(subscription.filter),
+    );
     this.publishNotifications();
     this.publishStates();
   }
 
-  private async handleIncomingRoomMessage(chatRoomId: string, frame: StompFrame) {
+  private async handleIncomingRoomMessage(
+    chatRoomId: string,
+    frame: StompFrame,
+  ) {
     const payload = this.parseFrameBody<ChatMessageResponseDto>(frame);
 
     if (!payload) {
@@ -1008,6 +1071,21 @@ export class SpringChatRepository implements IChatRepository {
 
     this.messageRealtimeStates.get(chatRoomId)?.callbacks.forEach(callbacks => {
       callbacks.onNewMessages([cloneMessage(message)]);
+    });
+  }
+
+  private handleIncomingRoomMutation(chatRoomId: string, frame: StompFrame) {
+    const payload =
+      this.parseFrameBody<ChatMessageMutationEventResponseDto>(frame);
+
+    if (!payload?.message?.id) {
+      return;
+    }
+
+    const message = mapChatMessageDto(payload.message);
+
+    this.messageRealtimeStates.get(chatRoomId)?.callbacks.forEach(callbacks => {
+      callbacks.onMessageMutation(cloneMessage(message));
     });
   }
 
@@ -1093,7 +1171,9 @@ export class SpringChatRepository implements IChatRepository {
     });
 
     this.getCachedGeneralChatRooms()
-      .filter(room => room.id && isJoinedRoom(room) && !joinedRoomIds.has(room.id))
+      .filter(
+        room => room.id && isJoinedRoom(room) && !joinedRoomIds.has(room.id),
+      )
       .forEach(room => {
         if (!room.id) {
           return;
@@ -1112,12 +1192,13 @@ export class SpringChatRepository implements IChatRepository {
     await Promise.all(
       rooms
         .filter(room => room.id)
-        .map(room =>
-          this.loadChatRoom(room.id!, true).catch(() => null),
-        ),
+        .map(room => this.loadChatRoom(room.id!, true).catch(() => null)),
     );
 
-    if (!this.stateSubscribers.has(userId) && !this.notificationSubscribers.has(userId)) {
+    if (
+      !this.stateSubscribers.has(userId) &&
+      !this.notificationSubscribers.has(userId)
+    ) {
       return;
     }
 
@@ -1126,7 +1207,9 @@ export class SpringChatRepository implements IChatRepository {
   }
 
   private isCurrentStompClient(client: MinimalStompClient, generation: number) {
-    return this.stompClient === client && this.stompClientGeneration === generation;
+    return (
+      this.stompClient === client && this.stompClientGeneration === generation
+    );
   }
 
   private async loadChatRoom(
@@ -1145,9 +1228,13 @@ export class SpringChatRepository implements IChatRepository {
       return pending;
     }
 
-    const loadPromise = chatApiClient.getChatRoom(chatRoomId)
+    const loadPromise = chatApiClient
+      .getChatRoom(chatRoomId)
       .then(response => {
-        const mapped = mapChatRoomDetailDto(response.data, this.roomCache.get(chatRoomId));
+        const mapped = mapChatRoomDetailDto(
+          response.data,
+          this.roomCache.get(chatRoomId),
+        );
 
         this.roomCache.set(chatRoomId, mapped);
         this.publishRoom(chatRoomId);
@@ -1219,7 +1306,9 @@ export class SpringChatRepository implements IChatRepository {
 
   private publishLists() {
     this.listSubscriptions.forEach(subscription => {
-      subscription.callbacks.onData(this.resolveRoomsForFilter(subscription.filter));
+      subscription.callbacks.onData(
+        this.resolveRoomsForFilter(subscription.filter),
+      );
     });
   }
 
@@ -1235,9 +1324,7 @@ export class SpringChatRepository implements IChatRepository {
 
   private publishRoom(chatRoomId: string, room?: ChatRoom | null) {
     const resolvedRoom =
-      room === undefined
-        ? this.roomCache.get(chatRoomId) ?? null
-        : room;
+      room === undefined ? this.roomCache.get(chatRoomId) ?? null : room;
 
     this.roomDetailSubscribers.get(chatRoomId)?.forEach(callbacks => {
       callbacks.onData(resolvedRoom ? cloneRoom(resolvedRoom) : null);
@@ -1279,9 +1366,11 @@ export class SpringChatRepository implements IChatRepository {
     const realtimeState = this.messageRealtimeStates.get(chatRoomId);
 
     realtimeState?.subscription?.unsubscribe();
+    realtimeState?.mutationSubscription?.unsubscribe();
 
     if (realtimeState) {
       realtimeState.subscription = null;
+      realtimeState.mutationSubscription = null;
     }
   }
 

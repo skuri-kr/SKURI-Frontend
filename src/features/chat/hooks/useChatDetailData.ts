@@ -25,6 +25,7 @@ export const useChatDetailData = (chatRoomId: string | undefined) => {
   const {
     error: messagesError,
     hasMore: hasOlderMessages,
+    applyMessageMutation,
     loadMore: loadOlderMessages,
     loading: messagesLoading,
     loadingMore: loadingOlderMessages,
@@ -34,6 +35,8 @@ export const useChatDetailData = (chatRoomId: string | undefined) => {
   const {
     sendImageMessage: sendChatImageMessage,
     sendMessage: sendChatMessage,
+    deleteMessage: deleteChatMessage,
+    updateMessage: updateChatMessage,
     updateNotificationSetting,
   } = useChatActions();
   const {skipNextCleanupRead, updateLastRead} = useChatRoomLastRead(
@@ -133,6 +136,30 @@ export const useChatDetailData = (chatRoomId: string | undefined) => {
     [chatRoom, chatRoomId, sendChatImageMessage, updateLastRead],
   );
 
+  const updateMessage = React.useCallback(
+    async (messageId: string, text: string) => {
+      if (!chatRoomId || !chatRoom?.isJoined) {
+        throw new Error('참여 중인 채팅방만 메시지를 수정할 수 있습니다.');
+      }
+
+      const message = await updateChatMessage(chatRoomId, messageId, text);
+      applyMessageMutation(message);
+    },
+    [applyMessageMutation, chatRoom, chatRoomId, updateChatMessage],
+  );
+
+  const deleteMessage = React.useCallback(
+    async (messageId: string) => {
+      if (!chatRoomId || !chatRoom?.isJoined) {
+        throw new Error('참여 중인 채팅방만 메시지를 삭제할 수 있습니다.');
+      }
+
+      const message = await deleteChatMessage(chatRoomId, messageId);
+      applyMessageMutation(message);
+    },
+    [applyMessageMutation, chatRoom, chatRoomId, deleteChatMessage],
+  );
+
   const toggleNotification = React.useCallback(async () => {
     if (!chatRoomId || !chatRoom?.isJoined) {
       throw new Error('참여 중인 채팅방만 알림 설정을 변경할 수 있습니다.');
@@ -191,7 +218,13 @@ export const useChatDetailData = (chatRoomId: string | undefined) => {
     } finally {
       setMembershipLoading(false);
     }
-  }, [chatRoomId, hasJoined, leaveChatRoom, skipNextCleanupRead, updateLastRead]);
+  }, [
+    chatRoomId,
+    hasJoined,
+    leaveChatRoom,
+    skipNextCleanupRead,
+    updateLastRead,
+  ]);
 
   return {
     data,
@@ -209,5 +242,7 @@ export const useChatDetailData = (chatRoomId: string | undefined) => {
     sendMessage,
     sendImageMessage,
     toggleNotification,
+    updateMessage,
+    deleteMessage,
   };
 };

@@ -31,13 +31,26 @@ export interface ChatMessageResponseDto {
   arrivalData?: ChatArrivalDataResponseDto | null;
   chatRoomId: string;
   createdAt: string;
+  deletedAt?: string | null;
+  editedAt?: string | null;
   id: string;
   imageUrl?: string | null;
+  isDeleted: boolean;
   senderId?: string | null;
   senderName?: string | null;
   senderPhotoUrl?: string | null;
   text?: string | null;
   type: ChatMessageTypeDto;
+  updatedAt?: string | null;
+}
+
+export interface UpdateChatMessageRequestDto {
+  text: string;
+}
+
+export interface ChatMessageMutationEventResponseDto {
+  eventType: 'MESSAGE_UPDATED' | 'MESSAGE_DELETED';
+  message: ChatMessageResponseDto;
 }
 
 export interface ChatAccountDataResponseDto {

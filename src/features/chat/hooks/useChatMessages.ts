@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 
-import type { ChatMessage } from '../model/types';
+import type {ChatMessage} from '../model/types';
 
-import { useChatRepository } from './useChatRepository';
+import {useChatRepository} from './useChatRepository';
 
 const MESSAGES_PER_PAGE = 30;
 
 export interface UseChatMessagesResult {
+  applyMessageMutation: (message: ChatMessage) => void;
   messages: ChatMessage[];
   loading: boolean;
   loadingMore: boolean;
@@ -15,6 +16,24 @@ export interface UseChatMessagesResult {
   loadMore: () => Promise<void>;
   refresh: () => Promise<void>;
 }
+
+export const replaceChatMessageById = (
+  messages: ChatMessage[],
+  nextMessage: ChatMessage,
+) => {
+  const messageIndex = messages.findIndex(
+    message => message.id === nextMessage.id,
+  );
+
+  if (messageIndex < 0) {
+    return messages;
+  }
+
+  const nextMessages = [...messages];
+  nextMessages[messageIndex] = nextMessage;
+
+  return nextMessages;
+};
 
 export const useChatMessages = (
   chatRoomId: string | undefined,
@@ -38,13 +57,22 @@ export const useChatMessages = (
     setReloadToken(currentValue => currentValue + 1);
   }, []);
 
+  const applyMessageMutation = useCallback((message: ChatMessage) => {
+    setMessages(previousMessages =>
+      replaceChatMessageById(previousMessages, message),
+    );
+  }, []);
+
   const loadInitialMessages = useCallback(
     async (roomId: string) => {
       try {
         setLoading(true);
         setError(null);
 
-        const result = await chatRepository.getInitialMessages(roomId, MESSAGES_PER_PAGE);
+        const result = await chatRepository.getInitialMessages(
+          roomId,
+          MESSAGES_PER_PAGE,
+        );
         const sortedMessages = [...result.data].reverse();
 
         if (!isMountedRef.current) {
@@ -68,7 +96,9 @@ export const useChatMessages = (
               }
 
               setMessages(prevMessages => {
-                const existingIds = new Set(prevMessages.map(message => message.id));
+                const existingIds = new Set(
+                  prevMessages.map(message => message.id),
+                );
                 const uniqueNewMessages = newMessages.filter(
                   message => !existingIds.has(message.id),
                 );
@@ -78,10 +108,18 @@ export const useChatMessages = (
                 }
 
                 newestTimestampRef.current =
-                  uniqueNewMessages[uniqueNewMessages.length - 1]?.createdAt ?? null;
+                  uniqueNewMessages[uniqueNewMessages.length - 1]?.createdAt ??
+                  null;
 
                 return [...prevMessages, ...uniqueNewMessages];
               });
+            },
+            onMessageMutation: message => {
+              if (!isMountedRef.current) {
+                return;
+              }
+
+              applyMessageMutation(message);
             },
             onError: err => {
               console.error('실시간 메시지 구독 실패:', err);
@@ -99,7 +137,7 @@ export const useChatMessages = (
         }
       }
     },
-    [chatRepository],
+    [applyMessageMutation, chatRepository],
   );
 
   const loadMore = useCallback(async () => {
@@ -129,7 +167,9 @@ export const useChatMessages = (
 
       setMessages(prevMessages => {
         const existingIds = new Set(prevMessages.map(message => message.id));
-        const uniqueMessages = sortedMessages.filter(message => !existingIds.has(message.id));
+        const uniqueMessages = sortedMessages.filter(
+          message => !existingIds.has(message.id),
+        );
 
         if (uniqueMessages.length === 0) {
           setHasMore(false);
@@ -178,6 +218,7 @@ export const useChatMessages = (
   }, [chatRoomId, enabled, loadInitialMessages, reloadToken]);
 
   return {
+    applyMessageMutation,
     messages,
     loading,
     loadingMore,

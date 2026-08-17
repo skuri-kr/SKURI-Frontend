@@ -104,9 +104,7 @@ export const mapChatRoomDetailDto = (
   type: resolveRoomType(room.type),
   unreadCount: room.unreadCount,
   updatedAt:
-    room.lastMessageAt ??
-    room.lastMessage?.createdAt ??
-    existing?.updatedAt,
+    room.lastMessageAt ?? room.lastMessage?.createdAt ?? existing?.updatedAt,
 });
 
 export const mergeChatRoomSummaryEvent = (
@@ -120,10 +118,7 @@ export const mergeChatRoomSummaryEvent = (
   memberCount: event.memberCount,
   name: event.name,
   unreadCount: event.unreadCount,
-  updatedAt:
-    event.updatedAt ??
-    event.lastMessage?.createdAt ??
-    room.updatedAt,
+  updatedAt: event.updatedAt ?? event.lastMessage?.createdAt ?? room.updatedAt,
 });
 
 export const mapChatRoomCreateDraftToDto = (
@@ -137,13 +132,17 @@ export const mapChatMessageDto = (
   message: ChatMessageResponseDto,
 ): ChatMessage => ({
   createdAt: message.createdAt,
+  deletedAt: message.deletedAt ?? undefined,
+  editedAt: message.editedAt ?? undefined,
   id: message.id,
   imageUrl: message.imageUrl ?? undefined,
+  isDeleted: message.isDeleted,
   senderId: message.senderId ?? 'system',
   senderName: message.senderName ?? '안내',
   senderPhotoUrl: message.senderPhotoUrl ?? undefined,
   text: resolveMessageText(message),
   type: resolveMessageType(message.type),
+  updatedAt: message.updatedAt ?? undefined,
 });
 
 export const mapChatMessageDraftToDto = (
