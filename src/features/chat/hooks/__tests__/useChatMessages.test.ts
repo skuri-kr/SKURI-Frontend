@@ -619,4 +619,164 @@ describe('useChatMessages', () => {
       });
     });
   });
+
+  it('늦게 도착한 오래된 수정 응답이 최신 삭제 tombstone을 되살리지 않는다', async () => {
+    const repository = {
+      getInitialMessages: jest.fn().mockResolvedValue({
+        cursor: null,
+        data: [createMessage('message-1', '2026-08-11T10:01:00')],
+        hasMore: false,
+      }),
+      getOlderMessages: jest.fn(),
+      subscribeToNewMessages: jest.fn(createReadySubscription),
+    };
+
+    mockedUseChatRepository.mockReturnValue(
+      repository as unknown as IChatRepository,
+    );
+
+    const {result} = renderHook(() => useChatMessages('public:game:minecraft'));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    act(() => {
+      result.current.applyMessageMutation({
+        ...createMessage('message-1', '2026-08-11T10:01:00'),
+        deletedAt: '2026-08-11T10:03:00',
+        isDeleted: true,
+        text: '삭제된 메시지입니다.',
+        updatedAt: '2026-08-11T10:03:00',
+      });
+      result.current.applyMessageMutation({
+        ...createMessage('message-1', '2026-08-11T10:01:00'),
+        editedAt: '2026-08-11T10:02:00',
+        text: '늦게 도착한 수정 응답',
+        updatedAt: '2026-08-11T10:02:00',
+      });
+    });
+
+    expect(result.current.messages[0]).toMatchObject({
+      isDeleted: true,
+      text: '삭제된 메시지입니다.',
+    });
+  });
+
+  it('재접속 스냅샷이 기존 이력과 겹치지 않으면 중간 페이지를 연결한다', async () => {
+    const neverReady = new Promise<void>(() => undefined);
+    let callbacks: MessageSubscriptionCallbacks | undefined;
+    const firstCursor = {
+      createdAt: '2026-08-11T10:03:00',
+      id: 'message-3',
+    };
+    const refreshedCursor = {
+      createdAt: '2026-08-11T10:07:00',
+      id: 'message-7',
+    };
+    const bridgeCursor = {
+      createdAt: '2026-08-11T10:05:00',
+      id: 'message-5',
+    };
+    const repository = {
+      getInitialMessages: jest
+        .fn()
+        .mockResolvedValueOnce({
+          cursor: firstCursor,
+          data: [
+            createMessage('message-4', '2026-08-11T10:04:00'),
+            createMessage('message-3', '2026-08-11T10:03:00'),
+          ],
+          hasMore: true,
+        })
+        .mockResolvedValueOnce({
+          cursor: refreshedCursor,
+          data: [
+            createMessage('message-8', '2026-08-11T10:08:00'),
+            createMessage('message-7', '2026-08-11T10:07:00'),
+          ],
+          hasMore: true,
+        }),
+      getOlderMessages: jest
+        .fn()
+        .mockResolvedValueOnce({
+          cursor: null,
+          data: [
+            createMessage('message-2', '2026-08-11T10:02:00'),
+            createMessage('message-1', '2026-08-11T10:01:00'),
+          ],
+          hasMore: false,
+        })
+        .mockResolvedValueOnce({
+          cursor: bridgeCursor,
+          data: [
+            createMessage('message-6', '2026-08-11T10:06:00'),
+            createMessage('message-5', '2026-08-11T10:05:00'),
+          ],
+          hasMore: true,
+        })
+        .mockResolvedValueOnce({
+          cursor: firstCursor,
+          data: [
+            createMessage('message-4', '2026-08-11T10:04:00'),
+            createMessage('message-3', '2026-08-11T10:03:00'),
+          ],
+          hasMore: true,
+        }),
+      subscribeToNewMessages: jest.fn(
+        (
+          _roomId: string,
+          _timestamp: unknown,
+          nextCallbacks: MessageSubscriptionCallbacks,
+        ) => {
+          callbacks = nextCallbacks;
+          return {
+            ready: neverReady,
+            unsubscribe: jest.fn(),
+          };
+        },
+      ),
+    };
+
+    mockedUseChatRepository.mockReturnValue(
+      repository as unknown as IChatRepository,
+    );
+
+    const {result} = renderHook(() => useChatMessages('public:game:minecraft'));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.loadMore();
+      callbacks?.onRealtimeReady?.();
+    });
+
+    await waitFor(() => {
+      expect(result.current.messages.map(message => message.id)).toEqual([
+        'message-1',
+        'message-2',
+        'message-3',
+        'message-4',
+        'message-5',
+        'message-6',
+        'message-7',
+        'message-8',
+      ]);
+    });
+
+    expect(repository.getOlderMessages).toHaveBeenNthCalledWith(
+      2,
+      'public:game:minecraft',
+      refreshedCursor,
+      30,
+    );
+    expect(repository.getOlderMessages).toHaveBeenNthCalledWith(
+      3,
+      'public:game:minecraft',
+      bridgeCursor,
+      30,
+    );
+  });
 });
