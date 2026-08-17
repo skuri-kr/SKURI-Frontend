@@ -97,6 +97,11 @@ export interface MessageSubscriptionCallbacks {
   onError: (error: Error) => void;
 }
 
+export interface MessageSubscription {
+  ready: Promise<void>;
+  unsubscribe: () => void;
+}
+
 export interface ChatRoomState {
   lastReadAt?: unknown;
 }

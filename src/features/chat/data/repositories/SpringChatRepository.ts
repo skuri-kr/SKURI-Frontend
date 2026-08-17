@@ -20,6 +20,7 @@ import type {
   ChatRoom,
   ChatRoomFilter,
   ChatRoomStatesMap,
+  MessageSubscription,
   MessageSubscriptionCallbacks,
   PaginatedResult,
 } from '../../model/types';
@@ -441,7 +442,7 @@ export class SpringChatRepository implements IChatRepository {
     chatRoomId: string,
     _afterTimestamp: unknown,
     callbacks: MessageSubscriptionCallbacks,
-  ): Unsubscribe {
+  ): MessageSubscription {
     const realtimeState = this.messageRealtimeStates.get(chatRoomId) ?? {
       callbacks: new Set<MessageSubscriptionCallbacks>(),
       mutationSubscription: null,
@@ -451,34 +452,40 @@ export class SpringChatRepository implements IChatRepository {
     realtimeState.callbacks.add(callbacks);
     this.messageRealtimeStates.set(chatRoomId, realtimeState);
 
-    this.ensureStompClient()
+    const ready = this.ensureStompClient()
       .then(() => {
         this.ensureErrorSubscription();
-        this.ensureRoomMessageSubscription(chatRoomId);
+        return this.ensureRoomMessageSubscription(chatRoomId);
+      })
+      .then(() => {
         this.ensureRoomMutationSubscription(chatRoomId);
       })
       .catch(error => {
         callbacks.onError(error as Error);
+        throw error;
       });
 
-    return () => {
-      const currentState = this.messageRealtimeStates.get(chatRoomId);
+    return {
+      ready,
+      unsubscribe: () => {
+        const currentState = this.messageRealtimeStates.get(chatRoomId);
 
-      if (!currentState) {
-        return;
-      }
+        if (!currentState) {
+          return;
+        }
 
-      currentState.callbacks.delete(callbacks);
+        currentState.callbacks.delete(callbacks);
 
-      if (currentState.callbacks.size === 0) {
-        currentState.subscription?.unsubscribe();
-        currentState.mutationSubscription?.unsubscribe();
-        this.messageRealtimeStates.delete(chatRoomId);
-      }
+        if (currentState.callbacks.size === 0) {
+          currentState.subscription?.unsubscribe();
+          currentState.mutationSubscription?.unsubscribe();
+          this.messageRealtimeStates.delete(chatRoomId);
+        }
 
-      if (!this.hasRealtimeSubscribers()) {
-        this.deactivateStompClient().catch(() => undefined);
-      }
+        if (!this.hasRealtimeSubscribers()) {
+          this.deactivateStompClient().catch(() => undefined);
+        }
+      },
     };
   }
 

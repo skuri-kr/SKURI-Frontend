@@ -11,6 +11,7 @@ import type {
   ChatRoom,
   ChatRoomFilter,
   ChatRoomStatesMap,
+  MessageSubscription,
   MessageSubscriptionCallbacks,
   PaginatedResult,
 } from '../../model/types';
@@ -54,7 +55,7 @@ export interface IChatRepository {
     chatRoomId: string,
     afterTimestamp: unknown,
     callbacks: MessageSubscriptionCallbacks,
-  ): Unsubscribe;
+  ): MessageSubscription;
 
   sendMessage(chatRoomId: string, message: ChatMessageDraft): Promise<void>;
 

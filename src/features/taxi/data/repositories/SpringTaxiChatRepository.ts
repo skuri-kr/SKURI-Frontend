@@ -41,10 +41,15 @@ interface PartyChatState {
   loadingOlderPromise: Promise<void> | null;
   olderCursor: ChatMessageCursorResponseDto | null;
   mutationSubscription: StompSubscription | null;
+  pendingRealtimeEvents: PartyChatRealtimeEvent[];
   roomSubscription: StompSubscription | null;
   source: TaxiChatSourceData | null;
   subscribers: Set<SubscriptionCallbacks<TaxiChatSourceData | null>>;
 }
+
+type PartyChatRealtimeEvent =
+  | {message: ChatMessageResponseDto; type: 'message'}
+  | {message: ChatMessageResponseDto; type: 'mutation'};
 
 interface PendingSpecialMessageRequest {
   reject: (error: Error) => void;
@@ -351,14 +356,27 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
       callbacks.onData(clonePartySource(state.source));
     }
 
-    this.loadPartyChat(partyId, true).catch(error => {
+    const initialSnapshotPromise = this.loadPartyChat(partyId, true);
+
+    initialSnapshotPromise.catch(error => {
       callbacks.onError(error as Error);
     });
 
     this.ensureStompClient()
-      .then(() => {
+      .then(async () => {
         this.ensureRoomSubscription(partyId);
         this.ensureRoomMutationSubscription(partyId);
+
+        await initialSnapshotPromise.catch(() => undefined);
+
+        if (
+          this.partyStates.get(partyId) !== state ||
+          state.subscribers.size === 0
+        ) {
+          return;
+        }
+
+        await this.loadPartyChat(partyId, true);
       })
       .catch(error => {
         callbacks.onError(error as Error);
@@ -920,6 +938,7 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
       loadingOlderPromise: null,
       olderCursor: null,
       mutationSubscription: null,
+      pendingRealtimeEvents: [],
       roomSubscription: null,
       source: null,
       subscribers: new Set(),
@@ -972,11 +991,17 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     const mappedMessage = mapTaxiChatMessageDto(message);
     const specialMessageKey = this.buildSpecialMessageKey(partyId);
 
-    if (!state.source) {
-      await this.loadPartyChat(partyId, true);
+    if (state.loadPromise || !state.source) {
+      state.pendingRealtimeEvents.push({message, type: 'message'});
+
       if (mappedMessage.type === 'account') {
         this.clearPendingSpecialMessageRequest(specialMessageKey);
       }
+
+      if (!state.loadPromise) {
+        await this.loadPartyChat(partyId, true);
+      }
+
       return;
     }
 
@@ -1008,6 +1033,20 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
       this.parseFrameBody<ChatMessageMutationEventResponseDto>(frame);
 
     if (!payload?.message?.id) {
+      return;
+    }
+
+    const state = this.getOrCreatePartyState(partyId);
+
+    if (state.loadPromise || !state.source) {
+      state.pendingRealtimeEvents.push({
+        message: payload.message,
+        type: 'mutation',
+      });
+
+      if (!state.loadPromise) {
+        this.loadPartyChat(partyId, true).catch(() => undefined);
+      }
       return;
     }
 
@@ -1051,7 +1090,7 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
         const freshMessageById = new Map(
           refreshedSource.messages.map(message => [message.id, message]),
         );
-        const mergedMessages = [
+        const mergedSnapshotMessages = [
           ...previousMessages.map(
             message => freshMessageById.get(message.id) ?? message,
           ),
@@ -1059,6 +1098,31 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
             message => !previousMessageIds.has(message.id),
           ),
         ];
+        const pendingRealtimeEvents = state.pendingRealtimeEvents.splice(0);
+        const mergedMessages = pendingRealtimeEvents.reduce(
+          (messages, event) => {
+            const messageIndex = messages.findIndex(
+              message => message.id === event.message.id,
+            );
+
+            if (event.type === 'message') {
+              if (messageIndex >= 0) {
+                return messages;
+              }
+
+              return [...messages, mapTaxiChatMessageDto(event.message)];
+            }
+
+            if (messageIndex < 0) {
+              return messages;
+            }
+
+            const nextMessages = [...messages];
+            nextMessages[messageIndex] = mapTaxiChatMessageDto(event.message);
+            return nextMessages;
+          },
+          mergedSnapshotMessages,
+        );
         const latestAccountData = resolveLatestAccountData(mergedMessages);
 
         if (!previousSource) {

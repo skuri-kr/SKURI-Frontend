@@ -6,6 +6,54 @@ import {useChatRepository} from './useChatRepository';
 
 const MESSAGES_PER_PAGE = 30;
 
+const toTimestamp = (value: unknown) => {
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const timestamp = Date.parse(value);
+
+    return Number.isNaN(timestamp) ? null : timestamp;
+  }
+
+  return null;
+};
+
+type BufferedRealtimeEvent =
+  | {messages: ChatMessage[]; type: 'new-messages'}
+  | {message: ChatMessage; type: 'mutation'};
+
+const appendNewMessages = (
+  messages: ChatMessage[],
+  newMessages: ChatMessage[],
+) => {
+  const existingIds = new Set(messages.map(message => message.id));
+  const uniqueNewMessages = newMessages.filter(
+    message => !existingIds.has(message.id),
+  );
+
+  return uniqueNewMessages.length > 0
+    ? [...messages, ...uniqueNewMessages]
+    : messages;
+};
+
+const applyBufferedRealtimeEvents = (
+  messages: ChatMessage[],
+  events: BufferedRealtimeEvent[],
+) =>
+  events.reduce<ChatMessage[]>((currentMessages, event) => {
+    if (event.type === 'new-messages') {
+      return appendNewMessages(currentMessages, event.messages);
+    }
+
+    return replaceChatMessageById(currentMessages, event.message);
+  }, messages);
+
 export interface UseChatMessagesResult {
   applyMessageMutation: (message: ChatMessage) => void;
   messages: ChatMessage[];
@@ -51,6 +99,8 @@ export const useChatMessages = (
   const newestTimestampRef = useRef<unknown>(null);
   const realtimeUnsubscribeRef = useRef<(() => void) | null>(null);
   const isMountedRef = useRef(true);
+  const loadGenerationRef = useRef(0);
+  const hasLoadedOlderMessagesRef = useRef(false);
   const [reloadToken, setReloadToken] = useState(0);
 
   const refresh = useCallback(async () => {
@@ -64,80 +114,170 @@ export const useChatMessages = (
   }, []);
 
   const loadInitialMessages = useCallback(
-    async (roomId: string) => {
+    async (roomId: string, loadGeneration: number) => {
+      let bufferingRealtimeEvents = true;
+      let resolveInitialLoadFinished: (() => void) | undefined;
+      const initialLoadFinishedPromise = new Promise<void>(resolve => {
+        resolveInitialLoadFinished = resolve;
+      });
+      const bufferedRealtimeEvents: BufferedRealtimeEvent[] = [];
+      let hasInitialSnapshot = false;
+      const isCurrentLoad = () =>
+        isMountedRef.current && loadGenerationRef.current === loadGeneration;
+
+      const applyRealtimeEvent = (event: BufferedRealtimeEvent) => {
+        if (!isCurrentLoad()) {
+          return;
+        }
+
+        if (bufferingRealtimeEvents) {
+          bufferedRealtimeEvents.push(event);
+          return;
+        }
+
+        setMessages(previousMessages => {
+          const nextMessages = applyBufferedRealtimeEvents(previousMessages, [
+            event,
+          ]);
+
+          newestTimestampRef.current =
+            nextMessages[nextMessages.length - 1]?.createdAt ?? null;
+
+          return nextMessages;
+        });
+      };
+
+      const applySnapshot = (
+        result: Awaited<ReturnType<typeof chatRepository.getInitialMessages>>,
+        preserveLoadedHistory: boolean,
+      ) => {
+        const sortedMessages = [...result.data].reverse();
+        const pendingEvents = bufferedRealtimeEvents.splice(0);
+
+        bufferingRealtimeEvents = false;
+        setMessages(previousMessages => {
+          const oldestSnapshotTimestamp = toTimestamp(
+            sortedMessages[0]?.createdAt,
+          );
+          const olderMessages =
+            preserveLoadedHistory && oldestSnapshotTimestamp !== null
+              ? previousMessages.filter(
+                  message => {
+                    const messageTimestamp = toTimestamp(message.createdAt);
+
+                    return (
+                      messageTimestamp !== null &&
+                      messageTimestamp < oldestSnapshotTimestamp
+                    );
+                  },
+                )
+              : [];
+          const nextMessages = applyBufferedRealtimeEvents(
+            [...olderMessages, ...sortedMessages],
+            pendingEvents,
+          );
+
+          newestTimestampRef.current =
+            nextMessages[nextMessages.length - 1]?.createdAt ?? null;
+
+          return nextMessages;
+        });
+
+        if (!preserveLoadedHistory) {
+          setHasMore(result.hasMore);
+          oldestCursorRef.current = result.cursor;
+        }
+      };
+
+      const reconcileAfterRealtimeReady = async () => {
+        await initialLoadFinishedPromise;
+
+        if (!isCurrentLoad()) {
+          return;
+        }
+
+        bufferingRealtimeEvents = true;
+
+        try {
+          const result = await chatRepository.getInitialMessages(
+            roomId,
+            MESSAGES_PER_PAGE,
+          );
+
+          if (!isCurrentLoad()) {
+            return;
+          }
+
+          applySnapshot(
+            result,
+            hasInitialSnapshot && hasLoadedOlderMessagesRef.current,
+          );
+          hasInitialSnapshot = true;
+        } catch (error) {
+          if (isCurrentLoad()) {
+            console.error('실시간 구독 후 메시지 보정 실패:', error);
+          }
+        }
+      };
+
       try {
         setLoading(true);
         setError(null);
 
-        const result = await chatRepository.getInitialMessages(
-          roomId,
-          MESSAGES_PER_PAGE,
-        );
-        const sortedMessages = [...result.data].reverse();
-
-        if (!isMountedRef.current) {
-          return;
-        }
-
-        setMessages(sortedMessages);
-        setHasMore(result.hasMore);
-        oldestCursorRef.current = result.cursor;
-        newestTimestampRef.current =
-          sortedMessages[sortedMessages.length - 1]?.createdAt ?? null;
-
         realtimeUnsubscribeRef.current?.();
-        realtimeUnsubscribeRef.current = chatRepository.subscribeToNewMessages(
+        const subscription = chatRepository.subscribeToNewMessages(
           roomId,
-          newestTimestampRef.current,
+          null,
           {
             onNewMessages: newMessages => {
-              if (!isMountedRef.current) {
-                return;
-              }
-
-              setMessages(prevMessages => {
-                const existingIds = new Set(
-                  prevMessages.map(message => message.id),
-                );
-                const uniqueNewMessages = newMessages.filter(
-                  message => !existingIds.has(message.id),
-                );
-
-                if (uniqueNewMessages.length === 0) {
-                  return prevMessages;
-                }
-
-                newestTimestampRef.current =
-                  uniqueNewMessages[uniqueNewMessages.length - 1]?.createdAt ??
-                  null;
-
-                return [...prevMessages, ...uniqueNewMessages];
+              applyRealtimeEvent({
+                messages: newMessages,
+                type: 'new-messages',
               });
             },
             onMessageMutation: message => {
-              if (!isMountedRef.current) {
-                return;
-              }
-
-              applyMessageMutation(message);
+              applyRealtimeEvent({message, type: 'mutation'});
             },
             onError: err => {
               console.error('실시간 메시지 구독 실패:', err);
             },
           },
         );
+        realtimeUnsubscribeRef.current = subscription.unsubscribe;
+
+        void subscription.ready
+          .then(reconcileAfterRealtimeReady)
+          .catch(error => {
+            if (isCurrentLoad()) {
+              console.error('실시간 메시지 구독 준비 실패:', error);
+            }
+          });
+
+        const result = await chatRepository.getInitialMessages(
+          roomId,
+          MESSAGES_PER_PAGE,
+        );
+
+        if (!isCurrentLoad()) {
+          return;
+        }
+
+        applySnapshot(result, false);
+        hasInitialSnapshot = true;
       } catch (err) {
         console.error('초기 메시지 로드 실패:', err);
-        if (isMountedRef.current) {
+        if (isCurrentLoad()) {
           setError(err as Error);
         }
       } finally {
-        if (isMountedRef.current) {
+        resolveInitialLoadFinished?.();
+
+        if (isCurrentLoad()) {
           setLoading(false);
         }
       }
     },
-    [applyMessageMutation, chatRepository],
+    [chatRepository],
   );
 
   const loadMore = useCallback(async () => {
@@ -176,6 +316,8 @@ export const useChatMessages = (
           return prevMessages;
         }
 
+        hasLoadedOlderMessagesRef.current = true;
+
         return [...uniqueMessages, ...prevMessages];
       });
 
@@ -195,6 +337,7 @@ export const useChatMessages = (
 
   useEffect(() => {
     isMountedRef.current = true;
+    const loadGeneration = ++loadGenerationRef.current;
 
     if (!chatRoomId || !enabled) {
       setMessages([]);
@@ -203,12 +346,14 @@ export const useChatMessages = (
       setHasMore(true);
       oldestCursorRef.current = null;
       newestTimestampRef.current = null;
+      hasLoadedOlderMessagesRef.current = false;
       realtimeUnsubscribeRef.current?.();
       realtimeUnsubscribeRef.current = null;
       return;
     }
 
-    loadInitialMessages(chatRoomId);
+    hasLoadedOlderMessagesRef.current = false;
+    loadInitialMessages(chatRoomId, loadGeneration);
 
     return () => {
       isMountedRef.current = false;

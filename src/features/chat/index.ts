@@ -31,6 +31,7 @@ export type {
   ChatRoomServerInfo,
   ChatRoomState,
   ChatRoomStatesMap,
+  MessageSubscription,
   MessageSubscriptionCallbacks,
   PaginatedResult,
 } from './model/types';
