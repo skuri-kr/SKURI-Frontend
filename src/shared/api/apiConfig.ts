@@ -1,4 +1,6 @@
-// import { TEST_BASE_URL } from './baseUrl';
+// Local HTTPS tunnel QA only: copy baseUrl.example.ts to the ignored baseUrl.ts,
+// then uncomment this import and the BASE_URL line below in your worktree.
+// import {BASE_URL} from './baseUrl';
 
 export interface ApiRuntimeConfig {
   restBaseUrl: string;
@@ -21,7 +23,7 @@ export type ApiQueryParams = Record<string, ApiQueryValue>;
 
 const DEFAULT_API_RUNTIME_CONFIG: ApiRuntimeConfig = {
   restBaseUrl: 'https://api.skuri.kr',
-  // restBaseUrl: TEST_BASE_URL,
+  // restBaseUrl: BASE_URL,
   wsEndpointPath: '/ws',
   httpTimeoutMs: 15000,
   sseReconnectDelayMs: 3000,
