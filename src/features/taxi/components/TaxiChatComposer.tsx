@@ -1,10 +1,5 @@
 import React from 'react';
-import {
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Animated, {
   interpolate,
@@ -15,14 +10,11 @@ import Animated, {
 } from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {
-  COLORS,
-  RADIUS,
-  SPACING,
-} from '@/shared/design-system/tokens';
+import {COLORS, RADIUS, SPACING} from '@/shared/design-system/tokens';
 import {
   CHAT_COMPOSER_ROW_BASE_HEIGHT,
   ChatComposerBar,
+  type ChatComposerEditingState,
 } from '@/shared/ui/chat';
 
 import type {
@@ -33,6 +25,7 @@ import type {
 interface TaxiChatComposerProps {
   actionTrayActions: TaxiChatActionTrayActionViewData[];
   actionTrayVisible: boolean;
+  editing?: ChatComposerEditingState;
   imageButtonDisabled?: boolean;
   keyboardVisible: boolean;
   onChangeText: (value: string) => void;
@@ -41,6 +34,7 @@ interface TaxiChatComposerProps {
   onPressToggleTray: () => void;
   onSend: (value: string) => void;
   placeholder: string;
+  sendDisabled?: boolean;
   value: string;
 }
 
@@ -71,9 +65,7 @@ const getActionIconName = (actionId: TaxiChatActionTrayActionId) => {
   }
 };
 
-const getActionToneStyle = (
-  action: TaxiChatActionTrayActionViewData,
-) => {
+const getActionToneStyle = (action: TaxiChatActionTrayActionViewData) => {
   switch (action.id) {
     case 'callTaxi':
       return {
@@ -128,6 +120,7 @@ const getActionToneStyle = (
 export const TaxiChatComposer = ({
   actionTrayActions,
   actionTrayVisible,
+  editing,
   imageButtonDisabled = false,
   keyboardVisible,
   onChangeText,
@@ -136,10 +129,11 @@ export const TaxiChatComposer = ({
   onPressToggleTray,
   onSend,
   placeholder,
+  sendDisabled = false,
   value,
 }: TaxiChatComposerProps) => {
   const insets = useSafeAreaInsets();
-  const hasTrayActions = actionTrayActions.length > 0;
+  const hasTrayActions = !editing && actionTrayActions.length > 0;
   const trayProgress = useSharedValue(actionTrayVisible ? 1 : 0);
   const composerRowHeight =
     CHAT_COMPOSER_ROW_BASE_HEIGHT +
@@ -158,7 +152,9 @@ export const TaxiChatComposer = ({
   }));
 
   const toggleIconStyle = useAnimatedStyle(() => ({
-    transform: [{rotate: `${interpolate(trayProgress.value, [0, 1], [0, 45])}deg`}],
+    transform: [
+      {rotate: `${interpolate(trayProgress.value, [0, 1], [0, 45])}deg`},
+    ],
   }));
 
   const trayStyle = useAnimatedStyle(() => ({
@@ -168,7 +164,9 @@ export const TaxiChatComposer = ({
 
   const leadingAccessory = hasTrayActions ? (
     <AnimatedTouchableOpacity
-      accessibilityLabel={actionTrayVisible ? '액션 메뉴 닫기' : '액션 메뉴 열기'}
+      accessibilityLabel={
+        actionTrayVisible ? '액션 메뉴 닫기' : '액션 메뉴 열기'
+      }
       accessibilityRole="button"
       activeOpacity={0.82}
       onPress={onPressToggleTray}
@@ -222,13 +220,15 @@ export const TaxiChatComposer = ({
       ) : null}
 
       <ChatComposerBar
-        imageButtonDisabled={imageButtonDisabled}
+        editing={editing}
+        imageButtonDisabled={imageButtonDisabled || Boolean(editing)}
         keyboardVisible={keyboardVisible}
         leadingAccessory={leadingAccessory}
         onChangeText={onChangeText}
         onPressImage={onPressImage}
         onSend={onSend}
         placeholder={placeholder}
+        sendDisabled={sendDisabled}
         value={value}
       />
     </View>

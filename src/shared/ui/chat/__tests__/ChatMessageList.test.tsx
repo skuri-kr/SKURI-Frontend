@@ -3,7 +3,7 @@ import {act, fireEvent, render} from '@testing-library/react-native';
 import {FlatList, StyleSheet, Text} from 'react-native';
 
 import {ChatMessageList} from '../ChatMessageList';
-import type {ChatThreadItemViewData} from '../types';
+import type {ChatThreadItemViewData, ChatThreadMessageViewData} from '../types';
 
 jest.mock('../ChatAvatar', () => ({
   ChatAvatar: () => null,
@@ -13,19 +13,19 @@ jest.mock('../MessageImageBubble', () => ({
   MessageImageBubble: () => null,
 }));
 
-const items: ChatThreadItemViewData[] = [
-  {
-    direction: 'incoming',
-    id: 'message-1',
-    messageKind: 'text',
-    minuteKey: '2026-08-11 10:00',
-    senderId: 'member-1',
-    senderName: '테스터',
-    text: '첫 메시지',
-    timeLabel: '오전 10:00',
-    type: 'text-message',
-  },
-];
+const textMessage: ChatThreadMessageViewData = {
+  direction: 'incoming',
+  id: 'message-1',
+  messageKind: 'text',
+  minuteKey: '2026-08-11 10:00',
+  senderId: 'member-1',
+  senderName: '테스터',
+  text: '첫 메시지',
+  timeLabel: '오전 10:00',
+  type: 'text-message',
+};
+
+const items: ChatThreadItemViewData[] = [textMessage];
 
 const createScrollEvent = (offsetY: number) => ({
   nativeEvent: {
@@ -100,10 +100,9 @@ describe('ChatMessageList', () => {
       />,
     );
 
-    expect(flatList.props.data.map((item: ChatThreadItemViewData) => item.id)).toEqual([
-      'message-1',
-      'message-0',
-    ]);
+    expect(
+      flatList.props.data.map((item: ChatThreadItemViewData) => item.id),
+    ).toEqual(['message-1', 'message-0']);
 
     act(() => {
       flatList.props.onEndReached?.({distanceFromEnd: 0});
@@ -248,9 +247,7 @@ describe('ChatMessageList', () => {
   it('inverted 목록의 상단 콘텐츠를 footer로 렌더링한다', () => {
     const view = render(
       <ChatMessageList
-        headerContent={
-          <Text>채팅방 요약</Text>
-        }
+        headerContent={<Text>채팅방 요약</Text>}
         items={items}
       />,
     );
@@ -301,7 +298,9 @@ describe('ChatMessageList', () => {
     fireEvent.press(newMessageButton);
 
     expect(view.queryByText('새로운 메시지')).toBeTruthy();
-    expect(view.queryByLabelText('새 친구: 새로운 메시지. 최신 메시지로 이동')).toBeNull();
+    expect(
+      view.queryByLabelText('새 친구: 새로운 메시지. 최신 메시지로 이동'),
+    ).toBeNull();
   });
 
   it('최하단에 가까우면 새 메시지 미리보기를 표시하지 않는다', () => {
@@ -330,5 +329,52 @@ describe('ChatMessageList', () => {
     );
 
     expect(view.queryByText('사진을 보냈어요.')).toBeNull();
+  });
+
+  it('같은 메시지 ID의 변경은 새 메시지 미리보기를 만들지 않고 수정 상태를 표시한다', () => {
+    const view = render(<ChatMessageList items={items} />);
+    const flatList = view.UNSAFE_getByType(FlatList);
+
+    fireEvent.scroll(flatList, createScrollEvent(850));
+
+    view.rerender(
+      <ChatMessageList
+        items={[
+          {
+            ...textMessage,
+            editedAt: '2026-08-11T10:01:00',
+            text: '수정된 첫 메시지',
+          },
+        ]}
+      />,
+    );
+
+    expect(view.getByText('수정된 첫 메시지')).toBeTruthy();
+    expect(view.getByText('수정됨 오전 10:00')).toBeTruthy();
+    expect(
+      view.queryByLabelText('테스터: 수정된 첫 메시지. 최신 메시지로 이동'),
+    ).toBeNull();
+  });
+
+  it('삭제 tombstone은 중립적으로 표시하고 길게 누를 수 없다', () => {
+    const onLongPressMessage = jest.fn();
+    const view = render(
+      <ChatMessageList
+        items={[
+          {
+            ...textMessage,
+            id: 'deleted-message',
+            isDeleted: true,
+            text: '삭제된 메시지입니다.',
+          },
+        ]}
+        onLongPressMessage={onLongPressMessage}
+      />,
+    );
+
+    const deletedMessage = view.getByText('삭제된 메시지입니다.');
+    fireEvent(deletedMessage.parent?.parent!, 'longPress');
+
+    expect(onLongPressMessage).not.toHaveBeenCalled();
   });
 });

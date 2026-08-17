@@ -46,6 +46,9 @@ export interface ChatMessage {
   senderPhotoUrl?: string;
   type?: ChatMessageType;
   createdAt?: unknown;
+  deletedAt?: unknown;
+  editedAt?: unknown;
+  isDeleted?: boolean;
   clientCreatedAt?: unknown;
   imageUrl?: string;
   readBy?: string[];
@@ -53,6 +56,7 @@ export interface ChatMessage {
   source?: 'minecraft' | 'app';
   minecraftUuid?: string | null;
   appUserDisplayName?: string | null;
+  updatedAt?: unknown;
 }
 
 export interface ChatMessageDraft {
@@ -85,11 +89,18 @@ export interface ChatRoomFilter {
   department?: string;
 }
 
-export type { PaginatedResult } from '@/shared/types/pagination';
+export type {PaginatedResult} from '@/shared/types/pagination';
 
 export interface MessageSubscriptionCallbacks {
   onNewMessages: (messages: ChatMessage[]) => void;
+  onMessageMutation: (message: ChatMessage) => void;
   onError: (error: Error) => void;
+  onRealtimeReady?: () => void;
+}
+
+export interface MessageSubscription {
+  ready: Promise<void>;
+  unsubscribe: () => void;
 }
 
 export interface ChatRoomState {

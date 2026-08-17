@@ -13,12 +13,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import {
-  COLORS,
-  RADIUS,
-  SHADOWS,
-  SPACING,
-} from '@/shared/design-system/tokens';
+import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
 
 import {ChatAvatar} from './ChatAvatar';
 import {MessageImageBubble} from './MessageImageBubble';
@@ -34,36 +29,36 @@ import type {
 interface ChatThreadCoreProps<
   TItem extends {id: string; type: string} = ChatThreadItemViewData,
 > {
-  autoScrollKey?: number | string
-  bottomOverlayInset?: number
-  contentContainerStyle?: StyleProp<ViewStyle>
+  autoScrollKey?: number | string;
+  bottomOverlayInset?: number;
+  contentContainerStyle?: StyleProp<ViewStyle>;
   getNewMessagePreview?: (
     item: TItem,
-  ) => ChatThreadNewMessagePreviewViewData | null
-  headerContent?: React.ReactNode
-  hasOlderItems?: boolean
-  items: TItem[]
-  isCurrentUserItem?: (item: TItem) => boolean
-  loadingOlderItems?: boolean
-  onLoadOlderItems?: () => Promise<void> | void
+  ) => ChatThreadNewMessagePreviewViewData | null;
+  headerContent?: React.ReactNode;
+  hasOlderItems?: boolean;
+  items: TItem[];
+  isCurrentUserItem?: (item: TItem) => boolean;
+  loadingOlderItems?: boolean;
+  onLoadOlderItems?: () => Promise<void> | void;
   onLongPressMessage?: (
     item: ChatThreadMessageViewData,
     event: GestureResponderEvent,
-  ) => void
-  renderCustomItem?: (item: TItem, index: number) => React.ReactNode
+  ) => void;
+  renderCustomItem?: (item: TItem, index: number) => React.ReactNode;
 }
 
-const isDateDivider = (
-  item: {type: string},
-): item is ChatThreadDateDividerViewData => item.type === 'date-divider';
+const isDateDivider = (item: {
+  type: string;
+}): item is ChatThreadDateDividerViewData => item.type === 'date-divider';
 
-const isSystemMessage = (
-  item: {type: string},
-): item is ChatThreadSystemMessageViewData => item.type === 'system-message';
+const isSystemMessage = (item: {
+  type: string;
+}): item is ChatThreadSystemMessageViewData => item.type === 'system-message';
 
-const isTextMessage = (
-  item: {type: string},
-): item is ChatThreadMessageViewData => item.type === 'text-message';
+const isTextMessage = (item: {
+  type: string;
+}): item is ChatThreadMessageViewData => item.type === 'text-message';
 
 const getPreviousMessage = <TItem extends {type: string}>(
   items: TItem[],
@@ -107,7 +102,11 @@ const isSameGroup = (
     adjacentMessage &&
       adjacentMessage.direction === currentMessage.direction &&
       adjacentMessage.senderId === currentMessage.senderId &&
-      adjacentMessage.minuteKey === currentMessage.minuteKey,
+      adjacentMessage.minuteKey === currentMessage.minuteKey &&
+      !adjacentMessage.editedAt &&
+      !adjacentMessage.isDeleted &&
+      !currentMessage.editedAt &&
+      !currentMessage.isDeleted,
   );
 
 const AUTO_SCROLL_DISTANCE = 72;
@@ -183,16 +182,19 @@ export const ChatThreadCore = <
     if (preview) {
       setNewMessagePreview(preview);
     }
-  }, [getNewMessagePreview, isCurrentUserItem, items, lastItemId, scrollToBottom]);
+  }, [
+    getNewMessagePreview,
+    isCurrentUserItem,
+    items,
+    lastItemId,
+    scrollToBottom,
+  ]);
 
   React.useEffect(() => {
     const previousAutoScrollKey = previousAutoScrollKeyRef.current;
     previousAutoScrollKeyRef.current = autoScrollKey;
 
-    if (
-      previousAutoScrollKey !== autoScrollKey &&
-      isNearBottomRef.current
-    ) {
+    if (previousAutoScrollKey !== autoScrollKey && isNearBottomRef.current) {
       scrollToBottom(false);
     }
   }, [autoScrollKey, scrollToBottom]);
@@ -291,6 +293,9 @@ export const ChatThreadCore = <
         item.direction === 'outgoing'
           ? styles.outgoingMessageWrap
           : styles.incomingMessageWrap;
+      const timeLabel = item.editedAt
+        ? `수정됨 ${item.timeLabel}`
+        : item.timeLabel;
 
       if (item.direction === 'outgoing') {
         return (
@@ -304,13 +309,17 @@ export const ChatThreadCore = <
             <View style={styles.outgoingRow}>
               {isGroupEnd ? (
                 <Text style={[styles.timeLabel, styles.outgoingTimeLabel]}>
-                  {item.timeLabel}
+                  {timeLabel}
                 </Text>
               ) : null}
               <TouchableOpacity
                 activeOpacity={0.92}
                 delayLongPress={220}
-                disabled={!onLongPressMessage || Boolean(item.imageUrl)}
+                disabled={
+                  !onLongPressMessage ||
+                  Boolean(item.imageUrl) ||
+                  item.isDeleted
+                }
                 style={styles.pressableBubble}
                 onLongPress={event => {
                   onLongPressMessage?.(item, event);
@@ -320,17 +329,24 @@ export const ChatThreadCore = <
                     styles.bubble,
                     styles.outgoingBubble,
                     item.messageKind === 'image' ? styles.imageBubble : null,
+                    item.isDeleted ? styles.deletedBubble : null,
                   ]}>
                   {item.imageUrl ? (
                     <MessageImageBubble
                       onLongPress={event => {
-                        onLongPressMessage?.(item, event);
+                        if (!item.isDeleted) {
+                          onLongPressMessage?.(item, event);
+                        }
                       }}
                       uri={item.imageUrl}
                     />
                   ) : (
                     <Text
-                      style={[styles.messageText, styles.outgoingMessageText]}>
+                      style={[
+                        styles.messageText,
+                        styles.outgoingMessageText,
+                        item.isDeleted ? styles.deletedMessageText : null,
+                      ]}>
                       {item.text}
                     </Text>
                   )}
@@ -351,7 +367,11 @@ export const ChatThreadCore = <
           ]}>
           <View style={styles.incomingRow}>
             <View style={styles.avatarWrap}>
-              {isGroupStart ? <ChatAvatar avatar={item.avatar} /> : <ChatAvatar />}
+              {isGroupStart ? (
+                <ChatAvatar avatar={item.avatar} />
+              ) : (
+                <ChatAvatar />
+              )}
             </View>
 
             <View style={styles.incomingContent}>
@@ -362,7 +382,11 @@ export const ChatThreadCore = <
                 <TouchableOpacity
                   activeOpacity={0.92}
                   delayLongPress={220}
-                  disabled={!onLongPressMessage || Boolean(item.imageUrl)}
+                  disabled={
+                    !onLongPressMessage ||
+                    Boolean(item.imageUrl) ||
+                    item.isDeleted
+                  }
                   style={styles.pressableBubble}
                   onLongPress={event => {
                     onLongPressMessage?.(item, event);
@@ -372,21 +396,30 @@ export const ChatThreadCore = <
                       styles.bubble,
                       styles.incomingBubble,
                       item.messageKind === 'image' ? styles.imageBubble : null,
+                      item.isDeleted ? styles.deletedBubble : null,
                     ]}>
                     {item.imageUrl ? (
                       <MessageImageBubble
                         onLongPress={event => {
-                          onLongPressMessage?.(item, event);
+                          if (!item.isDeleted) {
+                            onLongPressMessage?.(item, event);
+                          }
                         }}
                         uri={item.imageUrl}
                       />
                     ) : (
-                      <Text style={styles.messageText}>{item.text}</Text>
+                      <Text
+                        style={[
+                          styles.messageText,
+                          item.isDeleted ? styles.deletedMessageText : null,
+                        ]}>
+                        {item.text}
+                      </Text>
                     )}
                   </View>
                 </TouchableOpacity>
                 {isGroupEnd ? (
-                  <Text style={styles.timeLabel}>{item.timeLabel}</Text>
+                  <Text style={styles.timeLabel}>{timeLabel}</Text>
                 ) : null}
               </View>
             </View>
@@ -481,6 +514,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     marginVertical: SPACING.md,
+  },
+  deletedBubble: {
+    backgroundColor: COLORS.background.subtle,
+    borderColor: COLORS.border.default,
+    shadowOpacity: 0,
+  },
+  deletedMessageText: {
+    color: COLORS.text.muted,
   },
   imageBubble: {
     backgroundColor: 'transparent',

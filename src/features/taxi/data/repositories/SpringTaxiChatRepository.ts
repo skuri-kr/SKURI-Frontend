@@ -2,10 +2,11 @@ import type {
   SubscriptionCallbacks,
   Unsubscribe,
 } from '@/shared/types/subscription';
+import {RepositoryError, RepositoryErrorCode} from '@/shared/lib/errors';
 import {
-  RepositoryError,
-  RepositoryErrorCode,
-} from '@/shared/lib/errors';
+  selectNewestChatMessage,
+  type VersionedChatMessage,
+} from '@/shared/lib/chatMessageVersion';
 import {uploadImage as uploadSharedImage} from '@/shared/api/imageUploadClient';
 import {
   chatSocketClient,
@@ -26,6 +27,7 @@ import {taxiHomeApiClient} from '../api/taxiHomeApiClient';
 import {taxiChatApiClient} from '../api/taxiChatApiClient';
 import type {
   ChatMessageCursorResponseDto,
+  ChatMessageMutationEventResponseDto,
   ChatMessageResponseDto,
   SendChatMessageRequestDto,
   StompApiErrorDto,
@@ -42,10 +44,18 @@ interface PartyChatState {
   loadPromise: Promise<TaxiChatSourceData | null> | null;
   loadingOlderPromise: Promise<void> | null;
   olderCursor: ChatMessageCursorResponseDto | null;
+  mutationSubscription: StompSubscription | null;
+  pendingMessageMutations: Map<string, ChatMessageResponseDto>;
+  pendingRealtimeEvents: PartyChatRealtimeEvent[];
+  reconciliationPromise: Promise<TaxiChatSourceData | null> | null;
   roomSubscription: StompSubscription | null;
   source: TaxiChatSourceData | null;
   subscribers: Set<SubscriptionCallbacks<TaxiChatSourceData | null>>;
 }
+
+type PartyChatRealtimeEvent =
+  | {message: ChatMessageResponseDto; type: 'message'}
+  | {message: ChatMessageResponseDto; type: 'mutation'};
 
 interface PendingSpecialMessageRequest {
   reject: (error: Error) => void;
@@ -55,6 +65,7 @@ interface PendingSpecialMessageRequest {
 }
 
 const MESSAGES_PAGE_SIZE = 100;
+const MAX_RECONCILIATION_BRIDGE_MESSAGES = 300;
 const SPECIAL_MESSAGE_TIMEOUT_MS = 8000;
 const STOMP_CONNECT_TIMEOUT_MS = 10000;
 
@@ -72,9 +83,7 @@ const buildNativeStompWebSocketPath = (endpointPath = '/ws') => {
   return `${normalizedPath}-native`;
 };
 
-const clonePartySource = (
-  source: TaxiChatSourceData,
-): TaxiChatSourceData => ({
+const clonePartySource = (source: TaxiChatSourceData): TaxiChatSourceData => ({
   ...source,
   departureLocation: {...source.departureLocation},
   destinationLocation: {...source.destinationLocation},
@@ -90,7 +99,9 @@ const clonePartySource = (
           accountData: message.arrivalData.accountData
             ? {...message.arrivalData.accountData}
             : undefined,
-          settlementTargetMemberIds: [...message.arrivalData.settlementTargetMemberIds],
+          settlementTargetMemberIds: [
+            ...message.arrivalData.settlementTargetMemberIds,
+          ],
         }
       : undefined,
     avatar: message.avatar ? {...message.avatar} : undefined,
@@ -102,22 +113,101 @@ const clonePartySource = (
         accountData: source.settlement.accountData
           ? {...source.settlement.accountData}
           : undefined,
-        settlementTargetMemberIds: [...source.settlement.settlementTargetMemberIds],
+        settlementTargetMemberIds: [
+          ...source.settlement.settlementTargetMemberIds,
+        ],
       }
     : undefined,
 });
+
+const resolveLatestAccountData = (messages: TaxiChatSourceData['messages']) =>
+  [...messages]
+    .reverse()
+    .find(message => message.type === 'account' && message.accountData)
+    ?.accountData;
+
+const mergeVersionedMessages = <T extends VersionedChatMessage & {id: string}>(
+  messages: T[],
+  nextMessages: T[],
+) => {
+  const mergedMessages = [...messages];
+  const messageIndexById = new Map<string, number>();
+
+  mergedMessages.forEach((message, index) => {
+    messageIndexById.set(message.id, index);
+  });
+
+  nextMessages.forEach(message => {
+    const existingIndex = messageIndexById.get(message.id);
+
+    if (existingIndex === undefined) {
+      messageIndexById.set(message.id, mergedMessages.length);
+      mergedMessages.push(message);
+      return;
+    }
+
+    mergedMessages[existingIndex] = selectNewestChatMessage(
+      mergedMessages[existingIndex],
+      message,
+    );
+  });
+
+  return mergedMessages;
+};
+
+const hasOverlappingMessageId = <
+  T extends {id: string},
+  U extends {id: string},
+>(
+  messages: T[],
+  nextMessages: U[],
+) => {
+  const messageIds = new Set(messages.map(message => message.id));
+
+  return nextMessages.some(message => messageIds.has(message.id));
+};
+
+const applyRealtimeEventsToMessages = (
+  messages: TaxiChatSourceData['messages'],
+  events: PartyChatRealtimeEvent[],
+) =>
+  events.reduce<TaxiChatSourceData['messages']>((currentMessages, event) => {
+    const messageIndex = currentMessages.findIndex(
+      message => message.id === event.message.id,
+    );
+
+    if (event.type === 'message') {
+      if (messageIndex >= 0) {
+        const nextMessages = [...currentMessages];
+        nextMessages[messageIndex] = selectNewestChatMessage(
+          currentMessages[messageIndex],
+          mapTaxiChatMessageDto(event.message),
+        );
+        return nextMessages;
+      }
+
+      return [...currentMessages, mapTaxiChatMessageDto(event.message)];
+    }
+
+    if (messageIndex < 0) {
+      return currentMessages;
+    }
+
+    const nextMessages = [...currentMessages];
+    nextMessages[messageIndex] = selectNewestChatMessage(
+      currentMessages[messageIndex],
+      mapTaxiChatMessageDto(event.message),
+    );
+    return nextMessages;
+  }, messages);
 
 const createStompRepositoryError = (
   message: string,
   context?: Record<string, unknown>,
 ) =>
-  new RepositoryError(
-    RepositoryErrorCode.SUBSCRIPTION_FAILED,
-    message,
-    {
-      context,
-    },
-  );
+  new RepositoryError(RepositoryErrorCode.SUBSCRIPTION_FAILED, message, {
+    context,
+  });
 
 export class SpringTaxiChatRepository implements ITaxiChatRepository {
   private readonly pendingSpecialMessageRequests = new Map<
@@ -183,13 +273,17 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
           return;
         }
 
-        const existingMessageIds = new Set(
-          currentSource.messages.map(message => message.id),
-        );
         const olderMessages = [...response.data.messages]
           .reverse()
-          .map(mapTaxiChatMessageDto)
-          .filter(message => !existingMessageIds.has(message.id));
+          .map(message =>
+            mapTaxiChatMessageDto(
+              this.resolvePendingMessageMutation(state, message),
+            ),
+          );
+
+        response.data.messages.forEach(message => {
+          state.pendingMessageMutations.delete(message.id);
+        });
 
         state.olderCursor = response.data.nextCursor ?? null;
         state.hasOlderMessages = response.data.hasNext;
@@ -197,7 +291,10 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
           ...currentSource,
           hasOlderMessages: state.hasOlderMessages,
           loadingOlderMessages: false,
-          messages: [...olderMessages, ...currentSource.messages],
+          messages: mergeVersionedMessages(
+            olderMessages,
+            currentSource.messages,
+          ),
         };
         this.publishPartyState(partyId);
       })
@@ -290,6 +387,32 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     return state?.source ? clonePartySource(state.source) : null;
   }
 
+  async updateMessage(
+    partyId: string,
+    messageId: string,
+    text: string,
+  ): Promise<TaxiChatSourceData | null> {
+    const response = await taxiChatApiClient.updateMessage(
+      resolveTaxiChatRoomId(partyId),
+      messageId,
+      {text: text.trim()},
+    );
+
+    return this.applyMessageMutation(partyId, response.data);
+  }
+
+  async deleteMessage(
+    partyId: string,
+    messageId: string,
+  ): Promise<TaxiChatSourceData | null> {
+    const response = await taxiChatApiClient.deleteMessage(
+      resolveTaxiChatRoomId(partyId),
+      messageId,
+    );
+
+    return this.applyMessageMutation(partyId, response.data);
+  }
+
   async sendAccountMessage(
     partyId: string,
     payload: TaxiChatAccountMessageDraft,
@@ -322,13 +445,27 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
       callbacks.onData(clonePartySource(state.source));
     }
 
-    this.loadPartyChat(partyId, true).catch(error => {
-        callbacks.onError(error as Error);
-      });
+    const initialSnapshotPromise = this.loadPartyChat(partyId, true);
+
+    initialSnapshotPromise.catch(error => {
+      callbacks.onError(error as Error);
+    });
 
     this.ensureStompClient()
-      .then(() => {
+      .then(async () => {
         this.ensureRoomSubscription(partyId);
+        this.ensureRoomMutationSubscription(partyId);
+
+        await initialSnapshotPromise.catch(() => undefined);
+
+        if (
+          this.partyStates.get(partyId) !== state ||
+          state.subscribers.size === 0
+        ) {
+          return;
+        }
+
+        await this.reconcileSubscribedPartyChat(partyId);
       })
       .catch(error => {
         callbacks.onError(error as Error);
@@ -346,6 +483,8 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
       if (currentState.subscribers.size === 0) {
         currentState.roomSubscription?.unsubscribe();
         currentState.roomSubscription = null;
+        currentState.mutationSubscription?.unsubscribe();
+        currentState.mutationSubscription = null;
 
         if (this.currentPartyId === partyId) {
           this.currentPartyId = null;
@@ -376,7 +515,10 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     enabled: boolean,
   ): Promise<TaxiChatSourceData | null> {
     const chatRoomId = resolveTaxiChatRoomId(partyId);
-    const response = await taxiChatApiClient.updateSettings(chatRoomId, !enabled);
+    const response = await taxiChatApiClient.updateSettings(
+      chatRoomId,
+      !enabled,
+    );
     const state = this.getOrCreatePartyState(partyId);
 
     if (state.source) {
@@ -408,9 +550,7 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     return response.url;
   }
 
-  private buildSpecialMessageKey(
-    partyId: string,
-  ) {
+  private buildSpecialMessageKey(partyId: string) {
     return `${partyId}:account`;
   }
 
@@ -430,7 +570,11 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     message: ChatMessageResponseDto | TaxiChatSourceData['messages'][number],
     payload: SendChatMessageRequestDto,
   ) {
-    if (payload.type !== 'ACCOUNT' || !payload.account || !message.accountData) {
+    if (
+      payload.type !== 'ACCOUNT' ||
+      !payload.account ||
+      !message.accountData
+    ) {
       return false;
     }
 
@@ -501,10 +645,7 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     this.clearPendingSpecialMessageRequest(key);
   }
 
-  private clearPendingSpecialMessageRequest(
-    key: string,
-    error?: Error,
-  ) {
+  private clearPendingSpecialMessageRequest(key: string, error?: Error) {
     const pendingRequest = this.pendingSpecialMessageRequests.get(key);
 
     if (!pendingRequest) {
@@ -524,7 +665,9 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
 
     const partyId = key.split(':')[0];
     const state = this.partyStates.get(partyId);
-    pendingRequest.resolve(state?.source ? clonePartySource(state.source) : null);
+    pendingRequest.resolve(
+      state?.source ? clonePartySource(state.source) : null,
+    );
   }
 
   private async publishSpecialMessage(
@@ -539,7 +682,9 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
 
     this.clearPendingSpecialMessageRequest(
       key,
-      createStompRepositoryError('이전 특수 메시지 요청이 새 요청으로 대체되었습니다.'),
+      createStompRepositoryError(
+        '이전 특수 메시지 요청이 새 요청으로 대체되었습니다.',
+      ),
     );
 
     const responsePromise = new Promise<TaxiChatSourceData | null>(
@@ -586,6 +731,8 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     this.partyStates.forEach(state => {
       state.roomSubscription?.unsubscribe();
       state.roomSubscription = null;
+      state.mutationSubscription?.unsubscribe();
+      state.mutationSubscription = null;
     });
   }
 
@@ -593,6 +740,8 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     this.partyStates.forEach(state => {
       state.roomSubscription?.unsubscribe();
       state.roomSubscription = null;
+      state.mutationSubscription?.unsubscribe();
+      state.mutationSubscription = null;
       state.source = null;
       state.subscribers.clear();
     });
@@ -685,6 +834,26 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     );
   }
 
+  private ensureRoomMutationSubscription(partyId: string) {
+    const state = this.partyStates.get(partyId);
+
+    if (
+      !state ||
+      state.subscribers.size === 0 ||
+      state.mutationSubscription ||
+      !this.stompClient?.connected
+    ) {
+      return;
+    }
+
+    state.mutationSubscription = this.stompClient.subscribe(
+      `/topic/chat/${resolveTaxiChatRoomId(partyId)}/events`,
+      frame => {
+        this.handleIncomingMessageMutation(partyId, frame);
+      },
+    );
+  }
+
   private async ensureStompClient(): Promise<MinimalStompClient> {
     if (this.stompClient?.connected) {
       return this.stompClient;
@@ -701,148 +870,182 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     const client = this.stompClient;
     const generation = ++this.stompClientGeneration;
 
-    this.stompConnectionPromise = new Promise<MinimalStompClient>((resolve, reject) => {
-      let settled = false;
-      let connectTimeoutHandle: ReturnType<typeof setTimeout> | null =
-        setTimeout(() => {
-          const error = createStompRepositoryError(
-            '채팅 실시간 연결 시간이 초과되었습니다.',
-            {
-              timeoutMs: STOMP_CONNECT_TIMEOUT_MS,
-            },
-          );
+    this.stompConnectionPromise = new Promise<MinimalStompClient>(
+      (resolve, reject) => {
+        let settled = false;
+        let connectTimeoutHandle: ReturnType<typeof setTimeout> | null =
+          setTimeout(() => {
+            const error = createStompRepositoryError(
+              '채팅 실시간 연결 시간이 초과되었습니다.',
+              {
+                timeoutMs: STOMP_CONNECT_TIMEOUT_MS,
+              },
+            );
 
-          safeReject(error);
-          this.deactivateStompClient().catch(() => undefined);
-        }, STOMP_CONNECT_TIMEOUT_MS);
+            safeReject(error);
+            this.deactivateStompClient().catch(() => undefined);
+          }, STOMP_CONNECT_TIMEOUT_MS);
 
-      const clearConnectTimeout = () => {
-        if (!connectTimeoutHandle) {
-          return;
-        }
-
-        clearTimeout(connectTimeoutHandle);
-        connectTimeoutHandle = null;
-      };
-
-      const safeReject = (error: RepositoryError) => {
-        if (settled) {
-          return;
-        }
-
-        settled = true;
-        clearConnectTimeout();
-        reject(error);
-      };
-
-      client.beforeConnect = async () => {
-        try {
-          const options = await chatSocketClient.buildConnectionOptions({
-            endpointPath: buildNativeStompWebSocketPath(),
-          });
-
-          client.connectHeaders = options.connectHeaders;
-          client.webSocketFactory = () =>
-            createNativeStompSocket(options.url);
-          client.heartbeatIncoming = options.heartbeatIncomingMs;
-          client.heartbeatOutgoing = options.heartbeatOutgoingMs;
-          client.reconnectDelay = options.reconnectDelayMs;
-        } catch (error) {
-          const repositoryError = createStompRepositoryError(
-            '채팅 실시간 연결 준비에 실패했습니다.',
-            {
-              cause: error,
-            },
-          );
-          safeReject(repositoryError);
-          throw repositoryError;
-        }
-      };
-
-      client.onConnect = () => {
-        if (!this.isCurrentStompClient(client, generation)) {
-          return;
-        }
-
-        this.ensureErrorSubscription();
-        this.partyStates.forEach((state, partyId) => {
-          if (state.subscribers.size > 0) {
-            this.ensureRoomSubscription(partyId);
+        const clearConnectTimeout = () => {
+          if (!connectTimeoutHandle) {
+            return;
           }
-        });
 
-        if (!settled) {
+          clearTimeout(connectTimeoutHandle);
+          connectTimeoutHandle = null;
+        };
+
+        const safeReject = (error: RepositoryError) => {
+          if (settled) {
+            return;
+          }
+
           settled = true;
           clearConnectTimeout();
-          resolve(client);
-        }
-      };
+          reject(error);
+        };
 
-      client.onDisconnect = () => {
-        if (!this.isCurrentStompClient(client, generation)) {
-          return;
-        }
-        this.clearStompSubscriptions();
-      };
+        client.beforeConnect = async () => {
+          try {
+            const options = await chatSocketClient.buildConnectionOptions({
+              endpointPath: buildNativeStompWebSocketPath(),
+            });
 
-      client.onStompError = frame => {
-        if (!this.isCurrentStompClient(client, generation)) {
-          return;
-        }
-
-        const error = createStompRepositoryError(
-          frame.headers.message ||
-            this.parseFrameBody<StompApiErrorDto>(frame)?.message ||
-            '채팅 실시간 연결에 실패했습니다.',
-          {
-            frameBody: frame.body,
-          },
-        );
-        this.notifyPartySubscribers(error);
-        safeReject(error);
-      };
-
-      client.onWebSocketClose = event => {
-        if (!this.isCurrentStompClient(client, generation)) {
-          return;
-        }
-        this.clearStompSubscriptions();
-
-        if (!settled) {
-          safeReject(
-            createStompRepositoryError(
-              '채팅 실시간 연결이 닫혔습니다.',
+            client.connectHeaders = options.connectHeaders;
+            client.webSocketFactory = () =>
+              createNativeStompSocket(options.url);
+            client.heartbeatIncoming = options.heartbeatIncomingMs;
+            client.heartbeatOutgoing = options.heartbeatOutgoingMs;
+            client.reconnectDelay = options.reconnectDelayMs;
+          } catch (error) {
+            const repositoryError = createStompRepositoryError(
+              '채팅 실시간 연결 준비에 실패했습니다.',
               {
+                cause: error,
+              },
+            );
+            safeReject(repositoryError);
+            throw repositoryError;
+          }
+        };
+
+        client.onConnect = () => {
+          if (!this.isCurrentStompClient(client, generation)) {
+            return;
+          }
+
+          this.ensureErrorSubscription();
+          this.partyStates.forEach((state, partyId) => {
+            if (state.subscribers.size > 0) {
+              this.ensureRoomSubscription(partyId);
+              this.ensureRoomMutationSubscription(partyId);
+              this.reconcileSubscribedPartyChat(partyId).catch(error => {
+                console.error('택시 채팅 재연결 후 메시지 보정 실패:', error);
+              });
+            }
+          });
+
+          if (!settled) {
+            settled = true;
+            clearConnectTimeout();
+            resolve(client);
+          }
+        };
+
+        client.onDisconnect = () => {
+          if (!this.isCurrentStompClient(client, generation)) {
+            return;
+          }
+          this.clearStompSubscriptions();
+        };
+
+        client.onStompError = frame => {
+          if (!this.isCurrentStompClient(client, generation)) {
+            return;
+          }
+
+          const error = createStompRepositoryError(
+            frame.headers.message ||
+              this.parseFrameBody<StompApiErrorDto>(frame)?.message ||
+              '채팅 실시간 연결에 실패했습니다.',
+            {
+              frameBody: frame.body,
+            },
+          );
+          this.notifyPartySubscribers(error);
+          safeReject(error);
+        };
+
+        client.onWebSocketClose = event => {
+          if (!this.isCurrentStompClient(client, generation)) {
+            return;
+          }
+          this.clearStompSubscriptions();
+
+          if (!settled) {
+            safeReject(
+              createStompRepositoryError('채팅 실시간 연결이 닫혔습니다.', {
                 closeCode: event.code,
                 closeReason: event.reason,
                 wasClean: event.wasClean,
-              },
-            ),
+              }),
+            );
+          }
+        };
+
+        client.onWebSocketError = event => {
+          if (!this.isCurrentStompClient(client, generation)) {
+            return;
+          }
+
+          const error = createStompRepositoryError(
+            '채팅 실시간 연결을 열지 못했습니다.',
+            {
+              event,
+            },
           );
-        }
-      };
-
-      client.onWebSocketError = event => {
-        if (!this.isCurrentStompClient(client, generation)) {
-          return;
-        }
-
-        const error = createStompRepositoryError(
-          '채팅 실시간 연결을 열지 못했습니다.',
-          {
-            event,
-          },
-        );
-        safeReject(error);
-      };
-      client.activate();
-    }).finally(() => {
+          safeReject(error);
+        };
+        client.activate();
+      },
+    ).finally(() => {
       if (this.isCurrentStompClient(client, generation)) {
         this.stompConnectionPromise = null;
       }
     });
 
     return this.stompConnectionPromise;
+  }
+
+  private reconcileSubscribedPartyChat(partyId: string) {
+    const state = this.partyStates.get(partyId);
+
+    if (!state || state.subscribers.size === 0) {
+      return Promise.resolve(null);
+    }
+
+    if (state.reconciliationPromise) {
+      return state.reconciliationPromise;
+    }
+
+    state.reconciliationPromise = (async () => {
+      await state.loadPromise?.catch(() => undefined);
+
+      if (
+        this.partyStates.get(partyId) !== state ||
+        state.subscribers.size === 0
+      ) {
+        return null;
+      }
+
+      return this.loadPartyChat(partyId, true);
+    })().finally(() => {
+      if (this.partyStates.get(partyId) === state) {
+        state.reconciliationPromise = null;
+      }
+    });
+
+    return state.reconciliationPromise;
   }
 
   private getOrCreatePartyState(partyId: string): PartyChatState {
@@ -857,6 +1060,10 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
       loadPromise: null,
       loadingOlderPromise: null,
       olderCursor: null,
+      mutationSubscription: null,
+      pendingMessageMutations: new Map(),
+      pendingRealtimeEvents: [],
+      reconciliationPromise: null,
       roomSubscription: null,
       source: null,
       subscribers: new Set(),
@@ -864,6 +1071,87 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
 
     this.partyStates.set(partyId, nextState);
     return nextState;
+  }
+
+  private applyPendingRealtimeEventsToSource(partyId: string) {
+    const state = this.getOrCreatePartyState(partyId);
+
+    if (!state.source || state.pendingRealtimeEvents.length === 0) {
+      return;
+    }
+
+    const pendingRealtimeEvents = state.pendingRealtimeEvents.splice(0);
+    const messages = applyRealtimeEventsToMessages(
+      state.source.messages,
+      pendingRealtimeEvents,
+    );
+
+    state.source = {
+      ...state.source,
+      latestAccountData: resolveLatestAccountData(messages),
+      messages,
+    };
+    this.publishPartyState(partyId);
+  }
+
+  private retainPendingMessageMutation(
+    state: PartyChatState,
+    message: ChatMessageResponseDto,
+  ) {
+    const pendingMessage = state.pendingMessageMutations.get(message.id);
+
+    state.pendingMessageMutations.set(
+      message.id,
+      pendingMessage
+        ? selectNewestChatMessage(pendingMessage, message)
+        : message,
+    );
+  }
+
+  private resolvePendingMessageMutation(
+    state: PartyChatState,
+    message: ChatMessageResponseDto,
+  ) {
+    const pendingMessage = state.pendingMessageMutations.get(message.id);
+
+    return pendingMessage
+      ? selectNewestChatMessage(message, pendingMessage)
+      : message;
+  }
+
+  private applyMessageMutation(
+    partyId: string,
+    message: ChatMessageResponseDto,
+  ): TaxiChatSourceData | null {
+    const state = this.getOrCreatePartyState(partyId);
+    const source = state.source;
+
+    if (!source) {
+      return null;
+    }
+
+    const messageIndex = source.messages.findIndex(
+      item => item.id === message.id,
+    );
+
+    if (messageIndex < 0) {
+      return clonePartySource(source);
+    }
+
+    const messages = [...source.messages];
+    messages[messageIndex] = selectNewestChatMessage(
+      messages[messageIndex],
+      mapTaxiChatMessageDto(this.resolvePendingMessageMutation(state, message)),
+    );
+    state.pendingMessageMutations.delete(message.id);
+    state.source = {
+      ...source,
+      latestAccountData: resolveLatestAccountData(messages),
+      messages,
+    };
+    this.publishPartyState(partyId);
+
+    return clonePartySource(state.source);
   }
 
   private async handleIncomingMessage(partyId: string, frame: StompFrame) {
@@ -878,13 +1166,17 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     const mappedMessage = mapTaxiChatMessageDto(message);
     const specialMessageKey = this.buildSpecialMessageKey(partyId);
 
-    if (!state.source) {
-      await this.loadPartyChat(partyId, true);
+    if (state.loadPromise || !state.source) {
+      state.pendingRealtimeEvents.push({message, type: 'message'});
+
       if (mappedMessage.type === 'account') {
-        this.clearPendingSpecialMessageRequest(
-          specialMessageKey,
-        );
+        this.clearPendingSpecialMessageRequest(specialMessageKey);
       }
+
+      if (!state.loadPromise) {
+        await this.loadPartyChat(partyId, true);
+      }
+
       return;
     }
 
@@ -897,23 +1189,98 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
 
     state.source = {
       ...state.source,
-      latestAccountData:
-        mappedMessage.type === 'account' && mappedMessage.accountData
-          ? mappedMessage.accountData
-          : state.source.latestAccountData,
-      messages: [
+      latestAccountData: resolveLatestAccountData([
         ...state.source.messages,
         mappedMessage,
-      ],
+      ]),
+      messages: [...state.source.messages, mappedMessage],
     };
     this.publishPartyState(partyId);
 
     if (mappedMessage.type === 'account') {
-      this.clearPendingSpecialMessageRequest(
-        specialMessageKey,
-      );
+      this.clearPendingSpecialMessageRequest(specialMessageKey);
     }
     await this.markLatestMessageAsRead(partyId, message.createdAt);
+  }
+
+  private handleIncomingMessageMutation(partyId: string, frame: StompFrame) {
+    const payload =
+      this.parseFrameBody<ChatMessageMutationEventResponseDto>(frame);
+
+    if (!payload?.message?.id) {
+      return;
+    }
+
+    const state = this.getOrCreatePartyState(partyId);
+    this.retainPendingMessageMutation(state, payload.message);
+
+    if (state.loadPromise || !state.source) {
+      state.pendingRealtimeEvents.push({
+        message: payload.message,
+        type: 'mutation',
+      });
+
+      if (!state.loadPromise) {
+        this.loadPartyChat(partyId, true).catch(() => undefined);
+      }
+      return;
+    }
+
+    if (
+      state.loadingOlderPromise &&
+      !state.source.messages.some(message => message.id === payload.message.id)
+    ) {
+      return;
+    }
+
+    this.applyMessageMutation(partyId, payload.message);
+  }
+
+  private async loadReconciliationBridge(
+    partyId: string,
+    previousMessages: TaxiChatSourceData['messages'],
+    initialPage: {
+      hasNext: boolean;
+      nextCursor?: ChatMessageCursorResponseDto | null;
+    },
+  ) {
+    let bridgeMessages: ChatMessageResponseDto[] = [];
+    let cursor = initialPage.nextCursor ?? null;
+    let hasNext = initialPage.hasNext;
+
+    while (
+      cursor &&
+      hasNext &&
+      bridgeMessages.length < MAX_RECONCILIATION_BRIDGE_MESSAGES
+    ) {
+      const response = await taxiChatApiClient.getMessages(
+        resolveTaxiChatRoomId(partyId),
+        {
+          cursorCreatedAt: cursor.createdAt,
+          cursorId: cursor.id,
+          size: MESSAGES_PAGE_SIZE,
+        },
+      );
+
+      if (response.data.messages.length === 0) {
+        return null;
+      }
+
+      const sortedPageMessages = [...response.data.messages].reverse();
+      bridgeMessages = mergeVersionedMessages(
+        sortedPageMessages,
+        bridgeMessages,
+      );
+
+      if (hasOverlappingMessageId(previousMessages, sortedPageMessages)) {
+        return bridgeMessages;
+      }
+
+      cursor = response.data.nextCursor ?? null;
+      hasNext = response.data.hasNext;
+    }
+
+    return null;
   }
 
   private async loadPartyChat(
@@ -939,7 +1306,36 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
         size: MESSAGES_PAGE_SIZE,
       }),
     ])
-      .then(([partyResponse, roomResponse, messagesResponse]) => {
+      .then(async ([partyResponse, roomResponse, messagesResponse]) => {
+        const initialPreviousSource = state.source;
+        const initialPreviousMessages = initialPreviousSource?.messages ?? [];
+        let shouldPreserveLoadedHistory = Boolean(initialPreviousSource);
+        let bridgeMessages: ChatMessageResponseDto[] = [];
+
+        if (
+          initialPreviousSource &&
+          !hasOverlappingMessageId(
+            initialPreviousMessages,
+            messagesResponse.data.messages,
+          )
+        ) {
+          const loadedBridgeMessages = await this.loadReconciliationBridge(
+            partyId,
+            initialPreviousMessages,
+            messagesResponse.data,
+          );
+
+          if (loadedBridgeMessages) {
+            bridgeMessages = loadedBridgeMessages;
+          } else {
+            shouldPreserveLoadedHistory = false;
+          }
+        }
+
+        const fetchedMessages = [
+          ...bridgeMessages,
+          ...[...messagesResponse.data.messages].reverse(),
+        ].map(message => this.resolvePendingMessageMutation(state, message));
         const refreshedSource = buildTaxiChatSourceData({
           messages: messagesResponse.data.messages,
           party: partyResponse.data,
@@ -947,26 +1343,24 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
         });
         const previousSource = state.source;
         const previousMessages = previousSource?.messages ?? [];
-        const previousMessageIds = new Set(
-          previousMessages.map(message => message.id),
+        const mergedSnapshotMessages = shouldPreserveLoadedHistory
+          ? mergeVersionedMessages(
+              previousMessages,
+              fetchedMessages.map(mapTaxiChatMessageDto),
+            )
+          : fetchedMessages.map(mapTaxiChatMessageDto);
+        const pendingRealtimeEvents = state.pendingRealtimeEvents.splice(0);
+        const mergedMessages = applyRealtimeEventsToMessages(
+          mergedSnapshotMessages,
+          pendingRealtimeEvents,
         );
-        const freshMessageById = new Map(
-          refreshedSource.messages.map(message => [message.id, message]),
-        );
-        const mergedMessages = [
-          ...previousMessages.map(
-            message => freshMessageById.get(message.id) ?? message,
-          ),
-          ...refreshedSource.messages.filter(
-            message => !previousMessageIds.has(message.id),
-          ),
-        ];
-        const latestAccountData = [...mergedMessages]
-          .reverse()
-          .find(message => message.type === 'account' && message.accountData)
-          ?.accountData;
+        const latestAccountData = resolveLatestAccountData(mergedMessages);
 
-        if (!previousSource) {
+        fetchedMessages.forEach(message => {
+          state.pendingMessageMutations.delete(message.id);
+        });
+
+        if (!shouldPreserveLoadedHistory) {
           state.olderCursor = messagesResponse.data.nextCursor ?? null;
           state.hasOlderMessages = messagesResponse.data.hasNext;
         }
@@ -994,6 +1388,7 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
         return source;
       })
       .catch(error => {
+        this.applyPendingRealtimeEventsToSource(partyId);
         throw error;
       })
       .finally(() => {
@@ -1010,13 +1405,12 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
   }
 
   private isCurrentStompClient(client: MinimalStompClient, generation: number) {
-    return this.stompClient === client && this.stompClientGeneration === generation;
+    return (
+      this.stompClient === client && this.stompClientGeneration === generation
+    );
   }
 
-  private markLatestMessageAsRead(
-    partyId: string,
-    lastReadAt?: string,
-  ) {
+  private markLatestMessageAsRead(partyId: string, lastReadAt?: string) {
     if (!lastReadAt) {
       return Promise.resolve();
     }

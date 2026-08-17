@@ -10,9 +10,7 @@ import type {
 import type {ChatDetailViewData} from '../model/chatDetailViewData';
 import type {ChatMessage, ChatRoom} from '../model/types';
 
-const buildHeader = (
-  room: ChatRoom,
-): ChatThreadHeaderViewData => {
+const buildHeader = (room: ChatRoom): ChatThreadHeaderViewData => {
   if (room.type === 'university') {
     return {
       iconBackgroundColor: COLORS.brand.primarySoft,
@@ -83,17 +81,17 @@ const buildItems = (
       message.senderId === currentUserId
         ? undefined
         : message.senderPhotoUrl
-          ? {
-              backgroundColor: COLORS.border.default,
-              kind: 'image' as const,
-              uri: message.senderPhotoUrl,
-            }
-          : {
-              backgroundColor: COLORS.border.default,
-              iconColor: COLORS.text.muted,
-              iconName: 'person-outline' as const,
-              kind: 'icon' as const,
-            };
+        ? {
+            backgroundColor: COLORS.border.default,
+            kind: 'image' as const,
+            uri: message.senderPhotoUrl,
+          }
+        : {
+            backgroundColor: COLORS.border.default,
+            iconColor: COLORS.text.muted,
+            iconName: 'person-outline' as const,
+            kind: 'icon' as const,
+          };
 
     items.push({
       ...(message.type === 'system'
@@ -104,11 +102,18 @@ const buildItems = (
           }
         : {
             avatar,
+            createdAt: message.createdAt,
             direction:
               message.senderId === currentUserId ? 'outgoing' : 'incoming',
+            editedAt: message.editedAt,
             id: message.id ?? `${roomId}-${createdDate.toISOString()}`,
-            imageUrl: message.type === 'image' ? message.imageUrl : undefined,
-            messageKind: message.type === 'image' ? 'image' : 'text',
+            imageUrl:
+              !message.isDeleted && message.type === 'image'
+                ? message.imageUrl
+                : undefined,
+            isDeleted: message.isDeleted,
+            messageKind:
+              !message.isDeleted && message.type === 'image' ? 'image' : 'text',
             minuteKey: format(createdDate, 'yyyy-MM-dd HH:mm'),
             senderId: message.senderId,
             senderName: message.senderName,
@@ -168,7 +173,9 @@ export const buildChatDetailViewData = ({
           '참여하기를 누르면 지난 메시지 이력과 실시간 요약을 바로 받을 수 있어요.',
         joinLabel: '참여하기',
         lastMessageText: formatPreviewLastMessageText(room),
-        memberCountLabel: `${room.memberCount.toLocaleString('ko-KR')}명 참여 중`,
+        memberCountLabel: `${room.memberCount.toLocaleString(
+          'ko-KR',
+        )}명 참여 중`,
         statusLabel: '미참여 공개 채팅방',
         timeLabel: formatRoomActivityLabel(
           room.lastMessage?.createdAt ?? room.updatedAt,

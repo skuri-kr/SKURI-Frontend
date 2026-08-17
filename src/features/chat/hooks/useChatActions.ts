@@ -1,14 +1,14 @@
-import { useCallback, useState } from 'react';
+import {useCallback, useState} from 'react';
 
-import { useAuth } from '@/features/auth';
+import {useAuth} from '@/features/auth';
 
-import type { ChatImageUploadInput, ChatRoom } from '../model/types';
+import type {ChatImageUploadInput, ChatMessage, ChatRoom} from '../model/types';
 import {
   sendChatImageMessage,
   sendChatTextMessage,
 } from '../services/chatRoomService';
 
-import { useChatRepository } from './useChatRepository';
+import {useChatRepository} from './useChatRepository';
 
 export interface UseChatActionsResult {
   sendMessage: (
@@ -21,17 +21,29 @@ export interface UseChatActionsResult {
     image: ChatImageUploadInput,
     chatRoom?: ChatRoom | null,
   ) => Promise<void>;
+  updateMessage: (
+    chatRoomId: string,
+    messageId: string,
+    text: string,
+  ) => Promise<ChatMessage>;
+  deleteMessage: (
+    chatRoomId: string,
+    messageId: string,
+  ) => Promise<ChatMessage>;
   sending: boolean;
   sendError: Error | null;
   joinRoom: (chatRoomId: string) => Promise<void>;
   leaveRoom: (chatRoomId: string) => Promise<void>;
   getNotificationSetting: (chatRoomId: string) => Promise<boolean>;
-  updateNotificationSetting: (chatRoomId: string, enabled: boolean) => Promise<void>;
+  updateNotificationSetting: (
+    chatRoomId: string,
+    enabled: boolean,
+  ) => Promise<void>;
 }
 
 export const useChatActions = (): UseChatActionsResult => {
   const chatRepository = useChatRepository();
-  const { user } = useAuth();
+  const {user} = useAuth();
 
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<Error | null>(null);
@@ -115,6 +127,28 @@ export const useChatActions = (): UseChatActionsResult => {
     [chatRepository, user?.uid],
   );
 
+  const updateMessage = useCallback(
+    async (chatRoomId: string, messageId: string, text: string) => {
+      if (!user?.uid) {
+        throw new Error('로그인이 필요합니다.');
+      }
+
+      return chatRepository.updateMessage(chatRoomId, messageId, text);
+    },
+    [chatRepository, user?.uid],
+  );
+
+  const deleteMessage = useCallback(
+    async (chatRoomId: string, messageId: string) => {
+      if (!user?.uid) {
+        throw new Error('로그인이 필요합니다.');
+      }
+
+      return chatRepository.deleteMessage(chatRoomId, messageId);
+    },
+    [chatRepository, user?.uid],
+  );
+
   const getNotificationSetting = useCallback(
     async (chatRoomId: string) => {
       if (!user?.uid) {
@@ -132,7 +166,11 @@ export const useChatActions = (): UseChatActionsResult => {
         throw new Error('로그인이 필요합니다.');
       }
 
-      await chatRepository.updateNotificationSetting(chatRoomId, user.uid, enabled);
+      await chatRepository.updateNotificationSetting(
+        chatRoomId,
+        user.uid,
+        enabled,
+      );
     },
     [chatRepository, user?.uid],
   );
@@ -142,6 +180,8 @@ export const useChatActions = (): UseChatActionsResult => {
     sendImageMessage,
     sending,
     sendError,
+    updateMessage,
+    deleteMessage,
     joinRoom,
     leaveRoom,
     getNotificationSetting,

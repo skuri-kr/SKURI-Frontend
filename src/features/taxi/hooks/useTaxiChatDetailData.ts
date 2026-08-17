@@ -1,8 +1,5 @@
 import React from 'react';
-import {
-  usePartyRepository,
-  useTaxiChatRepository,
-} from '@/di/useRepository';
+import {usePartyRepository, useTaxiChatRepository} from '@/di/useRepository';
 import {useAuth} from '@/features/auth';
 
 import {
@@ -61,7 +58,9 @@ const buildSettlementDraft = (
       {},
     ),
     perPersonAmount: Math.floor(payload.taxiFare / splitMemberCount),
-    settlementTargetMemberIds: settlementTargets.map(participant => participant.id),
+    settlementTargetMemberIds: settlementTargets.map(
+      participant => participant.id,
+    ),
     splitMemberCount,
     taxiFare: payload.taxiFare,
   };
@@ -249,7 +248,10 @@ export const useTaxiChatDetailData = (partyId: string | undefined) => {
         }
 
         refreshPartySnapshot().catch(syncError => {
-          console.warn('파티 상태 변경 후 채팅 스냅샷을 갱신하지 못했습니다.', syncError);
+          console.warn(
+            '파티 상태 변경 후 채팅 스냅샷을 갱신하지 못했습니다.',
+            syncError,
+          );
         });
       },
       onError: syncError => {
@@ -293,13 +295,9 @@ export const useTaxiChatDetailData = (partyId: string | undefined) => {
       return;
     }
 
-    await runPartyAction(
-      'close',
-      () => partyRepository.closeParty(partyId),
-      {
-        followUpRefreshDelayMs: 400,
-      },
-    );
+    await runPartyAction('close', () => partyRepository.closeParty(partyId), {
+      followUpRefreshDelayMs: 400,
+    });
   }, [partyId, partyRepository, runPartyAction]);
 
   const reopenParty = React.useCallback(async () => {
@@ -307,13 +305,9 @@ export const useTaxiChatDetailData = (partyId: string | undefined) => {
       return;
     }
 
-    await runPartyAction(
-      'reopen',
-      () => partyRepository.reopenParty(partyId),
-      {
-        followUpRefreshDelayMs: 400,
-      },
-    );
+    await runPartyAction('reopen', () => partyRepository.reopenParty(partyId), {
+      followUpRefreshDelayMs: 400,
+    });
   }, [partyId, partyRepository, runPartyAction]);
 
   const endParty = React.useCallback(async () => {
@@ -435,6 +429,43 @@ export const useTaxiChatDetailData = (partyId: string | undefined) => {
     [partyId, refreshPartySnapshot, taxiChatRepository],
   );
 
+  const updateMessage = React.useCallback(
+    async (messageId: string, text: string) => {
+      if (!partyId) {
+        throw new Error('파티 채팅방 정보를 찾을 수 없습니다.');
+      }
+
+      const partyChat = await taxiChatRepository.updateMessage(
+        partyId,
+        messageId,
+        text,
+      );
+
+      if (partyChat) {
+        applyPartyChat(partyChat);
+      }
+    },
+    [applyPartyChat, partyId, taxiChatRepository],
+  );
+
+  const deleteMessage = React.useCallback(
+    async (messageId: string) => {
+      if (!partyId) {
+        throw new Error('파티 채팅방 정보를 찾을 수 없습니다.');
+      }
+
+      const partyChat = await taxiChatRepository.deleteMessage(
+        partyId,
+        messageId,
+      );
+
+      if (partyChat) {
+        applyPartyChat(partyChat);
+      }
+    },
+    [applyPartyChat, partyId, taxiChatRepository],
+  );
+
   const updateParty = React.useCallback(
     async ({
       departureTime,
@@ -516,6 +547,7 @@ export const useTaxiChatDetailData = (partyId: string | undefined) => {
     closeParty,
     confirmSettlement,
     data,
+    deleteMessage,
     endParty,
     error,
     hasOlderMessages: sourceData?.hasOlderMessages ?? false,
@@ -532,6 +564,7 @@ export const useTaxiChatDetailData = (partyId: string | undefined) => {
     sendMessage,
     startSettlement,
     toggleNotification,
+    updateMessage,
     updateParty,
   };
 };
