@@ -3,6 +3,10 @@ import type {
   Unsubscribe,
 } from '@/shared/types/subscription';
 import {RepositoryError, RepositoryErrorCode} from '@/shared/lib/errors';
+import {
+  selectNewestChatMessage,
+  type VersionedChatMessage,
+} from '@/shared/lib/chatMessageVersion';
 import {uploadImage as uploadSharedImage} from '@/shared/api/imageUploadClient';
 import {
   chatSocketClient,
@@ -41,8 +45,9 @@ interface PartyChatState {
   loadingOlderPromise: Promise<void> | null;
   olderCursor: ChatMessageCursorResponseDto | null;
   mutationSubscription: StompSubscription | null;
-  pendingOlderPageMutations: Map<string, ChatMessageResponseDto>;
+  pendingMessageMutations: Map<string, ChatMessageResponseDto>;
   pendingRealtimeEvents: PartyChatRealtimeEvent[];
+  reconciliationPromise: Promise<TaxiChatSourceData | null> | null;
   roomSubscription: StompSubscription | null;
   source: TaxiChatSourceData | null;
   subscribers: Set<SubscriptionCallbacks<TaxiChatSourceData | null>>;
@@ -60,6 +65,7 @@ interface PendingSpecialMessageRequest {
 }
 
 const MESSAGES_PAGE_SIZE = 100;
+const MAX_RECONCILIATION_BRIDGE_MESSAGES = 300;
 const SPECIAL_MESSAGE_TIMEOUT_MS = 8000;
 const STOMP_CONNECT_TIMEOUT_MS = 10000;
 
@@ -120,6 +126,47 @@ const resolveLatestAccountData = (messages: TaxiChatSourceData['messages']) =>
     .find(message => message.type === 'account' && message.accountData)
     ?.accountData;
 
+const mergeVersionedMessages = <T extends VersionedChatMessage & {id: string}>(
+  messages: T[],
+  nextMessages: T[],
+) => {
+  const mergedMessages = [...messages];
+  const messageIndexById = new Map<string, number>();
+
+  mergedMessages.forEach((message, index) => {
+    messageIndexById.set(message.id, index);
+  });
+
+  nextMessages.forEach(message => {
+    const existingIndex = messageIndexById.get(message.id);
+
+    if (existingIndex === undefined) {
+      messageIndexById.set(message.id, mergedMessages.length);
+      mergedMessages.push(message);
+      return;
+    }
+
+    mergedMessages[existingIndex] = selectNewestChatMessage(
+      mergedMessages[existingIndex],
+      message,
+    );
+  });
+
+  return mergedMessages;
+};
+
+const hasOverlappingMessageId = <
+  T extends {id: string},
+  U extends {id: string},
+>(
+  messages: T[],
+  nextMessages: U[],
+) => {
+  const messageIds = new Set(messages.map(message => message.id));
+
+  return nextMessages.some(message => messageIds.has(message.id));
+};
+
 const applyRealtimeEventsToMessages = (
   messages: TaxiChatSourceData['messages'],
   events: PartyChatRealtimeEvent[],
@@ -131,7 +178,12 @@ const applyRealtimeEventsToMessages = (
 
     if (event.type === 'message') {
       if (messageIndex >= 0) {
-        return currentMessages;
+        const nextMessages = [...currentMessages];
+        nextMessages[messageIndex] = selectNewestChatMessage(
+          currentMessages[messageIndex],
+          mapTaxiChatMessageDto(event.message),
+        );
+        return nextMessages;
       }
 
       return [...currentMessages, mapTaxiChatMessageDto(event.message)];
@@ -142,7 +194,10 @@ const applyRealtimeEventsToMessages = (
     }
 
     const nextMessages = [...currentMessages];
-    nextMessages[messageIndex] = mapTaxiChatMessageDto(event.message);
+    nextMessages[messageIndex] = selectNewestChatMessage(
+      currentMessages[messageIndex],
+      mapTaxiChatMessageDto(event.message),
+    );
     return nextMessages;
   }, messages);
 
@@ -218,21 +273,16 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
           return;
         }
 
-        const existingMessageIds = new Set(
-          currentSource.messages.map(message => message.id),
-        );
         const olderMessages = [...response.data.messages]
           .reverse()
-          .map(
-            message =>
-              mapTaxiChatMessageDto(
-                state.pendingOlderPageMutations.get(message.id) ?? message,
-              ),
-          )
-          .filter(message => !existingMessageIds.has(message.id));
+          .map(message =>
+            mapTaxiChatMessageDto(
+              this.resolvePendingMessageMutation(state, message),
+            ),
+          );
 
         response.data.messages.forEach(message => {
-          state.pendingOlderPageMutations.delete(message.id);
+          state.pendingMessageMutations.delete(message.id);
         });
 
         state.olderCursor = response.data.nextCursor ?? null;
@@ -241,7 +291,10 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
           ...currentSource,
           hasOlderMessages: state.hasOlderMessages,
           loadingOlderMessages: false,
-          messages: [...olderMessages, ...currentSource.messages],
+          messages: mergeVersionedMessages(
+            olderMessages,
+            currentSource.messages,
+          ),
         };
         this.publishPartyState(partyId);
       })
@@ -964,23 +1017,35 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     return this.stompConnectionPromise;
   }
 
-  private async reconcileSubscribedPartyChat(partyId: string) {
+  private reconcileSubscribedPartyChat(partyId: string) {
     const state = this.partyStates.get(partyId);
 
     if (!state || state.subscribers.size === 0) {
-      return null;
+      return Promise.resolve(null);
     }
 
-    await state.loadPromise?.catch(() => undefined);
-
-    if (
-      this.partyStates.get(partyId) !== state ||
-      state.subscribers.size === 0
-    ) {
-      return null;
+    if (state.reconciliationPromise) {
+      return state.reconciliationPromise;
     }
 
-    return this.loadPartyChat(partyId, true);
+    state.reconciliationPromise = (async () => {
+      await state.loadPromise?.catch(() => undefined);
+
+      if (
+        this.partyStates.get(partyId) !== state ||
+        state.subscribers.size === 0
+      ) {
+        return null;
+      }
+
+      return this.loadPartyChat(partyId, true);
+    })().finally(() => {
+      if (this.partyStates.get(partyId) === state) {
+        state.reconciliationPromise = null;
+      }
+    });
+
+    return state.reconciliationPromise;
   }
 
   private getOrCreatePartyState(partyId: string): PartyChatState {
@@ -996,8 +1061,9 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
       loadingOlderPromise: null,
       olderCursor: null,
       mutationSubscription: null,
-      pendingOlderPageMutations: new Map(),
+      pendingMessageMutations: new Map(),
       pendingRealtimeEvents: [],
+      reconciliationPromise: null,
       roomSubscription: null,
       source: null,
       subscribers: new Set(),
@@ -1028,6 +1094,31 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     this.publishPartyState(partyId);
   }
 
+  private retainPendingMessageMutation(
+    state: PartyChatState,
+    message: ChatMessageResponseDto,
+  ) {
+    const pendingMessage = state.pendingMessageMutations.get(message.id);
+
+    state.pendingMessageMutations.set(
+      message.id,
+      pendingMessage
+        ? selectNewestChatMessage(pendingMessage, message)
+        : message,
+    );
+  }
+
+  private resolvePendingMessageMutation(
+    state: PartyChatState,
+    message: ChatMessageResponseDto,
+  ) {
+    const pendingMessage = state.pendingMessageMutations.get(message.id);
+
+    return pendingMessage
+      ? selectNewestChatMessage(message, pendingMessage)
+      : message;
+  }
+
   private applyMessageMutation(
     partyId: string,
     message: ChatMessageResponseDto,
@@ -1048,7 +1139,11 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     }
 
     const messages = [...source.messages];
-    messages[messageIndex] = mapTaxiChatMessageDto(message);
+    messages[messageIndex] = selectNewestChatMessage(
+      messages[messageIndex],
+      mapTaxiChatMessageDto(this.resolvePendingMessageMutation(state, message)),
+    );
+    state.pendingMessageMutations.delete(message.id);
     state.source = {
       ...source,
       latestAccountData: resolveLatestAccountData(messages),
@@ -1117,6 +1212,7 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     }
 
     const state = this.getOrCreatePartyState(partyId);
+    this.retainPendingMessageMutation(state, payload.message);
 
     if (state.loadPromise || !state.source) {
       state.pendingRealtimeEvents.push({
@@ -1134,11 +1230,57 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
       state.loadingOlderPromise &&
       !state.source.messages.some(message => message.id === payload.message.id)
     ) {
-      state.pendingOlderPageMutations.set(payload.message.id, payload.message);
       return;
     }
 
     this.applyMessageMutation(partyId, payload.message);
+  }
+
+  private async loadReconciliationBridge(
+    partyId: string,
+    previousMessages: TaxiChatSourceData['messages'],
+    initialPage: {
+      hasNext: boolean;
+      nextCursor?: ChatMessageCursorResponseDto | null;
+    },
+  ) {
+    let bridgeMessages: ChatMessageResponseDto[] = [];
+    let cursor = initialPage.nextCursor ?? null;
+    let hasNext = initialPage.hasNext;
+
+    while (
+      cursor &&
+      hasNext &&
+      bridgeMessages.length < MAX_RECONCILIATION_BRIDGE_MESSAGES
+    ) {
+      const response = await taxiChatApiClient.getMessages(
+        resolveTaxiChatRoomId(partyId),
+        {
+          cursorCreatedAt: cursor.createdAt,
+          cursorId: cursor.id,
+          size: MESSAGES_PAGE_SIZE,
+        },
+      );
+
+      if (response.data.messages.length === 0) {
+        return null;
+      }
+
+      const sortedPageMessages = [...response.data.messages].reverse();
+      bridgeMessages = mergeVersionedMessages(
+        sortedPageMessages,
+        bridgeMessages,
+      );
+
+      if (hasOverlappingMessageId(previousMessages, sortedPageMessages)) {
+        return bridgeMessages;
+      }
+
+      cursor = response.data.nextCursor ?? null;
+      hasNext = response.data.hasNext;
+    }
+
+    return null;
   }
 
   private async loadPartyChat(
@@ -1164,7 +1306,36 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
         size: MESSAGES_PAGE_SIZE,
       }),
     ])
-      .then(([partyResponse, roomResponse, messagesResponse]) => {
+      .then(async ([partyResponse, roomResponse, messagesResponse]) => {
+        const initialPreviousSource = state.source;
+        const initialPreviousMessages = initialPreviousSource?.messages ?? [];
+        let shouldPreserveLoadedHistory = Boolean(initialPreviousSource);
+        let bridgeMessages: ChatMessageResponseDto[] = [];
+
+        if (
+          initialPreviousSource &&
+          !hasOverlappingMessageId(
+            initialPreviousMessages,
+            messagesResponse.data.messages,
+          )
+        ) {
+          const loadedBridgeMessages = await this.loadReconciliationBridge(
+            partyId,
+            initialPreviousMessages,
+            messagesResponse.data,
+          );
+
+          if (loadedBridgeMessages) {
+            bridgeMessages = loadedBridgeMessages;
+          } else {
+            shouldPreserveLoadedHistory = false;
+          }
+        }
+
+        const fetchedMessages = [
+          ...bridgeMessages,
+          ...[...messagesResponse.data.messages].reverse(),
+        ].map(message => this.resolvePendingMessageMutation(state, message));
         const refreshedSource = buildTaxiChatSourceData({
           messages: messagesResponse.data.messages,
           party: partyResponse.data,
@@ -1172,20 +1343,12 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
         });
         const previousSource = state.source;
         const previousMessages = previousSource?.messages ?? [];
-        const previousMessageIds = new Set(
-          previousMessages.map(message => message.id),
-        );
-        const freshMessageById = new Map(
-          refreshedSource.messages.map(message => [message.id, message]),
-        );
-        const mergedSnapshotMessages = [
-          ...previousMessages.map(
-            message => freshMessageById.get(message.id) ?? message,
-          ),
-          ...refreshedSource.messages.filter(
-            message => !previousMessageIds.has(message.id),
-          ),
-        ];
+        const mergedSnapshotMessages = shouldPreserveLoadedHistory
+          ? mergeVersionedMessages(
+              previousMessages,
+              fetchedMessages.map(mapTaxiChatMessageDto),
+            )
+          : fetchedMessages.map(mapTaxiChatMessageDto);
         const pendingRealtimeEvents = state.pendingRealtimeEvents.splice(0);
         const mergedMessages = applyRealtimeEventsToMessages(
           mergedSnapshotMessages,
@@ -1193,7 +1356,11 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
         );
         const latestAccountData = resolveLatestAccountData(mergedMessages);
 
-        if (!previousSource) {
+        fetchedMessages.forEach(message => {
+          state.pendingMessageMutations.delete(message.id);
+        });
+
+        if (!shouldPreserveLoadedHistory) {
           state.olderCursor = messagesResponse.data.nextCursor ?? null;
           state.hasOlderMessages = messagesResponse.data.hasNext;
         }
