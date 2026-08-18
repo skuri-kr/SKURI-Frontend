@@ -240,4 +240,182 @@ describe('useFriendHubData', () => {
 
     expect(result.current.friends).toEqual([{...friend, favorite: true}]);
   });
+
+  it('받은 요청과 보낸 요청의 다음 페이지를 동시에 불러온다', async () => {
+    const repository = createRepository();
+    const initialReceivedRequests = [
+      {
+        createdAt: '2026-08-18T11:00:00',
+        department: null,
+        expiresAt: '2026-09-17T11:00:00',
+        friend: {department: null, id: 'friend-1', nickname: '가람', photoUrl: null},
+        id: 'request-1',
+      },
+    ];
+    const receivedPage = createDeferred<{
+      hasNext: boolean;
+      items: typeof initialReceivedRequests;
+      nextCursor: string | null;
+    }>();
+    const initialSentRequests = [
+      {
+        createdAt: '2026-08-18T11:00:00',
+        department: null,
+        expiresAt: '2026-09-17T11:00:00',
+        friend: {department: null, id: 'friend-2', nickname: '나래', photoUrl: null},
+        id: 'request-2',
+      },
+    ];
+    const sentPage = createDeferred<{
+      hasNext: boolean;
+      items: typeof initialSentRequests;
+      nextCursor: string | null;
+    }>();
+    repository.getFriendRequests.mockImplementation(({cursor, direction}) => {
+      if (direction === 'RECEIVED' && cursor === 'received-cursor') {
+        return receivedPage.promise;
+      }
+      if (direction === 'SENT' && cursor === 'sent-cursor') {
+        return sentPage.promise;
+      }
+      return Promise.resolve({
+        hasNext: true,
+        items: direction === 'RECEIVED' ? initialReceivedRequests : initialSentRequests,
+        nextCursor: direction === 'RECEIVED' ? 'received-cursor' : 'sent-cursor',
+      });
+    });
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await waitFor(() => {
+      expect(result.current.receivedNextCursor).toBe('received-cursor');
+      expect(result.current.sentNextCursor).toBe('sent-cursor');
+    });
+
+    let receivedPromise!: Promise<void>;
+    let sentPromise!: Promise<void>;
+    await act(async () => {
+      receivedPromise = result.current.loadMoreRequests('RECEIVED');
+      sentPromise = result.current.loadMoreRequests('SENT');
+    });
+
+    expect(result.current.loadingMoreDirections).toEqual(new Set(['RECEIVED', 'SENT']));
+
+    await act(async () => {
+      receivedPage.resolve({
+        hasNext: false,
+        items: [
+          {
+            createdAt: '2026-08-18T12:00:00',
+            department: null,
+            expiresAt: '2026-09-17T12:00:00',
+            friend: {department: null, id: 'friend-3', nickname: '다온', photoUrl: null},
+            id: 'request-3',
+          },
+        ],
+        nextCursor: null,
+      });
+      await receivedPromise;
+    });
+
+    await act(async () => {
+      sentPage.resolve({
+        hasNext: false,
+        items: [
+          {
+            createdAt: '2026-08-18T12:00:00',
+            department: null,
+            expiresAt: '2026-09-17T12:00:00',
+            friend: {department: null, id: 'friend-4', nickname: '라온', photoUrl: null},
+            id: 'request-4',
+          },
+        ],
+        nextCursor: null,
+      });
+      await sentPromise;
+    });
+
+    expect(result.current.receivedRequests.map(request => request.id)).toEqual([
+      'request-1',
+      'request-3',
+    ]);
+    expect(result.current.sentRequests.map(request => request.id)).toEqual([
+      'request-2',
+      'request-4',
+    ]);
+  });
+
+  it('서로 다른 요청의 처리 상태를 독립적으로 유지한다', async () => {
+    const repository = createRepository();
+    const acceptRequest = createDeferred<{
+      friend: typeof friend;
+      requestId: string;
+      status: 'ACCEPTED';
+    }>();
+    const cancelRequest = createDeferred<void>();
+    repository.getFriendRequests.mockImplementation(({direction}) =>
+      Promise.resolve({
+        hasNext: false,
+        items:
+          direction === 'RECEIVED'
+            ? [
+                {
+                  createdAt: '2026-08-18T11:00:00',
+                  department: null,
+                  expiresAt: '2026-09-17T11:00:00',
+                  friend: {department: null, id: 'friend-1', nickname: '가람', photoUrl: null},
+                  id: 'request-1',
+                },
+              ]
+            : [
+                {
+                  createdAt: '2026-08-18T11:00:00',
+                  department: null,
+                  expiresAt: '2026-09-17T11:00:00',
+                  friend: {department: null, id: 'friend-2', nickname: '나래', photoUrl: null},
+                  id: 'request-2',
+                },
+              ],
+        nextCursor: null,
+      }),
+    );
+    repository.acceptFriendRequest.mockReturnValue(acceptRequest.promise);
+    repository.cancelFriendRequest.mockReturnValue(cancelRequest.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await waitFor(() => {
+      expect(result.current.receivedRequests).toHaveLength(1);
+      expect(result.current.sentRequests).toHaveLength(1);
+    });
+
+    let acceptPromise!: Promise<void>;
+    let cancelPromise!: Promise<void>;
+    await act(async () => {
+      acceptPromise = result.current.acceptRequest('request-1');
+      cancelPromise = result.current.cancelRequest('request-2');
+    });
+
+    expect(result.current.mutatingRequestIds).toEqual(new Set(['request-1', 'request-2']));
+
+    await act(async () => {
+      cancelRequest.resolve(undefined);
+      await cancelPromise;
+    });
+
+    expect(result.current.mutatingRequestIds).toEqual(new Set(['request-1']));
+
+    await act(async () => {
+      acceptRequest.resolve({friend, requestId: 'request-1', status: 'ACCEPTED'});
+      await acceptPromise;
+    });
+
+    expect(result.current.mutatingRequestIds).toEqual(new Set());
+  });
 });
