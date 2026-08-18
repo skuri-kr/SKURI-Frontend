@@ -65,6 +65,10 @@ export type CampusStackParamList = {
     | undefined;
   MinecraftAccount: undefined;
   MinecraftDetail: undefined;
+  FriendHub: undefined;
+  FriendAdd: undefined;
+  FriendDetail: {friendId: string};
+  FriendSettings: undefined;
 };
 
 export type AuthStackParamList = {

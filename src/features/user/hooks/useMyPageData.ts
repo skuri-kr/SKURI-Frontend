@@ -36,6 +36,19 @@ interface MyPageStatConfig {
 const MY_PAGE_PROFILE_EDIT_LABEL = '프로필 수정';
 const MY_PAGE_MENU_SECTIONS: MyPageMenuSectionConfig[] = [
   {
+    id: 'friend',
+    title: '친구',
+    items: [
+      {
+        actionKey: 'friendHub',
+        iconName: 'people-outline',
+        id: 'friend-hub',
+        label: '친구',
+        tone: 'green',
+      },
+    ],
+  },
+  {
     id: 'activity',
     title: '내 활동',
     items: [

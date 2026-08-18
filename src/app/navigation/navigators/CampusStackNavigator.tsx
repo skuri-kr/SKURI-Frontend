@@ -11,6 +11,12 @@ import {
   MinecraftAccountScreen,
   MinecraftDetailScreen,
 } from '@/features/minecraft';
+import {
+  FriendAddScreen,
+  FriendDetailScreen,
+  FriendHubScreen,
+  FriendSettingsScreen,
+} from '@/features/friend';
 import { TimetableDetailScreen } from '@/features/timetable';
 import {
   AppNoticeDetailScreen,
@@ -87,6 +93,16 @@ export const CampusStackNavigator = () => {
       <CampusStack.Screen
         name="MinecraftDetail"
         component={MinecraftDetailScreen}
+      />
+      <CampusStack.Screen name="FriendHub" component={FriendHubScreen} />
+      <CampusStack.Screen name="FriendAdd" component={FriendAddScreen} />
+      <CampusStack.Screen
+        name="FriendDetail"
+        component={FriendDetailScreen}
+      />
+      <CampusStack.Screen
+        name="FriendSettings"
+        component={FriendSettingsScreen}
       />
     </CampusStack.Navigator>
   );
