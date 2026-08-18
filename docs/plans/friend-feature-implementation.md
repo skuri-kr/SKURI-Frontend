@@ -66,7 +66,7 @@
 
 ### 3.3 예정 navigation
 
-CampusStackParamList에 다음 화면을 추가할 계획이다.
+CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail params를 확장할 계획이다.
 
 | Route | Params | 설명 |
 | --- | --- | --- |
@@ -74,6 +74,7 @@ CampusStackParamList에 다음 화면을 추가할 계획이다.
 | FriendAdd | initialMethod optional | 코드, QR, 닉네임 추가 |
 | FriendDetail | friendPublicId | 친구 상세 |
 | FriendSettings | 없음 | 검색 허용과 시간표 기본 공유 |
+| TimetableDetail | 기존 initialView?, mode? + targetFriendPublicId? | 대상 친구 accordion 자동 이동·전개 |
 
 알림 payload는 app/notifications에서 파싱하고 app/navigation/services에서 목적지를 결정한다. feature가 root navigation state를 직접 해석하지 않는다.
 
@@ -154,11 +155,13 @@ CampusStackParamList에 다음 화면을 추가할 계획이다.
 - 수락과 거절 버튼을 제공한다.
 - 택시 초대에는 좌석을 예약하지 않는다는 안내를 표시한다.
 - 수락 실패 시 최신 서버 상태에 맞춰 정원 마감, 파티 종료, 입장 자격 변경을 구체적으로 안내한다.
+- 정원 제한 공개방이 가득 차면 초대를 EXPIRED로 표시하고 badge에서 제외하며, 자리가 생겨도 기존 초대를 다시 활성화하지 않는다.
 
 ### 4.5 badge
 
-- FriendHub 탭 badge: 요청 PENDING 수와 초대 PENDING 수를 각각 표시한다.
-- 마이페이지 친구 행: 두 수의 합계를 표시한다.
+- 요청 탭 badge는 내가 받은 유효 PENDING 요청인 incomingRequestCount만 표시하며 보낸 PENDING 요청은 제외한다.
+- 초대 탭 badge는 내가 받은 유효 PENDING partyInvitationCount와 chatRoomInvitationCount의 합계만 표시한다.
+- 마이페이지 친구 행은 서버 totalActionCount를 표시하며, 이는 받은 요청과 받은 두 종류 초대 count의 합계다.
 - 알림 인박스 unread badge와 친구 PENDING badge는 다른 의미이므로 합치지 않는다.
 - 소셜 알림 수신 시 관련 query를 무효화해 화면 진입 전 badge를 갱신한다.
 
@@ -191,7 +194,8 @@ CampusStackParamList에 다음 화면을 추가할 계획이다.
 - 내 코드는 FriendHub 추가 메뉴에서 표시·복사·QR 공유할 수 있다.
 - 입력은 대소문자와 하이픈 유무를 허용하고 정규화한다.
 - 입력 완료 시 `POST /v1/friend-codes/preview`로 대상 공개 프로필을 확인하며 이 호출만으로 친구 요청을 생성하지 않는다.
-- 인식 실패, 만료된 코드, 자기 코드, 차단 관계를 별도 메시지로 구분한다.
+- 자기 코드는 별도 메시지로 안내한다.
+- 잘못되거나 폐기된 코드와 양방향 차단 관계는 같은 `대상을 찾을 수 없어요` 상태로 처리해 차단 여부를 노출하지 않는다.
 - 코드 재발급은 기존 코드가 즉시 무효화됨을 확인 팝업으로 안내한다.
 
 ### 5.3 QR
@@ -236,7 +240,7 @@ QR 구현 전 기술 확인:
 ~~~
 
 - 이메일, 실명, 학번은 표시하지 않는다.
-- preview·닉네임 검색 결과의 targetPublicId로만 명시적 친구 요청 생성 API를 호출한다.
+- preview·닉네임 검색 결과의 friendPublicId로만 명시적 친구 요청 생성 API를 호출한다.
 - 발송 성공 후 중복 탭을 막고 요청 탭으로 이동할 수 있게 한다.
 
 ---
@@ -274,7 +278,10 @@ QR 구현 전 기술 확인:
 - 현재 사용자가 OPEN 택시파티에 참여 중일 때만 택시파티 초대 버튼을 표시한다.
 - 사용자가 참여 중인 초대 가능한 공개방이 있을 때만 공개방 초대 버튼을 표시한다.
 - 여러 공개방이 있으면 방 선택 sheet를 먼저 연다.
-- 친구 시간표 보기는 TimetableDetail의 해당 친구 section으로 이동하거나 펼침 대상 friendPublicId를 전달한다.
+- 친구 시간표 보기는 `TimetableDetail`에 `targetFriendPublicId=friendPublicId`를 전달한다.
+- TimetableDetail은 자신의 시간표와 친구 요약 목록이 준비되면 친구 section으로 스크롤하고 해당 친구 accordion을 펼친다.
+- 대상 적용 후 `targetFriendPublicId`를 한 번 소비해 rerender·학기 변경·화면 복귀 시 자동 이동을 반복하지 않는다.
+- 친구 해제·차단으로 대상이 목록에 없으면 `더 이상 친구 시간표를 볼 수 없어요` 안내 후 친구 section의 기본 상태를 유지한다.
 - 친구 끊기와 차단은 destructive confirmation을 사용한다.
 - 차단 설명에는 친구 관계와 소셜 공유가 함께 해제되며 공개 콘텐츠는 유지된다고 명시한다.
 
@@ -482,11 +489,14 @@ context만 party 또는 publicChatRoom으로 전달한다.
 | 알림 타입 | foreground | background·종료 | 이동 목적지 |
 | --- | --- | --- | --- |
 | FRIEND_REQUEST | 앱 배너 + badge 갱신 | FCM | FriendHub 요청 탭 |
-| FRIEND_ACCEPTED | 앱 배너 + 친구 목록 갱신 | FCM | FriendDetail |
+| FRIEND_ACCEPTED | 앱 배너 + 친구 목록 갱신 | FCM | FriendDetail(friendPublicId) |
 | PARTY_INVITATION | 앱 배너 + badge 갱신 | FCM | FriendHub 초대 탭의 해당 카드 |
 | CHAT_ROOM_INVITATION | 앱 배너 + badge 갱신 | FCM | FriendHub 초대 탭의 해당 카드 |
 
 - 기존 notification payload parser와 router에 canonical type을 추가한다.
+- FRIEND_ACCEPTED payload의 `friendPublicId`를 검증해 `{type: 'FRIEND_ACCEPTED', friendPublicId}` navigation intent로 변환한다.
+- foreground banner, 저장된 알림 인박스, background·cold start가 모두 같은 intent와 FriendDetail route를 사용한다.
+- FRIEND_ACCEPTED에 friendPublicId가 없거나 유효하지 않으면 FriendHub 친구 탭으로 안전 fallback한다.
 - 초대 payload의 `invitationType`과 `invitationId`를 검증해 FriendHub target params로 변환한다.
 - FriendHub는 target 카드 로딩 후 스크롤·강조하고, 이미 처리·만료되어 찾을 수 없으면 상태 안내 후 초대 목록을 유지한다.
 - unknown type은 기존 안전 fallback을 유지한다.
@@ -690,11 +700,13 @@ API client / DTO / Mapper
 - repository DTO mapper
 - 친구 정렬: 즐겨찾기, 한글, 같은 닉네임 tie-breaker
 - 요청 상태별 버튼과 중복 탭 방지
-- badge count
+- 받은 PENDING 요청·초대만의 badge count와 보낸 요청 제외
 - notification payload parsing과 navigation intent
+- FRIEND_ACCEPTED friendPublicId route와 누락 payload fallback
 - 초대 notification target 카드 scroll·강조와 처리 완료 fallback
 - 시간표 PRIVATE·BUSY_ONLY·DETAILS 필드 미노출
 - 선택 학기별 친구 시간표 query key와 과거 학기 빈 상태
+- targetFriendPublicId의 친구 section scroll·단일 소비·대상 없음 fallback
 - 공통 공강 계산 경계
 - 공식 courseId 기준 같이 듣는 수업
 - accordion 단일 open과 favorite hit target 분리
@@ -804,6 +816,8 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 - [x] 기존 디자인 시스템과 feature-first 공통화 원칙이 명시되어 있다.
 - [x] 자동 검증과 실제 기기 QA가 구분되어 있다.
 - [x] Firebase UID 대신 friendPublicId를 사용하는 경계가 명시되어 있다.
+- [x] FRIEND_ACCEPTED와 TimetableDetail target이 friendPublicId로 연결되어 있다.
+- [x] badge가 받은 PENDING 요청·초대만 계산하고 보낸 요청을 제외한다.
 - [x] 실제 코드 구현 승인 gate가 명시되어 있다.
 
 ---
@@ -818,4 +832,7 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 | 2026-08-18 | 친구 목록은 Minecraft 요약, 친구 상세는 SELF·FRIEND 전체 계층 표시 |
 | 2026-08-18 | 택시·공개방은 같은 FriendInviteSheet UX를 재사용 |
 | 2026-08-18 | QR은 URL 딥링크 없이 versioned friend code payload와 인앱 scanner 사용 |
+| 2026-08-18 | 친구 기능 외부 공개 식별자 field는 friendPublicId로 통일 |
+| 2026-08-18 | FriendDetail의 친구 시간표 보기는 targetFriendPublicId로 해당 accordion을 한 번 자동 전개 |
+| 2026-08-18 | action badge는 받은 PENDING 요청·초대만 합산하고 보낸 요청은 제외 |
 | 2026-08-18 | 실제 코드 구현은 별도 승인 전까지 중지 |
