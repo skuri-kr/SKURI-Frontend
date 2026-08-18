@@ -1,0 +1,80 @@
+import {act, renderHook, waitFor} from '@testing-library/react-native';
+
+import {useFriendRepository} from '@/di';
+
+import {useFriendDetailData} from '../useFriendDetailData';
+
+jest.mock('@/di', () => ({
+  useFriendRepository: jest.fn(),
+}));
+
+const mockedUseFriendRepository = jest.mocked(useFriendRepository);
+
+const createDeferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(resolvePromise => {
+    resolve = resolvePromise;
+  });
+
+  return {promise, resolve};
+};
+
+const createRepository = () => ({
+  acceptFriendRequest: jest.fn(),
+  blockMember: jest.fn(),
+  cancelFriendRequest: jest.fn(),
+  createFriendRequest: jest.fn(),
+  declineFriendRequest: jest.fn(),
+  getBlocks: jest.fn(),
+  getFriend: jest.fn().mockResolvedValue({
+    department: null,
+    favorite: false,
+    id: 'friend-1',
+    nickname: '가람',
+    photoUrl: null,
+  }),
+  getFriendRequests: jest.fn(),
+  getFriends: jest.fn(),
+  getInboxCounts: jest.fn(),
+  getMyCode: jest.fn(),
+  getMyPrivacy: jest.fn(),
+  previewFriendCode: jest.fn(),
+  regenerateMyCode: jest.fn(),
+  removeFriend: jest.fn(),
+  searchFriends: jest.fn(),
+  unblockMember: jest.fn(),
+  updateFavorite: jest.fn(),
+  updateMyPrivacy: jest.fn(),
+});
+
+describe('useFriendDetailData', () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it('즐겨찾기 저장이 진행 중이면 중복 요청을 보내지 않는다', async () => {
+    const repository = createRepository();
+    const favoriteDeferred = createDeferred<void>();
+    repository.updateFavorite.mockReturnValue(favoriteDeferred.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendDetailData('friend-1'));
+
+    await waitFor(() => {
+      expect(result.current.friend?.id).toBe('friend-1');
+    });
+
+    await act(async () => {
+      const firstUpdate = result.current.updateFavorite();
+      const secondUpdate = result.current.updateFavorite();
+      favoriteDeferred.resolve();
+      await Promise.all([firstUpdate, secondUpdate]);
+    });
+
+    expect(repository.updateFavorite).toHaveBeenCalledTimes(1);
+    expect(repository.updateFavorite).toHaveBeenCalledWith('friend-1', true);
+    expect(result.current.friend?.favorite).toBe(true);
+  });
+});

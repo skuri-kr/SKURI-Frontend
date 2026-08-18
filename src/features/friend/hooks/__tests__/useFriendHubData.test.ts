@@ -64,7 +64,12 @@ const createRepository = () => ({
     return Promise.resolve({hasNext: false, items: [], nextCursor: null});
   }),
   getFriends: jest.fn().mockResolvedValue([]),
-  getInboxCounts: jest.fn(),
+  getInboxCounts: jest.fn().mockResolvedValue({
+    chatRoomInvitationCount: 0,
+    incomingRequestCount: 1,
+    partyInvitationCount: 0,
+    totalActionCount: 1,
+  }),
   getMyCode: jest.fn(),
   getMyPrivacy: jest.fn(),
   previewFriendCode: jest.fn(),
@@ -108,5 +113,46 @@ describe('useFriendHubData', () => {
       'request-2',
     ]);
     expect(result.current.receivedNextCursor).toBeNull();
+  });
+
+  it('새로고침이 실패해도 이전에 불러온 친구 허브 데이터를 유지한다', async () => {
+    const repository = createRepository();
+    repository.getFriends
+      .mockResolvedValueOnce([
+        {
+          department: null,
+          favorite: false,
+          id: 'friend-1',
+          nickname: '가람',
+          photoUrl: null,
+        },
+      ])
+      .mockRejectedValueOnce(new Error('network unavailable'));
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await waitFor(() => {
+      expect(result.current.hasLoadedOnce).toBe(true);
+      expect(result.current.friends).toHaveLength(1);
+    });
+
+    await act(async () => {
+      await result.current.reload();
+    });
+
+    expect(result.current.error).toBe('network unavailable');
+    expect(result.current.hasLoadedOnce).toBe(true);
+    expect(result.current.friends).toEqual([
+      {
+        department: null,
+        favorite: false,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      },
+    ]);
   });
 });
