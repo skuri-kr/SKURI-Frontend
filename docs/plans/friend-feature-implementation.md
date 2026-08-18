@@ -1,6 +1,6 @@
 # SKURI 친구 기능 모바일 구현 계획
 
-> 문서 상태: Friend 관계 Core 모바일 구현 승인 완료, 구현 진행 예정
+> 문서 상태: Friend 관계 Core 모바일 구현 완료, PR 생성 준비 중
 > 기준일: 2026-08-18
 > 정책 기준: SKURI-Backend docs/features/friends.md
 > 구현 게이트: 관계 Core는 사용자 승인 완료. 후속 도메인 협력 기능은 각각 별도 승인한다.
@@ -24,6 +24,18 @@
 - 마이페이지 친구 진입점과 서버 `totalActionCount` badge
 - 닉네임 검색 허용과 차단 목록을 제공하는 관계 Core 범위의 FriendSettings
 - `FriendHub`의 `친구 | 요청` 두 탭
+
+### 1.2 구현 확정 UI 경계 (2026-08-18)
+
+관계 Core 구현에서는 아래처럼 범위를 더 구체화했다. 이 절은 문서의 후속 버전 설계와 충돌할 경우 현재 PR의 실제 동작을 우선한다.
+
+- 마이페이지의 `친구` 행이 FriendHub로 이동하고, 서버 `totalActionCount`가 1~99+ badge로 표시된다. 배지 조회 실패는 마이페이지 자체를 막지 않는다.
+- FriendHub 헤더의 `+`는 FriendAdd로 바로 이동한다. FriendAdd 한 화면 상단에 `내 친구 코드`의 복사·공유·재발급을 두고, 아래에 친구 코드 확인과 닉네임 검색을 둔다. QR을 제공할 때 별도 action sheet 또는 화면 분리는 그 PR에서 다시 결정한다.
+- FriendHub에는 친구 목록 및 받은·보낸 PENDING 요청만 보여준다. 목록 정렬은 즐겨찾기 우선·가나다순이며, 요청·검색의 opaque cursor 다음 페이지는 `더 보기`로 이어 붙인다.
+- 친구 상세는 프로필 요약, 즐겨찾기, 친구 끊기, 차단만 제공한다. 시간표, Minecraft, 택시파티 및 채팅방 초대는 안내 문구를 제외하고 노출하지 않는다.
+- FriendSettings에는 닉네임 검색 공개 toggle과 차단 목록/차단 해제만 둔다.
+- QR 생성·스캔, 카메라 권한과 native 의존성은 추가하지 않았다. FriendAdd의 QR 안내는 후속 기능 예정 상태를 알리는 비상호작용 안내다.
+- 실제 사용자 노출은 백엔드 배포와 기존 ACTIVE 회원 FriendProfile provisioning 검증 이후에만 진행한다.
 
 이번 모바일 PR에서 의도적으로 제외:
 
@@ -78,8 +90,7 @@
 - 받은 요청 또는 초대가 있으면 행 우측에 통합 badge를 표시한다.
 - 친구 항목을 누르면 FriendHub 화면으로 이동한다.
 - FriendHub 헤더 우측에는 친구 설정과 `+` action을 각각 제공한다.
-- `+` action은 바로 FriendAdd로 이동하지 않고 `내 친구 코드`와 `친구 추가`를 고르는 feature 전용 action sheet를 연다.
-- `내 친구 코드`는 같은 sheet 안에서 코드·QR 표시, 복사, 공유, 재발급을 제공하고 `친구 추가`는 FriendAdd로 이동한다.
+- 관계 Core의 `+` action은 FriendAdd로 이동한다. FriendAdd 상단의 내 친구 코드 영역에서 코드 표시·복사·공유·재발급을 제공한다.
 
 ### 3.2 보조 진입점
 
@@ -97,10 +108,10 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 
 | Route | Params | 설명 |
 | --- | --- | --- |
-| FriendHub | initialTab?, targetInvitationType?, targetInvitationId? | 친구, 요청, 초대 허브와 특정 초대 카드 target |
-| FriendAdd | initialMethod optional | 코드, QR, 닉네임 추가 |
-| FriendDetail | friendPublicId | 친구 상세 |
-| FriendSettings | 없음 | 검색 허용과 시간표 기본 공유 |
+| FriendHub | 없음 | 관계 Core 친구·요청 허브 |
+| FriendAdd | 없음 | 내 코드, 코드 확인, 닉네임 검색 |
+| FriendDetail | friendId | 관계 Core 친구 상세 |
+| FriendSettings | 없음 | 닉네임 검색 허용과 차단 목록 |
 | TimetableDetail | 기존 initialView?, mode? + targetFriendPublicId? | 대상 친구 accordion 자동 이동·전개 |
 
 알림 payload는 app/notifications에서 파싱하고 app/navigation/services에서 목적지를 결정한다. feature가 root navigation state를 직접 해석하지 않는다.
@@ -146,16 +157,14 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 
 헤더 `+` action:
 
-- 기존 BottomSheetModal 표현을 따르는 friend feature 전용 action sheet를 사용한다.
-- 첫 action `내 친구 코드`는 현재 코드와 QR을 표시하고 복사·공유·재발급을 제공한다.
-- 두 번째 action `친구 추가`는 FriendAdd로 이동한다.
-- sheet를 닫기 전·후 navigation이 중복 실행되지 않도록 한 번의 action만 소비한다.
-- 코드 재발급은 기존 코드가 즉시 무효화된다는 확인 후 실행하고 성공 시 코드와 QR을 함께 갱신한다.
+- 관계 Core에서는 FriendAdd로 바로 이동한다.
+- FriendAdd 상단에서 현재 코드 표시·복사·공유·재발급을 제공한다.
+- 코드 재발급은 기존 코드가 즉시 무효화된다는 확인 후 실행하고 성공 시 현재 코드만 갱신한다. QR은 후속 QR PR에서 함께 갱신한다.
 
 빈 상태:
 
 - 제목: 아직 친구가 없어요
-- 설명: 친구 코드, QR 또는 닉네임으로 친구를 추가해보세요.
+- 설명: 친구 코드 또는 닉네임으로 친구를 추가해보세요.
 - CTA: 친구 추가
 
 오류 상태:
