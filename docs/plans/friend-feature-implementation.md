@@ -52,7 +52,9 @@
 - 마이페이지 메뉴에 친구 항목을 추가한다.
 - 받은 요청 또는 초대가 있으면 행 우측에 통합 badge를 표시한다.
 - 친구 항목을 누르면 FriendHub 화면으로 이동한다.
-- FriendHub 헤더 우측에는 친구 설정과 친구 추가 action을 각각 제공한다.
+- FriendHub 헤더 우측에는 친구 설정과 `+` action을 각각 제공한다.
+- `+` action은 바로 FriendAdd로 이동하지 않고 `내 친구 코드`와 `친구 추가`를 고르는 feature 전용 action sheet를 연다.
+- `내 친구 코드`는 같은 sheet 안에서 코드·QR 표시, 복사, 공유, 재발급을 제공하고 `친구 추가`는 FriendAdd로 이동한다.
 
 ### 3.2 보조 진입점
 
@@ -116,6 +118,14 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 - 계정이 없으면 빈 보조 문구를 과도하게 강조하지 않는다.
 - 친구 목록 새로고침은 pull-to-refresh를 제공한다.
 - 초기 목록은 가벼운 요약 DTO만 사용한다.
+
+헤더 `+` action:
+
+- 기존 BottomSheetModal 표현을 따르는 friend feature 전용 action sheet를 사용한다.
+- 첫 action `내 친구 코드`는 현재 코드와 QR을 표시하고 복사·공유·재발급을 제공한다.
+- 두 번째 action `친구 추가`는 FriendAdd로 이동한다.
+- sheet를 닫기 전·후 navigation이 중복 실행되지 않도록 한 번의 action만 소비한다.
+- 코드 재발급은 기존 코드가 즉시 무효화된다는 확인 후 실행하고 성공 시 코드와 QR을 함께 갱신한다.
 
 빈 상태:
 
@@ -191,7 +201,8 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 
 ### 5.2 친구 코드
 
-- 내 코드는 FriendHub 추가 메뉴에서 표시·복사·QR 공유할 수 있다.
+- 내 코드는 FriendHub `+` action sheet의 `내 친구 코드`에서 표시하고 같은 값을 QR로 만든다.
+- 코드와 QR은 복사·공유할 수 있으며 공유 payload는 V1에서 URL이 아닌 코드 문자열과 `skuri-friend:v1:{friendCode}` QR이다.
 - 입력은 대소문자와 하이픈 유무를 허용하고 정규화한다.
 - 입력 완료 시 `POST /v1/friend-codes/preview`로 대상 공개 프로필을 확인하며 이 호출만으로 친구 요청을 생성하지 않는다.
 - 자기 코드는 별도 메시지로 안내한다.
@@ -223,7 +234,9 @@ QR 구현 전 기술 확인:
 - 검색 허용을 켠 ACTIVE 회원만 표시한다.
 - 2글자 미만에는 검색하지 않는다.
 - 입력 debounce를 적용한다.
-- 최대 20명을 표시한다.
+- 한 페이지는 최대 20명이며 서버의 opaque cursor, hasNext, nextCursor로 다음 결과를 이어서 조회한다.
+- 결과는 닉네임 가나다순, friendPublicId 오름차순으로 안정 정렬하고 같은 검색어의 다음 cursor에만 이어 붙인다.
+- 검색어가 바뀌면 기존 결과와 cursor를 폐기하며 하단 더보기 또는 무한 스크롤로 다음 페이지를 요청한다.
 - 결과에는 닉네임, 학과, 프로필 사진만 노출한다.
 - 같은 닉네임이 여러 명일 수 있음을 문구와 결과 구분으로 표현한다.
 - 결과와 navigation에는 Firebase UID나 내부 members.id가 아닌 친구 기능 전용 friendPublicId만 사용한다.
@@ -267,6 +280,7 @@ QR 구현 전 기술 확인:
 │   ├ Alex       친구 계정 · BE   │
 │   └ Jisung_MC  친구 계정 · JAVA │
 │                              │
+│ 신고                          │
 │ 친구 끊기                     │
 │ 차단                          │
 └──────────────────────────────┘
@@ -282,6 +296,8 @@ QR 구현 전 기술 확인:
 - TimetableDetail은 자신의 시간표와 친구 요약 목록이 준비되면 친구 section으로 스크롤하고 해당 친구 accordion을 펼친다.
 - 대상 적용 후 `targetFriendPublicId`를 한 번 소비해 rerender·학기 변경·화면 복귀 시 자동 이동을 반복하지 않는다.
 - 친구 해제·차단으로 대상이 목록에 없으면 `더 이상 친구 시간표를 볼 수 없어요` 안내 후 친구 section의 기본 상태를 유지한다.
+- 신고는 기존 ReportReasonModal의 카테고리·사유 입력 UX를 재사용하고 `POST /v1/friends/{friendPublicId}/report`를 호출한다.
+- 신고 접수는 친구 관계를 자동으로 끊거나 차단하지 않으며, 완료 후 사용자가 별도로 차단할 수 있다.
 - 친구 끊기와 차단은 destructive confirmation을 사용한다.
 - 차단 설명에는 친구 관계와 소셜 공유가 함께 해제되며 공개 콘텐츠는 유지된다고 명시한다.
 
@@ -383,7 +399,8 @@ DETAILS:
 
 ### 7.5 공통 공강
 
-- 월~금 1~12교시의 양쪽 빈 구간을 계산한다.
+- 월~금 1~15교시의 양쪽 빈 구간을 계산한다.
+- 야간 수업 펼침·접기는 표시 상태만 바꾸며 13~15교시 공강 계산에는 영향을 주지 않는다.
 - 내 시간표와 친구 시간표가 모두 화면의 selectedSemester에 해당할 때만 계산한다.
 - 시간이 있는 직접 입력 수업은 busy로 포함한다.
 - 시간이 없는 온라인 수업은 제외한다.
@@ -466,6 +483,9 @@ context만 party 또는 publicChatRoom으로 전달한다.
 - count를 누르면 개인정보를 노출하지 않는 범위에서 사유별 개수만 보여준다.
 - footer 버튼은 선택 수를 포함하고 keyboard와 safe area를 고려해 고정한다.
 - 요청 중 재탭을 막고 일부 실패 시 친구별 실패 사유를 표시한다.
+- batch 응답은 요청 순서대로 SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE을 반환한다고 가정하고 SENT만 성공 처리한다.
+- 일부 성공이면 성공 인원과 실패 인원을 함께 안내하고 실패한 친구만 선택 상태로 유지해 재조회·재시도를 지원한다.
+- 차단·관계 상실처럼 민감한 사유는 NOT_ELIGIBLE로 통합해 구체적인 차단 상태를 표시하지 않는다.
 
 ### 9.3 택시 context
 
@@ -494,6 +514,8 @@ context만 party 또는 publicChatRoom으로 전달한다.
 | CHAT_ROOM_INVITATION | 앱 배너 + badge 갱신 | FCM | FriendHub 초대 탭의 해당 카드 |
 
 - 기존 notification payload parser와 router에 canonical type을 추가한다.
+- 저장 알림은 API 응답이 parser에 바로 전달되지 않으므로 NotificationDataDto, NotificationData와 notificationMapper의 명시적 allowlist에도 friendPublicId, invitationType, invitationId를 함께 추가한다.
+- API 응답에서 mapper를 거쳐 parseStoredNotificationPayload와 navigation intent까지 도달하는 통합 경계를 검증해 저장 인박스에서 식별자가 유실되지 않게 한다.
 - FRIEND_ACCEPTED payload의 `friendPublicId`를 검증해 `{type: 'FRIEND_ACCEPTED', friendPublicId}` navigation intent로 변환한다.
 - foreground banner, 저장된 알림 인박스, background·cold start가 모두 같은 intent와 FriendDetail route를 사용한다.
 - FRIEND_ACCEPTED에 friendPublicId가 없거나 유효하지 않으면 FriendHub 친구 탭으로 안전 fallback한다.
@@ -552,6 +574,8 @@ context만 party 또는 publicChatRoom으로 전달한다.
 
 ### 12.2 friend feature 내부 신규 컴포넌트
 
+- FriendAddActionSheet
+- MyFriendCodePanel
 - FriendTabBar 또는 기존 SegmentedControl wrapper
 - FriendRow
 - FriendFavoriteButton
@@ -650,8 +674,9 @@ API client / DTO / Mapper
 - navigation
 - FriendHub
 - 친구 코드·닉네임 요청
+- 내 친구 코드 action sheet와 cursor 검색
 - 즐겨찾기, 요청 수락·거절·취소
-- 친구 상세, 끊기, 차단
+- 친구 상세, 신고, 끊기, 차단
 - badge
 
 ### PR 2: QR
@@ -698,20 +723,24 @@ API client / DTO / Mapper
 ### 16.1 자동 검증
 
 - repository DTO mapper
+- 닉네임 검색 cursor 이어붙이기, 검색어 변경 초기화와 안정 정렬
 - 친구 정렬: 즐겨찾기, 한글, 같은 닉네임 tie-breaker
 - 요청 상태별 버튼과 중복 탭 방지
 - 받은 PENDING 요청·초대만의 badge count와 보낸 요청 제외
 - notification payload parsing과 navigation intent
+- API 저장 알림 응답 → NotificationDataDto·mapper → stored parser → navigation intent 통합 경계에서 FRIEND_ACCEPTED의 friendPublicId와 두 초대 타입의 invitationType·invitationId 보존
 - FRIEND_ACCEPTED friendPublicId route와 누락 payload fallback
 - 초대 notification target 카드 scroll·강조와 처리 완료 fallback
 - 시간표 PRIVATE·BUSY_ONLY·DETAILS 필드 미노출
 - 선택 학기별 친구 시간표 query key와 과거 학기 빈 상태
 - targetFriendPublicId의 친구 section scroll·단일 소비·대상 없음 fallback
-- 공통 공강 계산 경계
+- 공통 공강 1~15교시 계산과 야간 section 접힘 상태 독립성
 - 공식 courseId 기준 같이 듣는 수업
 - accordion 단일 open과 favorite hit target 분리
 - party·public chat context별 menu 표시
-- FriendInviteSheet 일부 성공·실패
+- FriendInviteSheet 수신자별 SENT·ALREADY_PENDING·ALREADY_MEMBER·NOT_ELIGIBLE 부분 성공 처리
+- 내 친구 코드 action sheet의 표시·복사·공유·재발급 확인과 FriendAdd 이동
+- friendPublicId 기반 친구 신고 접수와 신고 후 관계 유지
 - Minecraft SELF·FRIEND grouping
 - 차단·친구 해제 후 화면 이탈
 - accessibility label과 expanded state
@@ -729,10 +758,12 @@ API client / DTO / Mapper
 최소 세 회원과 두 실제 기기를 사용한다.
 
 - 코드 입력, QR 표시, QR 스캔
+- FriendHub `+`에서 내 코드 확인·복사·공유·재발급과 친구 추가 진입
 - 카메라 권한 허용·거절·설정 복귀
 - 요청, 수락, 거절, 즉시 재요청, 30일 만료 fixture
 - 즐겨찾기 정렬과 여러 화면의 정렬 일치
 - PRIVATE, BUSY_ONLY, DETAILS
+- 13~15교시 수업을 포함한 공통 공강
 - 상단 친구 시간표 버튼의 정확한 scroll 위치
 - 긴 친구 목록과 accordion 전환
 - 큰 글씨와 좁은 화면 toolbar
@@ -750,7 +781,7 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 ## 17. 배포 순서와 호환성
 
 1. 백엔드 additive API 배포
-2. API·알림 payload 호환 확인
+2. 기존 ACTIVE 회원 FriendProfile provisioning 누락 0건과 API·알림 payload 호환 확인
 3. 모바일 배포
 4. 실제 사용자 노출 확인
 
@@ -818,6 +849,10 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 - [x] Firebase UID 대신 friendPublicId를 사용하는 경계가 명시되어 있다.
 - [x] FRIEND_ACCEPTED와 TimetableDetail target이 friendPublicId로 연결되어 있다.
 - [x] badge가 받은 PENDING 요청·초대만 계산하고 보낸 요청을 제외한다.
+- [x] FriendHub `+`에서 내 코드·QR과 친구 추가에 모두 도달할 수 있다.
+- [x] 닉네임 검색은 페이지당 20건의 cursor 계약과 안정 정렬을 사용한다.
+- [x] 공통 공강은 야간 수업을 포함한 1~15교시를 계산한다.
+- [x] 저장 알림의 DTO·model·mapper 경계와 친구 신고 공개 식별자 흐름이 명시되어 있다.
 - [x] 실제 코드 구현 승인 gate가 명시되어 있다.
 
 ---
@@ -833,6 +868,11 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 | 2026-08-18 | 택시·공개방은 같은 FriendInviteSheet UX를 재사용 |
 | 2026-08-18 | QR은 URL 딥링크 없이 versioned friend code payload와 인앱 scanner 사용 |
 | 2026-08-18 | 친구 기능 외부 공개 식별자 field는 friendPublicId로 통일 |
+| 2026-08-18 | FriendHub `+`는 내 친구 코드와 친구 추가를 고르는 action sheet를 열고 내 코드는 같은 sheet에서 관리 |
+| 2026-08-18 | 닉네임 검색 20건은 전체 상한이 아니라 cursor 페이지 크기이며 닉네임·friendPublicId 순으로 안정 정렬 |
+| 2026-08-18 | 공통 공강은 야간 수업을 포함한 월~금 1~15교시로 확정 |
+| 2026-08-18 | 다중 초대는 수신자별 부분 성공 결과를 사용하고 차단 등 민감 사유는 NOT_ELIGIBLE로 통합 |
+| 2026-08-18 | 친구 신고는 friendPublicId 전용 경로로 기존 신고 처리에 위임하고 저장 알림 식별자는 DTO·mapper 경계를 통과 |
 | 2026-08-18 | FriendDetail의 친구 시간표 보기는 targetFriendPublicId로 해당 accordion을 한 번 자동 전개 |
 | 2026-08-18 | action badge는 받은 PENDING 요청·초대만 합산하고 보낸 요청은 제외 |
 | 2026-08-18 | 실제 코드 구현은 별도 승인 전까지 중지 |
