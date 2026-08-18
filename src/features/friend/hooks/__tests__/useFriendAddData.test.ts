@@ -157,4 +157,107 @@ describe('useFriendAddData', () => {
     expect(result.current.myCode).toEqual(myCode);
     expect(result.current.myCodeError).toBeUndefined();
   });
+
+  it('성공한 검색어에 대해서만 빈 검색 결과 상태를 확정한다', async () => {
+    const repository = createRepository();
+    repository.searchFriends.mockResolvedValue({
+      hasNext: false,
+      items: [],
+      nextCursor: null,
+    });
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendAddData());
+
+    expect(result.current.completedSearchQuery).toBeUndefined();
+
+    await act(async () => {
+      await result.current.searchFriends('가람');
+    });
+
+    expect(result.current.completedSearchQuery).toBe('가람');
+
+    await act(async () => {
+      result.current.resetSearch();
+    });
+
+    expect(result.current.completedSearchQuery).toBeUndefined();
+  });
+
+  it('서로 다른 친구 요청은 각각 완료될 때까지 전송 상태를 유지한다', async () => {
+    const repository = createRepository();
+    const firstRequest = createDeferred<{
+      friend: null;
+      requestId: string;
+      status: 'PENDING';
+    }>();
+    const secondRequest = createDeferred<{
+      friend: null;
+      requestId: string;
+      status: 'PENDING';
+    }>();
+    repository.createFriendRequest.mockImplementation((friendId: string) =>
+      friendId === 'friend-1' ? firstRequest.promise : secondRequest.promise,
+    );
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendAddData());
+
+    let firstPromise!: Promise<unknown>;
+    let secondPromise!: Promise<unknown>;
+    await act(async () => {
+      firstPromise = result.current.sendFriendRequest('friend-1');
+      secondPromise = result.current.sendFriendRequest('friend-2');
+    });
+
+    expect(result.current.sendingFriendIds).toEqual(new Set(['friend-1', 'friend-2']));
+
+    await act(async () => {
+      firstRequest.resolve({friend: null, requestId: 'request-1', status: 'PENDING'});
+      await firstPromise;
+    });
+
+    expect(result.current.sendingFriendIds).toEqual(new Set(['friend-2']));
+
+    await act(async () => {
+      secondRequest.resolve({friend: null, requestId: 'request-2', status: 'PENDING'});
+      await secondPromise;
+    });
+
+    expect(result.current.sendingFriendIds).toEqual(new Set());
+  });
+
+  it('같은 친구에게 연속으로 요청을 보내도 중복 전송하지 않는다', async () => {
+    const repository = createRepository();
+    const request = createDeferred<{
+      friend: null;
+      requestId: string;
+      status: 'PENDING';
+    }>();
+    repository.createFriendRequest.mockReturnValue(request.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendAddData());
+
+    let firstPromise!: Promise<unknown>;
+    let duplicateResult: unknown;
+    await act(async () => {
+      firstPromise = result.current.sendFriendRequest('friend-1');
+      duplicateResult = await result.current.sendFriendRequest('friend-1');
+    });
+
+    expect(duplicateResult).toBeUndefined();
+    expect(repository.createFriendRequest).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      request.resolve({friend: null, requestId: 'request-1', status: 'PENDING'});
+      await firstPromise;
+    });
+  });
 });

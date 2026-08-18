@@ -81,6 +81,23 @@ const createRepository = () => ({
   updateMyPrivacy: jest.fn(),
 });
 
+const friend = {
+  department: null,
+  favorite: false,
+  id: 'friend-1',
+  nickname: '가람',
+  photoUrl: null,
+};
+
+const createDeferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(resolvePromise => {
+    resolve = resolvePromise;
+  });
+
+  return {promise, resolve};
+};
+
 describe('useFriendHubData', () => {
   beforeEach(() => {
     jest.resetAllMocks();
@@ -154,5 +171,73 @@ describe('useFriendHubData', () => {
         photoUrl: null,
       },
     ]);
+  });
+
+  it('친구 요청 수락 뒤 동기화 조회가 실패해도 수락한 요청을 다시 표시하지 않는다', async () => {
+    const repository = createRepository();
+    repository.getFriends
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('network unavailable'));
+    repository.acceptFriendRequest.mockResolvedValue({
+      friend,
+      requestId: 'request-1',
+      status: 'ACCEPTED',
+    });
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await waitFor(() => {
+      expect(result.current.receivedRequests).toHaveLength(1);
+    });
+
+    await act(async () => {
+      await result.current.acceptRequest('request-1');
+    });
+
+    expect(result.current.receivedRequests).toEqual([]);
+    expect(result.current.friends).toEqual([friend]);
+
+    await waitFor(() => {
+      expect(result.current.error).toBe('network unavailable');
+    });
+    expect(result.current.receivedRequests).toEqual([]);
+    expect(result.current.friends).toEqual([friend]);
+  });
+
+  it('진행 중인 새로고침이 즐겨찾기 변경을 이전 상태로 되돌리지 않는다', async () => {
+    const repository = createRepository();
+    const refreshFriends = createDeferred<Array<typeof friend>>();
+    repository.getFriends
+      .mockResolvedValueOnce([friend])
+      .mockReturnValueOnce(refreshFriends.promise);
+    repository.updateFavorite.mockResolvedValue(undefined);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await waitFor(() => {
+      expect(result.current.friends).toEqual([friend]);
+    });
+
+    let reloadPromise!: Promise<void>;
+    await act(async () => {
+      reloadPromise = result.current.reload();
+    });
+
+    await act(async () => {
+      await result.current.updateFavorite(friend);
+    });
+
+    await act(async () => {
+      refreshFriends.resolve([friend]);
+      await reloadPromise;
+    });
+
+    expect(result.current.friends).toEqual([{...friend, favorite: true}]);
   });
 });
