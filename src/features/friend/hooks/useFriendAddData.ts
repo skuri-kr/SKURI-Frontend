@@ -19,16 +19,24 @@ export const useFriendAddData = () => {
     [],
   );
   const [searchNextCursor, setSearchNextCursor] = React.useState<string | null>(null);
+  const [myCodeError, setMyCodeError] = React.useState<string>();
   const [loadingMyCode, setLoadingMyCode] = React.useState(true);
   const [searching, setSearching] = React.useState(false);
   const [previewing, setPreviewing] = React.useState(false);
   const [sendingToId, setSendingToId] = React.useState<string>();
   const [regenerating, setRegenerating] = React.useState(false);
+  const previewRequestVersionRef = React.useRef(0);
+  const searchRequestVersionRef = React.useRef(0);
+  const loadingMoreSearchRef = React.useRef(false);
 
   const loadMyCode = React.useCallback(async () => {
     try {
       setLoadingMyCode(true);
+      setMyCodeError(undefined);
       setMyCode(await friendRepository.getMyCode());
+    } catch (error) {
+      setMyCodeError(getErrorMessage(error, '친구 코드를 불러오지 못했습니다.'));
+      throw error;
     } finally {
       setLoadingMyCode(false);
     }
@@ -38,26 +46,53 @@ export const useFriendAddData = () => {
     loadMyCode().catch(() => undefined);
   }, [loadMyCode]);
 
+  const invalidateFriendCodePreview = React.useCallback(() => {
+    previewRequestVersionRef.current += 1;
+    setPreview(undefined);
+    setPreviewing(false);
+  }, []);
+
   const previewFriendCode = React.useCallback(
     async (friendCode: string) => {
       if (!friendCode.trim()) {
         throw new Error('친구 코드를 입력해주세요.');
       }
 
+      const requestVersion = previewRequestVersionRef.current + 1;
+      previewRequestVersionRef.current = requestVersion;
+
       try {
         setPreviewing(true);
+        setPreview(undefined);
         const result = await friendRepository.previewFriendCode(friendCode);
+        if (requestVersion !== previewRequestVersionRef.current) {
+          return undefined;
+        }
+
         setPreview(result);
         return result;
       } catch (error) {
+        if (requestVersion !== previewRequestVersionRef.current) {
+          return undefined;
+        }
+
         setPreview(undefined);
         throw new Error(getErrorMessage(error, '친구 코드를 확인하지 못했습니다.'));
       } finally {
-        setPreviewing(false);
+        if (requestVersion === previewRequestVersionRef.current) {
+          setPreviewing(false);
+        }
       }
     },
     [friendRepository],
   );
+
+  const resetSearch = React.useCallback(() => {
+    searchRequestVersionRef.current += 1;
+    setSearchResults([]);
+    setSearchNextCursor(null);
+    setSearching(false);
+  }, []);
 
   const searchFriends = React.useCallback(
     async (query: string) => {
@@ -65,20 +100,35 @@ export const useFriendAddData = () => {
         throw new Error('닉네임을 두 글자 이상 입력해주세요.');
       }
 
+      const requestVersion = searchRequestVersionRef.current + 1;
+      searchRequestVersionRef.current = requestVersion;
+
       try {
         setSearching(true);
+        setSearchResults([]);
+        setSearchNextCursor(null);
         const page = await friendRepository.searchFriends({
           query,
           size: 20,
         });
+        if (requestVersion !== searchRequestVersionRef.current) {
+          return;
+        }
+
         setSearchResults(page.items);
         setSearchNextCursor(page.nextCursor);
       } catch (error) {
+        if (requestVersion !== searchRequestVersionRef.current) {
+          return;
+        }
+
         setSearchResults([]);
         setSearchNextCursor(null);
         throw new Error(getErrorMessage(error, '친구를 검색하지 못했습니다.'));
       } finally {
-        setSearching(false);
+        if (requestVersion === searchRequestVersionRef.current) {
+          setSearching(false);
+        }
       }
     },
     [friendRepository],
@@ -86,9 +136,12 @@ export const useFriendAddData = () => {
 
   const loadMoreSearchResults = React.useCallback(
     async (query: string) => {
-      if (!searchNextCursor) {
+      if (!searchNextCursor || loadingMoreSearchRef.current) {
         return;
       }
+
+      const requestVersion = searchRequestVersionRef.current;
+      loadingMoreSearchRef.current = true;
 
       try {
         setSearching(true);
@@ -97,10 +150,17 @@ export const useFriendAddData = () => {
           query,
           size: 20,
         });
+        if (requestVersion !== searchRequestVersionRef.current) {
+          return;
+        }
+
         setSearchResults(current => [...current, ...page.items]);
         setSearchNextCursor(page.nextCursor);
       } finally {
-        setSearching(false);
+        loadingMoreSearchRef.current = false;
+        if (requestVersion === searchRequestVersionRef.current) {
+          setSearching(false);
+        }
       }
     },
     [friendRepository, searchNextCursor],
@@ -144,13 +204,17 @@ export const useFriendAddData = () => {
 
   return {
     loadingMyCode,
+    invalidateFriendCodePreview,
     loadMoreSearchResults,
     myCode,
+    myCodeError,
     preview,
     previewFriendCode,
     previewing,
     regenerating,
     regenerateMyCode,
+    reloadMyCode: loadMyCode,
+    resetSearch,
     searchFriends,
     searchResults,
     searchNextCursor,

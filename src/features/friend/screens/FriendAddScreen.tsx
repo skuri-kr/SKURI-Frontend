@@ -38,13 +38,17 @@ export const FriendAddScreen = () => {
   const [nicknameQuery, setNicknameQuery] = React.useState('');
   const {
     loadingMyCode,
+    invalidateFriendCodePreview,
     loadMoreSearchResults,
     myCode,
+    myCodeError,
     preview,
     previewFriendCode,
     previewing,
     regenerating,
     regenerateMyCode,
+    reloadMyCode,
+    resetSearch,
     searchFriends,
     searchResults,
     searchNextCursor,
@@ -157,6 +161,25 @@ export const FriendAddScreen = () => {
               </TouchableOpacity>
             </>
           ) : null}
+          {!loadingMyCode && !myCode && myCodeError ? (
+            <View style={styles.codeErrorContent}>
+              <Icon
+                color={COLORS.accent.orange}
+                name="alert-circle-outline"
+                size={24}
+              />
+              <Text style={styles.codeErrorText}>{myCodeError}</Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                activeOpacity={0.82}
+                onPress={() => {
+                  reloadMyCode().catch(() => undefined);
+                }}
+                style={styles.retryCodeButton}>
+                <Text style={styles.retryCodeButtonText}>다시 시도</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
 
         <Text style={styles.sectionTitle}>친구 코드로 추가</Text>
@@ -166,7 +189,10 @@ export const FriendAddScreen = () => {
               accessibilityLabel="친구 코드"
               autoCapitalize="characters"
               autoCorrect={false}
-              onChangeText={value => setFriendCode(formatCode(value))}
+              onChangeText={value => {
+                invalidateFriendCodePreview();
+                setFriendCode(formatCode(value));
+              }}
               placeholder="예: SKR-7K4M-9Q2D"
               placeholderTextColor={COLORS.text.placeholder}
               style={styles.textInput}
@@ -185,7 +211,10 @@ export const FriendAddScreen = () => {
             <TextInput
               accessibilityLabel="친구 닉네임 검색"
               autoCorrect={false}
-              onChangeText={setNicknameQuery}
+              onChangeText={value => {
+                setNicknameQuery(value);
+                resetSearch();
+              }}
               onSubmitEditing={() => { handleSearch().catch(() => undefined); }}
               placeholder="두 글자 이상 입력해주세요"
               placeholderTextColor={COLORS.text.placeholder}
@@ -242,6 +271,10 @@ const styles = StyleSheet.create({
   regenerateButton: {marginTop: SPACING.lg, minHeight: 20},
   regenerateText: {color: COLORS.text.muted, fontSize: 12, textDecorationLine: 'underline'},
   disabledText: {color: COLORS.text.muted},
+  codeErrorContent: {alignItems: 'center', gap: SPACING.sm},
+  codeErrorText: {color: COLORS.text.secondary, fontSize: 13, lineHeight: 20, textAlign: 'center'},
+  retryCodeButton: {alignItems: 'center', backgroundColor: COLORS.background.subtle, borderRadius: RADIUS.md, height: 36, justifyContent: 'center', paddingHorizontal: SPACING.lg},
+  retryCodeButtonText: {color: COLORS.brand.primaryStrong, fontSize: 13, fontWeight: '700'},
   inputCard: {backgroundColor: COLORS.background.surface, borderRadius: RADIUS.lg, overflow: 'hidden', ...SHADOWS.card},
   inputRow: {alignItems: 'center', flexDirection: 'row', padding: SPACING.md},
   textInput: {backgroundColor: COLORS.background.subtle, borderRadius: RADIUS.md, color: COLORS.text.primary, flex: 1, fontSize: 14, height: 44, paddingHorizontal: SPACING.md},

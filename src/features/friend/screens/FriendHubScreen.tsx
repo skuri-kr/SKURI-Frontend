@@ -31,6 +31,7 @@ export const FriendHubScreen = () => {
   useScreenView();
 
   const navigation = useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
+  const hasReceivedInitialFocus = React.useRef(false);
   const [selectedTab, setSelectedTab] = React.useState<FriendHubTab>('friends');
   const {
     acceptRequest,
@@ -38,6 +39,8 @@ export const FriendHubScreen = () => {
     declineRequest,
     error,
     friends,
+    hasLoadedOnce,
+    incomingRequestCount,
     loading,
     loadingMoreDirection,
     loadMoreRequests,
@@ -53,6 +56,11 @@ export const FriendHubScreen = () => {
 
   useFocusEffect(
     React.useCallback(() => {
+      if (!hasReceivedInitialFocus.current) {
+        hasReceivedInitialFocus.current = true;
+        return;
+      }
+
       reload().catch(() => undefined);
     }, [reload]),
   );
@@ -146,7 +154,10 @@ export const FriendHubScreen = () => {
         <SegmentedControl<FriendHubTab>
           items={[
             {id: 'friends', label: `친구 ${friends.length}`},
-            {id: 'requests', label: `요청 ${receivedRequests.length}`},
+            {
+              id: 'requests',
+              label: `요청 ${incomingRequestCount ?? receivedRequests.length}`,
+            },
           ]}
           onSelect={setSelectedTab}
           selectedId={selectedTab}
@@ -154,7 +165,7 @@ export const FriendHubScreen = () => {
           variant="surface"
         />
 
-        {loading && friends.length === 0 && receivedRequests.length === 0 ? (
+        {loading && !hasLoadedOnce ? (
           <StateCard
             description="친구 정보를 준비하고 있습니다."
             icon={<ActivityIndicator color={COLORS.brand.primary} />}
@@ -162,7 +173,7 @@ export const FriendHubScreen = () => {
           />
         ) : null}
 
-        {error && !loading ? (
+        {error && !loading && !hasLoadedOnce ? (
           <StateCard
             actionLabel="다시 시도"
             description={error}
@@ -172,7 +183,29 @@ export const FriendHubScreen = () => {
           />
         ) : null}
 
-        {!loading && !error && selectedTab === 'friends' ? (
+        {error && !loading && hasLoadedOnce ? (
+          <View style={styles.errorBanner}>
+            <Icon
+              color={COLORS.accent.orange}
+              name="alert-circle-outline"
+              size={18}
+            />
+            <Text numberOfLines={2} style={styles.errorBannerText}>
+              {error}
+            </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              activeOpacity={0.82}
+              onPress={() => {
+                reload().catch(() => undefined);
+              }}
+              style={styles.errorRetryButton}>
+              <Text style={styles.errorRetryText}>재시도</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {hasLoadedOnce && selectedTab === 'friends' ? (
           friends.length > 0 ? (
             <View style={styles.listCard}>
               {friends.map((friend, index) => (
@@ -197,7 +230,7 @@ export const FriendHubScreen = () => {
           )
         ) : null}
 
-        {!loading && !error && selectedTab === 'requests' ? (
+        {hasLoadedOnce && selectedTab === 'requests' ? (
           <View style={styles.requestContent}>
             {receivedRequests.length > 0 ? (
               <>
@@ -282,6 +315,10 @@ const styles = StyleSheet.create({
   listCard: {backgroundColor: COLORS.background.surface, borderRadius: RADIUS.lg, overflow: 'hidden', ...SHADOWS.card},
   rowDivider: {borderBottomColor: COLORS.border.subtle, borderBottomWidth: 1},
   requestContent: {gap: SPACING.sm},
+  errorBanner: {alignItems: 'center', backgroundColor: COLORS.accent.orangeSoft, borderRadius: RADIUS.md, flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.lg, minHeight: 44, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm},
+  errorBannerText: {color: COLORS.text.secondary, flex: 1, fontSize: 12, lineHeight: 18},
+  errorRetryButton: {paddingHorizontal: SPACING.xs, paddingVertical: SPACING.xs},
+  errorRetryText: {color: COLORS.accent.orange, fontSize: 12, fontWeight: '700'},
   sectionTitle: {color: COLORS.text.primary, fontSize: 14, fontWeight: '700', lineHeight: 20, marginTop: SPACING.sm, paddingHorizontal: 4},
   loadMoreButton: {alignItems: 'center', backgroundColor: COLORS.background.subtle, borderRadius: RADIUS.md, height: 40, justifyContent: 'center', marginTop: SPACING.sm},
   loadMoreText: {color: COLORS.brand.primaryStrong, fontSize: 13, fontWeight: '700'},

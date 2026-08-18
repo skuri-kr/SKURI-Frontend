@@ -18,6 +18,8 @@ export const useFriendHubData = () => {
   );
   const [receivedNextCursor, setReceivedNextCursor] = React.useState<string | null>(null);
   const [sentNextCursor, setSentNextCursor] = React.useState<string | null>(null);
+  const [incomingRequestCount, setIncomingRequestCount] = React.useState<number>();
+  const [hasLoadedOnce, setHasLoadedOnce] = React.useState(false);
   const [loadingMoreDirection, setLoadingMoreDirection] = React.useState<
     'RECEIVED' | 'SENT'
   >();
@@ -30,16 +32,21 @@ export const useFriendHubData = () => {
     try {
       setLoading(true);
       setError(undefined);
-      const [nextFriends, receivedPage, sentPage] = await Promise.all([
+      const [nextFriends, receivedPage, sentPage, inboxCounts] = await Promise.all([
         friendRepository.getFriends(),
         friendRepository.getFriendRequests({direction: 'RECEIVED', size: 20}),
         friendRepository.getFriendRequests({direction: 'SENT', size: 20}),
+        Promise.resolve(friendRepository.getInboxCounts()).catch(() => undefined),
       ]);
       setFriends(nextFriends);
       setReceivedRequests(receivedPage.items);
       setSentRequests(sentPage.items);
       setReceivedNextCursor(receivedPage.nextCursor);
       setSentNextCursor(sentPage.nextCursor);
+      setIncomingRequestCount(
+        inboxCounts?.incomingRequestCount ?? receivedPage.items.length,
+      );
+      setHasLoadedOnce(true);
     } catch (loadError) {
       setError(getErrorMessage(loadError, '친구 목록을 불러오지 못했습니다.'));
     } finally {
@@ -126,6 +133,9 @@ export const useFriendHubData = () => {
         setReceivedRequests(current =>
           current.filter(request => request.id !== requestId),
         );
+        setIncomingRequestCount(current =>
+          current === undefined ? current : Math.max(0, current - 1),
+        );
       } finally {
         setMutatingRequestId(undefined);
       }
@@ -154,6 +164,8 @@ export const useFriendHubData = () => {
     declineRequest,
     error,
     friends,
+    hasLoadedOnce,
+    incomingRequestCount,
     loading,
     loadingMoreDirection,
     loadMoreRequests,

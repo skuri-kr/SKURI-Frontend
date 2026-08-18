@@ -13,6 +13,7 @@ export const useFriendDetailData = (friendId: string) => {
   const [error, setError] = React.useState<string>();
   const [loading, setLoading] = React.useState(true);
   const [mutating, setMutating] = React.useState(false);
+  const favoriteMutationInFlightRef = React.useRef(false);
 
   const reload = React.useCallback(async () => {
     try {
@@ -31,17 +32,19 @@ export const useFriendDetailData = (friendId: string) => {
   }, [reload]);
 
   const updateFavorite = React.useCallback(async () => {
-    if (!friend) {
+    if (!friend || favoriteMutationInFlightRef.current) {
       return;
     }
 
     try {
+      favoriteMutationInFlightRef.current = true;
       setMutating(true);
       await friendRepository.updateFavorite(friend.id, !friend.favorite);
       setFriend(current =>
         current ? {...current, favorite: !current.favorite} : current,
       );
     } finally {
+      favoriteMutationInFlightRef.current = false;
       setMutating(false);
     }
   }, [friend, friendRepository]);
