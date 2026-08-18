@@ -52,11 +52,13 @@
 - 마이페이지 메뉴에 친구 항목을 추가한다.
 - 받은 요청 또는 초대가 있으면 행 우측에 통합 badge를 표시한다.
 - 친구 항목을 누르면 FriendHub 화면으로 이동한다.
+- FriendHub 헤더 우측에는 친구 설정과 친구 추가 action을 각각 제공한다.
 
 ### 3.2 보조 진입점
 
 - 시간표 상세 상단의 친구 시간표 버튼
 - 친구 시간표 section의 친구 행
+- 친구 시간표 section 제목 우측의 공유 설정
 - 친구 상세의 택시파티 초대·공개 채팅방 초대
 - 택시파티 채팅방 우측 상단 메뉴
 - 공개 채팅방 우측 상단 메뉴
@@ -68,12 +70,17 @@ CampusStackParamList에 다음 화면을 추가할 계획이다.
 
 | Route | Params | 설명 |
 | --- | --- | --- |
-| FriendHub | initialTab optional | 친구, 요청, 초대 허브 |
+| FriendHub | initialTab?, targetInvitationType?, targetInvitationId? | 친구, 요청, 초대 허브와 특정 초대 카드 target |
 | FriendAdd | initialMethod optional | 코드, QR, 닉네임 추가 |
 | FriendDetail | friendPublicId | 친구 상세 |
 | FriendSettings | 없음 | 검색 허용과 시간표 기본 공유 |
 
 알림 payload는 app/notifications에서 파싱하고 app/navigation/services에서 목적지를 결정한다. feature가 root navigation state를 직접 해석하지 않는다.
+
+- PARTY_INVITATION과 CHAT_ROOM_INVITATION은 `initialTab=invitations`와 서버 payload의 `invitationType`, `invitationId`를 FriendHub params로 전달한다.
+- FriendHub는 초대 query 로딩 후 type과 ID가 일치하는 카드를 찾아 스크롤하고 잠시 강조한다.
+- 대상이 첫 응답에 없으면 한 번 새로고침하고, 그래도 없으면 처리 완료·만료 안내를 표시한 뒤 target을 소비한다.
+- route params는 문자열 enum과 불투명 ID만 사용해 React Navigation state를 직렬화 가능하게 유지한다.
 
 ---
 
@@ -83,7 +90,7 @@ CampusStackParamList에 다음 화면을 추가할 계획이다.
 
 ~~~text
 ┌──────────────────────────────┐
-│ ‹  친구                  ＋   │
+│ ‹  친구               ⚙  ＋   │
 │                              │
 │ [ 친구 12 ] [ 요청 2 ] [ 초대 1 ] │
 ├──────────────────────────────┤
@@ -155,6 +162,12 @@ CampusStackParamList에 다음 화면을 추가할 계획이다.
 - 알림 인박스 unread badge와 친구 PENDING badge는 다른 의미이므로 합치지 않는다.
 - 소셜 알림 수신 시 관련 query를 무효화해 화면 진입 전 badge를 갱신한다.
 
+### 4.6 설정 진입점
+
+- 헤더 우측 설정 아이콘은 FriendSettings로 이동한다.
+- 접근성 label은 `친구 설정`으로 지정하고 친구 추가 action과 독립된 hit target을 사용한다.
+- 닉네임 검색 허용, 시간표 기본 공유, 친구별 예외와 차단 목록을 이 화면에서 관리한다.
+
 ---
 
 ## 5. 친구 추가
@@ -177,13 +190,14 @@ CampusStackParamList에 다음 화면을 추가할 계획이다.
 
 - 내 코드는 FriendHub 추가 메뉴에서 표시·복사·QR 공유할 수 있다.
 - 입력은 대소문자와 하이픈 유무를 허용하고 정규화한다.
+- 입력 완료 시 `POST /v1/friend-codes/preview`로 대상 공개 프로필을 확인하며 이 호출만으로 친구 요청을 생성하지 않는다.
 - 인식 실패, 만료된 코드, 자기 코드, 차단 관계를 별도 메시지로 구분한다.
 - 코드 재발급은 기존 코드가 즉시 무효화됨을 확인 팝업으로 안내한다.
 
 ### 5.3 QR
 
 - payload는 skuri-friend:v1:{friendCode}만 인식한다.
-- 스캔 성공 후 카메라를 닫고 대상 프로필 확인 카드로 이동한다.
+- 스캔 성공 후 카메라를 닫고 같은 친구 코드 preview API를 호출한 뒤 대상 프로필 확인 카드로 이동한다.
 - 대상 확인 전 요청을 자동 발송하지 않는다.
 - 카메라 권한 최초 요청, 거절, 다시 요청 불가, 설정 이동을 각각 처리한다.
 - 현재 NSCameraUsageDescription은 이미지 업로드 용도만 설명하므로 QR 스캔 목적을 추가해야 한다.
@@ -222,6 +236,7 @@ QR 구현 전 기술 확인:
 ~~~
 
 - 이메일, 실명, 학번은 표시하지 않는다.
+- preview·닉네임 검색 결과의 targetPublicId로만 명시적 친구 요청 생성 API를 호출한다.
 - 발송 성공 후 중복 탭을 막고 요청 탭으로 이동할 수 있게 한다.
 
 ---
@@ -317,7 +332,7 @@ QR 구현 전 기술 확인:
 
 ~~~text
 ──────────────────────────────
-친구 시간표                         12명
+친구 시간표              [공유 설정]  12명
 
 [사진] 김민수  컴퓨터공학과   상세 공유  ☆ 〉
 
@@ -332,8 +347,10 @@ QR 구현 전 기술 확인:
 - row 우측에 공유 범위 badge, 별, chevron을 둔다.
 - 별 버튼은 accordion toggle과 별도 hit target이다.
 - 한 번에 한 친구만 펼친다.
-- 펼칠 때 해당 친구의 현재 학기 시간표를 지연 조회한다.
+- 펼칠 때 화면 상단 학기 선택기의 `selectedSemester`를 필수 query parameter로 전달해 해당 친구의 같은 학기 시간표를 지연 조회한다.
+- query key는 `friendPublicId + selectedSemester`로 구성하고, 학기 변경 시 열린 친구를 같은 학기로 재조회한다.
 - 이미 조회한 데이터는 query cache를 사용하되 pull-to-refresh 시 갱신한다.
+- 친구가 선택 학기에 시간표가 없으면 현재 학기 데이터로 대체하지 않고 `이 학기에 등록된 시간표가 없어요` 빈 상태를 표시한다.
 - 펼친 친구가 친구 해제·차단되면 즉시 닫고 목록에서 제거한다.
 - 전체 주간 시간표를 읽기 전용으로 표시하며 오늘·전체 toggle을 내부에 중복 제공하지 않는다.
 - 친구 시간표에는 수정, 과목 상세 편집, 외부 공유 버튼을 제공하지 않는다.
@@ -360,6 +377,7 @@ DETAILS:
 ### 7.5 공통 공강
 
 - 월~금 1~12교시의 양쪽 빈 구간을 계산한다.
+- 내 시간표와 친구 시간표가 모두 화면의 selectedSemester에 해당할 때만 계산한다.
 - 시간이 있는 직접 입력 수업은 busy로 포함한다.
 - 시간이 없는 온라인 수업은 제외한다.
 - 펼친 시간표 아래에 요약 chip을 표시한다.
@@ -378,7 +396,7 @@ DETAILS:
 
 ## 8. 시간표 공유 설정
 
-FriendSettings 또는 시간표 설정 진입점에서 다음을 제공한다.
+FriendSettings에서 다음을 제공한다. FriendHub 헤더 설정 아이콘과 시간표 친구 section 제목 우측의 `공유 설정`이 같은 화면으로 이동한다.
 
 ### 8.1 기본 공개 범위
 
@@ -469,10 +487,13 @@ context만 party 또는 publicChatRoom으로 전달한다.
 | CHAT_ROOM_INVITATION | 앱 배너 + badge 갱신 | FCM | FriendHub 초대 탭의 해당 카드 |
 
 - 기존 notification payload parser와 router에 canonical type을 추가한다.
+- 초대 payload의 `invitationType`과 `invitationId`를 검증해 FriendHub target params로 변환한다.
+- FriendHub는 target 카드 로딩 후 스크롤·강조하고, 이미 처리·만료되어 찾을 수 없으면 상태 안내 후 초대 목록을 유지한다.
 - unknown type은 기존 안전 fallback을 유지한다.
 - 거절, 취소, 친구 끊기, 차단은 푸시하지 않는다.
-- 친구 및 초대 알림 toggle을 NotificationSettingsScreen에 추가한다.
-- toggle off여도 FriendHub PENDING 상태는 API에서 조회할 수 있다.
+- `friendAndInvitationNotifications` 단일 toggle을 NotificationSettingsScreen에 추가하고 신규·기존 회원의 유효 기본값은 true로 표시한다.
+- 유효 수신 조건은 `allNotifications && friendAndInvitationNotifications`이며 partyNotifications는 최초 파티 초대를 제어하지 않는다.
+- toggle off면 일반 알림 인박스·알림 SSE·FCM은 받지 않지만 FriendHub PENDING 상태와 badge는 API에서 계속 조회한다.
 
 ---
 
@@ -671,7 +692,9 @@ API client / DTO / Mapper
 - 요청 상태별 버튼과 중복 탭 방지
 - badge count
 - notification payload parsing과 navigation intent
+- 초대 notification target 카드 scroll·강조와 처리 완료 fallback
 - 시간표 PRIVATE·BUSY_ONLY·DETAILS 필드 미노출
+- 선택 학기별 친구 시간표 query key와 과거 학기 빈 상태
 - 공통 공강 계산 경계
 - 공식 courseId 기준 같이 듣는 수업
 - accordion 단일 open과 favorite hit target 분리
@@ -684,7 +707,7 @@ API client / DTO / Mapper
 실행 기준:
 
 - npm test의 관련 focused suite
-- npm run typecheck
+- npx tsc --noEmit
 - npm run lint
 - git diff --check
 - iOS·Android native 설정 정적 검사
