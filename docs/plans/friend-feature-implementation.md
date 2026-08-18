@@ -1,14 +1,39 @@
 # SKURI 친구 기능 모바일 구현 계획
 
-> 문서 상태: UX 및 구현 계획 승인 완료, 실제 코드 미구현
+> 문서 상태: Friend 관계 Core 모바일 구현 승인 완료, 구현 진행 예정
 > 기준일: 2026-08-18
 > 정책 기준: SKURI-Backend docs/features/friends.md
-> 구현 게이트: 문서 검토가 끝난 뒤 사용자의 별도 코드 구현 승인을 받아야 한다.
+> 구현 게이트: 관계 Core는 사용자 승인 완료. 후속 도메인 협력 기능은 각각 별도 승인한다.
 
 백엔드 기준 문서:
 
 - GitHub: https://github.com/skuri-kr/SKURI-Backend/blob/main/docs/features/friends.md
 - 로컬 작업 경로: /Users/jisung/skuri-backend/docs/features/friends.md
+
+---
+
+## 1.1 관계 Core 모바일 전달 범위 (2026-08-18 확정)
+
+백엔드 PR #80의 Friend Foundation·관계 Core가 `main`에 병합됐다. 이 모바일 작업은 병합된 런타임 계약 중 친구 관계를 직접 사용할 수 있는 범위만 구현한다.
+
+이번 모바일 PR에 포함:
+
+- 친구 목록·상세, 즐겨찾기, 친구 끊기, 차단·차단 해제
+- 친구 코드 preview·내 코드 표시/복사/공유/재발급, 닉네임 검색과 명시적 요청 발송
+- 받은·보낸 PENDING 친구 요청의 목록, 수락·거절·취소
+- 마이페이지 친구 진입점과 서버 `totalActionCount` badge
+- 닉네임 검색 허용과 차단 목록을 제공하는 관계 Core 범위의 FriendSettings
+- `FriendHub`의 `친구 | 요청` 두 탭
+
+이번 모바일 PR에서 의도적으로 제외:
+
+- 초대 탭, 택시파티·공개방 친구 초대, 초대 수락/거절, 친구·초대 알림 이동
+- 친구 시간표·공유 설정·공통 공강, Minecraft 친구 계정 projection, 친구 신고
+- QR 생성/스캔과 Android·iOS 카메라 권한 변경
+
+제외 항목은 정책 폐기가 아니다. 해당 백엔드 API와 도메인 협력이 구현된 뒤 별도 PR에서 추가한다. 특히 FriendHub의 초대 탭은 서버의 초대 목록·mutation API가 준비되기 전에는 빈 상태로도 노출하지 않는다.
+
+백엔드 계약은 `main`에 존재하지만 배포·기존 ACTIVE 회원 FriendProfile provisioning 완료 여부는 아직 이 작업에서 확인하지 않았다. 모바일 코드는 구현할 수 있으나, 실제 사용자에게 친구 진입점을 노출하는 릴리스는 백엔드 배포와 provisioning 검증 이후에만 진행한다.
 
 ---
 
@@ -95,7 +120,7 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 ┌──────────────────────────────┐
 │ ‹  친구               ⚙  ＋   │
 │                              │
-│ [ 친구 12 ] [ 요청 2 ] [ 초대 1 ] │
+│ [ 친구 12 ] [ 요청 2 ]            │
 ├──────────────────────────────┤
 │ [ 친구 이름 검색             ] │
 │                              │
@@ -167,6 +192,8 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 
 ### 4.4 초대 탭
 
+초대 탭은 택시파티·공개방 초대 API가 구현된 후의 후속 범위다. 관계 Core 모바일 PR에서는 이 탭과 관련 badge·알림 이동을 렌더링하지 않는다.
+
 - 택시파티 초대와 공개방 초대를 시간순으로 한 목록에 표시한다.
 - 각 카드에 초대한 친구, 대상 이름, 만료 또는 파티 상태를 보여준다.
 - 수락과 거절 버튼을 제공한다.
@@ -187,7 +214,7 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 
 - 헤더 우측 설정 아이콘은 FriendSettings로 이동한다.
 - 접근성 label은 `친구 설정`으로 지정하고 친구 추가 action과 독립된 hit target을 사용한다.
-- 닉네임 검색 허용, 시간표 기본 공유, 친구별 예외와 차단 목록을 이 화면에서 관리한다.
+- 관계 Core에서는 닉네임 검색 허용과 차단 목록만 관리한다. 시간표 기본 공유와 친구별 예외는 시간표 공유 API가 준비되는 후속 PR에서 추가한다.
 
 ---
 
@@ -686,17 +713,19 @@ API client / DTO / Mapper
 
 ## 15. 구현 PR 분리 계획
 
-문서 PR 이후에도 실제 코드 구현 승인이 있어야 시작한다.
+관계 Core 모바일은 사용자 구현 승인을 받아 이 브랜치에서 시작한다. 이후 각 PR은 대응 백엔드 API·도메인 협력 준비와 별도 사용자 승인을 전제로 한다.
 
 ### PR 1: 친구 핵심 모바일
 
 - navigation
-- FriendHub
+- FriendHub 친구·요청 두 탭
 - 친구 코드·닉네임 요청
 - 내 친구 코드 action sheet와 cursor 검색
 - 즐겨찾기, 요청 수락·거절·취소
-- 친구 상세, 신고, 끊기, 차단
+- 친구 상세, 끊기, 차단
 - badge
+
+초대 탭·초대 badge, 친구 신고, 시간표·Minecraft projection, 알림 이동, QR은 포함하지 않는다. 서버의 `partyInvitationCount`와 `chatRoomInvitationCount`는 관계 Core에서 0이지만, 이를 근거로 미구현 초대 UI를 미리 노출하지 않는다.
 
 ### PR 2: QR
 
@@ -845,17 +874,17 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 
 이 PR에서 허용되는 변경:
 
+- 관계 Core를 위한 `src/features/friend` 데이터·모델·화면·컴포넌트·hook
+- 관계 Core navigation, DI, 마이페이지 친구 진입점·badge, 관련 테스트
 - 이 구현 계획 문서
 
 이 PR에서 허용되지 않는 변경:
 
-- src 아래 런타임 코드
-- package.json과 lockfile
-- Android·iOS 설정
-- API client, DTO, navigation
-- 테스트 코드
+- package.json과 lockfile, Android·iOS QR 카메라 설정
+- 초대·시간표 공유·Minecraft projection·친구 신고·알림 이동을 위한 런타임 코드
+- 기존 택시·공개방 메뉴 및 시간표·Minecraft 화면의 기능 변경
 
-실제 구현은 사용자의 별도 명시적 승인 전까지 시작하지 않는다.
+관계 Core 구현 중 새로운 정책이나 기존 공통 UI로 표현하기 어려운 UI 선택이 발견되면 작업을 멈추고 사용자 승인을 받는다.
 
 ---
 
