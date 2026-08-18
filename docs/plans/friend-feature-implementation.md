@@ -152,6 +152,13 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 - PENDING 요청 취소
 - 거절·만료 후 즉시 다시 요청할 수 있다.
 
+목록 계약:
+
+- 받은·보낸 탭은 각각 서버의 `direction=RECEIVED|SENT`를 사용하며 현재 PENDING 요청만 표시한다.
+- 한 페이지는 20건이고 서버의 opaque cursor를 사용한다. `createdAt DESC`, `requestId DESC` 순서로 이어 붙인다.
+- 수락·거절·취소 결과는 mutation 직후 짧게 표시한 뒤 현재 PENDING 목록에서 제거하고 query를 재조회한다.
+- 거절·취소·만료 terminal 이력 조회는 V1에서 제공하지 않고 후속 TODO로 남긴다.
+
 거절 동작:
 
 - 확인 팝업 없이 한 번의 명시적 버튼으로 처리한다.
@@ -166,6 +173,7 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 - 택시 초대에는 좌석을 예약하지 않는다는 안내를 표시한다.
 - 수락 실패 시 최신 서버 상태에 맞춰 정원 마감, 파티 종료, 입장 자격 변경을 구체적으로 안내한다.
 - 정원 제한 공개방이 가득 차면 초대를 EXPIRED로 표시하고 badge에서 제외하며, 자리가 생겨도 기존 초대를 다시 활성화하지 않는다.
+- EXPIRED 카드의 `expiryReason`은 서버가 제공한 안전 enum만 사용자 문구로 매핑하며 클라이언트가 현재 상태로 과거 사유를 재계산하지 않는다. 알 수 없는 enum은 일반 `초대가 만료되었어요`로 fallback한다.
 
 ### 4.5 badge
 
@@ -292,6 +300,7 @@ QR 구현 전 기술 확인:
 - 현재 사용자가 OPEN 택시파티에 참여 중일 때만 택시파티 초대 버튼을 표시한다.
 - 사용자가 참여 중인 초대 가능한 공개방이 있을 때만 공개방 초대 버튼을 표시한다.
 - 여러 공개방이 있으면 방 선택 sheet를 먼저 연다.
+- 택시파티·공개방 대상이 정해지면 `FriendInviteSheet`에 현재 `friendPublicId`를 `initialFriendPublicId`로 전달한다.
 - 친구 시간표 보기는 `TimetableDetail`에 `targetFriendPublicId=friendPublicId`를 전달한다.
 - TimetableDetail은 자신의 시간표와 친구 요약 목록이 준비되면 친구 section으로 스크롤하고 해당 친구 accordion을 펼친다.
 - 대상 적용 후 `targetFriendPublicId`를 한 번 소비해 rerender·학기 변경·화면 복귀 시 자동 이동을 반복하지 않는다.
@@ -422,7 +431,14 @@ DETAILS:
 
 FriendSettings에서 다음을 제공한다. FriendHub 헤더 설정 아이콘과 시간표 친구 section 제목 우측의 `공유 설정`이 같은 화면으로 이동한다.
 
-### 8.1 기본 공개 범위
+### 8.1 닉네임 검색 허용
+
+- 화면 진입 시 `GET /v1/friends/me/privacy`로 서버의 현재 `nicknameSearchable`을 조회한다.
+- 조회 완료 전에는 로컬 기본값을 추측하지 않고 toggle을 loading·disabled 상태로 표시한다.
+- 사용자가 변경하면 `PATCH /v1/friends/me/privacy`의 필수 Boolean으로 전송하고 응답의 최종 `nicknameSearchable`을 화면 상태로 사용한다.
+- 저장 실패 시 서버에서 마지막으로 확인한 값으로 원복하고 다시 시도 안내를 표시한다.
+
+### 8.2 기본 공개 범위
 
 - 비공개
 - 바쁜 시간만
@@ -430,14 +446,14 @@ FriendSettings에서 다음을 제공한다. FriendHub 헤더 설정 아이콘�
 
 기본값은 비공개다.
 
-### 8.2 친구별 예외
+### 8.3 친구별 예외
 
 - 친구 목록에서 각 친구의 effective scope를 표시한다.
 - 기본값 사용 또는 PRIVATE, BUSY_ONLY, DETAILS override를 선택한다.
 - override 제거 시 최신 기본값을 즉시 적용한다.
 - 변경 전 각 공개 범위가 노출하는 필드를 설명한다.
 
-### 8.3 재공유
+### 8.4 재공유
 
 - 자신의 시간표에만 기존 공유 버튼을 제공한다.
 - 친구 시간표 projection에는 Share action을 연결하지 않는다.
@@ -456,7 +472,7 @@ FriendInviteSheet는 다음 진입점에서 같은 컴포넌트를 사용한다.
 - FriendDetail의 공개 채팅방 초대
 - 공개 ChatDetailScreen 우측 상단 메뉴
 
-context만 party 또는 publicChatRoom으로 전달한다.
+`context`는 party 또는 publicChatRoom으로 전달한다. FriendDetail 진입은 선택적 `initialFriendPublicId`도 전달하고, 채팅방 메뉴 진입은 전달하지 않는다.
 
 ### 9.2 UI
 
@@ -479,12 +495,15 @@ context만 party 또는 publicChatRoom으로 전달한다.
 - 즐겨찾기 우선, 이후 가나다순이다.
 - 여러 명 선택을 지원한다.
 - 서버의 eligible 목록만 기본 목록에 표시한다.
+- eligible 조회가 끝난 뒤 `initialFriendPublicId`가 목록에 있으면 해당 친구를 최초 한 번 자동 선택하고 행으로 스크롤·강조한다. 사용자는 다른 친구를 추가 선택하거나 초기 선택을 해제할 수 있다.
+- `initialFriendPublicId`가 eligible 목록에 없으면 `지금은 이 친구를 초대할 수 없어요`라는 일반 안내만 표시하고 민감한 사유를 추측하지 않는다. sheet는 닫지 않고 다른 eligible 친구를 선택할 수 있게 유지한다.
 - 이미 참여, 중복 초대, 차단, 자격 불충족 인원은 초대할 수 없는 친구 count로 안내한다.
 - count를 누르면 개인정보를 노출하지 않는 범위에서 사유별 개수만 보여준다.
 - footer 버튼은 선택 수를 포함하고 keyboard와 safe area를 고려해 고정한다.
 - 요청 중 재탭을 막고 일부 실패 시 친구별 실패 사유를 표시한다.
-- batch 응답은 요청 순서대로 SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE을 반환한다고 가정하고 SENT만 성공 처리한다.
-- 일부 성공이면 성공 인원과 실패 인원을 함께 안내하고 실패한 친구만 선택 상태로 유지해 재조회·재시도를 지원한다.
+- batch 응답은 요청 순서대로 SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE을 반환한다. `invitationId`는 SENT와 현재 사용자가 발송한 기존 ALREADY_PENDING에만 존재할 수 있으므로 nullable로 처리한다.
+- SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE처럼 서버가 결과를 확정한 친구는 선택 상태에서 제거하고 eligible 목록을 다시 조회한다. 일부 성공이면 outcome별 결과를 함께 안내한다.
+- timeout·연결 끊김처럼 서버 처리 여부를 알 수 없는 transport 오류에서만 해당 선택을 임시 유지한다. 재조회 결과 더 이상 eligible하지 않은 친구는 자동 해제하고, 계속 eligible한 친구만 사용자가 다시 시도할 수 있다.
 - 차단·관계 상실처럼 민감한 사유는 NOT_ELIGIBLE로 통합해 구체적인 차단 상태를 표시하지 않는다.
 
 ### 9.3 택시 context
@@ -726,6 +745,7 @@ API client / DTO / Mapper
 - 닉네임 검색 cursor 이어붙이기, 검색어 변경 초기화와 안정 정렬
 - 친구 정렬: 즐겨찾기, 한글, 같은 닉네임 tie-breaker
 - 요청 상태별 버튼과 중복 탭 방지
+- 요청 탭의 PENDING 전용 20건 opaque cursor, createdAt DESC·requestId DESC 이어붙이기와 terminal mutation 후 제거
 - 받은 PENDING 요청·초대만의 badge count와 보낸 요청 제외
 - notification payload parsing과 navigation intent
 - API 저장 알림 응답 → NotificationDataDto·mapper → stored parser → navigation intent 통합 경계에서 FRIEND_ACCEPTED의 friendPublicId와 두 초대 타입의 invitationType·invitationId 보존
@@ -738,7 +758,10 @@ API client / DTO / Mapper
 - 공식 courseId 기준 같이 듣는 수업
 - accordion 단일 open과 favorite hit target 분리
 - party·public chat context별 menu 표시
-- FriendInviteSheet 수신자별 SENT·ALREADY_PENDING·ALREADY_MEMBER·NOT_ELIGIBLE 부분 성공 처리
+- FriendInviteSheet initialFriendPublicId 자동 선택·스크롤, 대상 부적격 일반 안내와 채팅 메뉴 무초기값 진입
+- FriendInviteSheet 수신자별 SENT·ALREADY_PENDING·ALREADY_MEMBER·NOT_ELIGIBLE 부분 성공, outcome별 nullable invitationId와 확정 결과 선택 해제
+- FriendInviteSheet transport 오류 선택 유지와 eligible 재조회 후 자동 해제
+- FriendSettings privacy GET loading·disabled 상태, PATCH 최종값 반영과 실패 원복
 - 내 친구 코드 action sheet의 표시·복사·공유·재발급 확인과 FriendAdd 이동
 - friendPublicId 기반 친구 신고 접수와 신고 후 관계 유지
 - Minecraft SELF·FRIEND grouping
@@ -771,6 +794,8 @@ API client / DTO / Mapper
 - 택시 마지막 좌석 동시 수락
 - 참가자와 리더 각각의 택시 초대
 - 공개방 유형별 초대와 7일 만료
+- FriendDetail에서 택시·공개방 초대 시 대상 친구 자동 선택과 부적격 일반 안내
+- 일부 확정 outcome 선택 해제, timeout 후 eligible 재조회와 선택 정리
 - foreground, background, 종료 상태 알림 이동
 - 네트워크 실패, 재연결, 다른 기기에서 관계 변경
 
@@ -781,7 +806,7 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 ## 17. 배포 순서와 호환성
 
 1. 백엔드 additive API 배포
-2. 기존 ACTIVE 회원 FriendProfile provisioning 누락 0건과 API·알림 payload 호환 확인
+2. 기존 ACTIVE 회원 FriendProfile provisioning 누락 0건, ACTIVE 코드 registry 연결과 API·알림 payload 호환 확인
 3. 모바일 배포
 4. 실제 사용자 노출 확인
 
@@ -808,6 +833,7 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 - 상호 친구 이름·목록
 - 온라인·최근 활동 상태
 - 자동 추천과 추천 알림
+- 친구 요청의 거절·취소·만료 이력 조회
 - 공개 콘텐츠 전역 차단 필터
 - 관리자 친구 관계망 관리
 
@@ -853,6 +879,10 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 - [x] 닉네임 검색은 페이지당 20건의 cursor 계약과 안정 정렬을 사용한다.
 - [x] 공통 공강은 야간 수업을 포함한 1~15교시를 계산한다.
 - [x] 저장 알림의 DTO·model·mapper 경계와 친구 신고 공개 식별자 흐름이 명시되어 있다.
+- [x] FriendDetail 초대의 initialFriendPublicId와 부적격 fallback이 명시되어 있다.
+- [x] 확정 batch outcome과 transport 오류의 선택 유지 정책이 구분되어 있다.
+- [x] nicknameSearchable은 서버 GET 완료 후 표시하고 PATCH 최종값을 사용한다.
+- [x] 요청 목록은 PENDING 전용 20건 opaque cursor 계약을 사용한다.
 - [x] 실제 코드 구현 승인 gate가 명시되어 있다.
 
 ---
@@ -875,4 +905,8 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 | 2026-08-18 | 친구 신고는 friendPublicId 전용 경로로 기존 신고 처리에 위임하고 저장 알림 식별자는 DTO·mapper 경계를 통과 |
 | 2026-08-18 | FriendDetail의 친구 시간표 보기는 targetFriendPublicId로 해당 accordion을 한 번 자동 전개 |
 | 2026-08-18 | action badge는 받은 PENDING 요청·초대만 합산하고 보낸 요청은 제외 |
+| 2026-08-18 | FriendDetail 초대는 initialFriendPublicId를 자동 선택하고 부적격이면 민감 사유 없는 일반 안내를 표시 |
+| 2026-08-18 | 확정된 batch outcome은 선택을 해제하며 transport 오류에서만 eligible 재조회 전까지 선택을 유지 |
+| 2026-08-18 | FriendSettings는 서버의 nicknameSearchable 조회 완료 전 toggle 값을 추측하지 않음 |
+| 2026-08-18 | 친구 요청 탭은 PENDING 전용 20건 opaque cursor 목록이며 terminal 이력은 후속 TODO |
 | 2026-08-18 | 실제 코드 구현은 별도 승인 전까지 중지 |
