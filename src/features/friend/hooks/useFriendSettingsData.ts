@@ -11,27 +11,42 @@ export const useFriendSettingsData = () => {
   const friendRepository = useFriendRepository();
   const [privacy, setPrivacy] = React.useState<FriendPrivacy>();
   const [blocks, setBlocks] = React.useState<FriendBlock[]>([]);
-  const [error, setError] = React.useState<string>();
-  const [loading, setLoading] = React.useState(true);
+  const [privacyError, setPrivacyError] = React.useState<string>();
+  const [blocksError, setBlocksError] = React.useState<string>();
+  const [loadingPrivacy, setLoadingPrivacy] = React.useState(true);
+  const [loadingBlocks, setLoadingBlocks] = React.useState(true);
+  const [hasLoadedBlocks, setHasLoadedBlocks] = React.useState(false);
   const [savingPrivacy, setSavingPrivacy] = React.useState(false);
   const [unblockingId, setUnblockingId] = React.useState<string>();
 
-  const reload = React.useCallback(async () => {
+  const loadPrivacy = React.useCallback(async () => {
     try {
-      setLoading(true);
-      setError(undefined);
-      const [nextPrivacy, nextBlocks] = await Promise.all([
-        friendRepository.getMyPrivacy(),
-        friendRepository.getBlocks(),
-      ]);
-      setPrivacy(nextPrivacy);
-      setBlocks(nextBlocks);
+      setLoadingPrivacy(true);
+      setPrivacyError(undefined);
+      setPrivacy(await friendRepository.getMyPrivacy());
     } catch (loadError) {
-      setError(getErrorMessage(loadError, '친구 설정을 불러오지 못했습니다.'));
+      setPrivacyError(getErrorMessage(loadError, '검색 공개 설정을 불러오지 못했습니다.'));
     } finally {
-      setLoading(false);
+      setLoadingPrivacy(false);
     }
   }, [friendRepository]);
+
+  const loadBlocks = React.useCallback(async () => {
+    try {
+      setLoadingBlocks(true);
+      setBlocksError(undefined);
+      setBlocks(await friendRepository.getBlocks());
+      setHasLoadedBlocks(true);
+    } catch (loadError) {
+      setBlocksError(getErrorMessage(loadError, '차단 목록을 불러오지 못했습니다.'));
+    } finally {
+      setLoadingBlocks(false);
+    }
+  }, [friendRepository]);
+
+  const reload = React.useCallback(async () => {
+    await Promise.all([loadPrivacy(), loadBlocks()]);
+  }, [loadBlocks, loadPrivacy]);
 
   React.useEffect(() => {
     reload().catch(() => undefined);
@@ -64,10 +79,15 @@ export const useFriendSettingsData = () => {
 
   return {
     blocks,
-    error,
-    loading,
+    blocksError,
+    hasLoadedBlocks,
+    loadingBlocks,
+    loadingPrivacy,
     privacy,
+    privacyError,
     reload,
+    reloadBlocks: loadBlocks,
+    reloadPrivacy: loadPrivacy,
     savingPrivacy,
     unblockMember,
     unblockingId,

@@ -7,6 +7,14 @@ import type {FriendRequestItem, FriendSummary} from '../model/friend';
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
 
+const sortFriends = (friends: FriendSummary[]) =>
+  [...friends].sort((left, right) => {
+    if (left.favorite !== right.favorite) {
+      return left.favorite ? -1 : 1;
+    }
+    return left.nickname.localeCompare(right.nickname, 'ko');
+  });
+
 export const useFriendHubData = () => {
   const friendRepository = useFriendRepository();
   const [friends, setFriends] = React.useState<FriendSummary[]>([]);
@@ -27,8 +35,15 @@ export const useFriendHubData = () => {
   const [loading, setLoading] = React.useState(true);
   const [mutatingRequestId, setMutatingRequestId] = React.useState<string>();
   const [updatingFavoriteId, setUpdatingFavoriteId] = React.useState<string>();
+  const stateVersionRef = React.useRef(0);
+  const reloadRequestVersionRef = React.useRef(0);
+  const loadMoreRequestVersionRef = React.useRef(0);
 
   const reload = React.useCallback(async () => {
+    const reloadRequestVersion = reloadRequestVersionRef.current + 1;
+    reloadRequestVersionRef.current = reloadRequestVersion;
+    const stateVersion = stateVersionRef.current;
+
     try {
       setLoading(true);
       setError(undefined);
@@ -38,7 +53,15 @@ export const useFriendHubData = () => {
         friendRepository.getFriendRequests({direction: 'SENT', size: 20}),
         Promise.resolve(friendRepository.getInboxCounts()).catch(() => undefined),
       ]);
-      setFriends(nextFriends);
+      if (
+        reloadRequestVersion !== reloadRequestVersionRef.current ||
+        stateVersion !== stateVersionRef.current
+      ) {
+        return;
+      }
+
+      stateVersionRef.current += 1;
+      setFriends(sortFriends(nextFriends));
       setReceivedRequests(receivedPage.items);
       setSentRequests(sentPage.items);
       setReceivedNextCursor(receivedPage.nextCursor);
@@ -48,9 +71,17 @@ export const useFriendHubData = () => {
       );
       setHasLoadedOnce(true);
     } catch (loadError) {
+      if (
+        reloadRequestVersion !== reloadRequestVersionRef.current ||
+        stateVersion !== stateVersionRef.current
+      ) {
+        return;
+      }
       setError(getErrorMessage(loadError, '친구 목록을 불러오지 못했습니다.'));
     } finally {
-      setLoading(false);
+      if (reloadRequestVersion === reloadRequestVersionRef.current) {
+        setLoading(false);
+      }
     }
   }, [friendRepository]);
 
@@ -62,6 +93,10 @@ export const useFriendHubData = () => {
         return;
       }
 
+      const stateVersion = stateVersionRef.current;
+      const loadMoreRequestVersion = loadMoreRequestVersionRef.current + 1;
+      loadMoreRequestVersionRef.current = loadMoreRequestVersion;
+
       try {
         setLoadingMoreDirection(direction);
         const page = await friendRepository.getFriendRequests({
@@ -69,6 +104,12 @@ export const useFriendHubData = () => {
           direction,
           size: 20,
         });
+        if (
+          stateVersion !== stateVersionRef.current ||
+          loadMoreRequestVersion !== loadMoreRequestVersionRef.current
+        ) {
+          return;
+        }
         if (direction === 'RECEIVED') {
           setReceivedRequests(current => [...current, ...page.items]);
           setReceivedNextCursor(page.nextCursor);
@@ -78,7 +119,9 @@ export const useFriendHubData = () => {
         setSentRequests(current => [...current, ...page.items]);
         setSentNextCursor(page.nextCursor);
       } finally {
-        setLoadingMoreDirection(undefined);
+        if (loadMoreRequestVersion === loadMoreRequestVersionRef.current) {
+          setLoadingMoreDirection(undefined);
+        }
       }
     },
     [friendRepository, receivedNextCursor, sentNextCursor],
@@ -93,17 +136,13 @@ export const useFriendHubData = () => {
       try {
         setUpdatingFavoriteId(friend.id);
         await friendRepository.updateFavorite(friend.id, !friend.favorite);
+        stateVersionRef.current += 1;
         setFriends(current =>
-          current
-            .map(item =>
+          sortFriends(
+            current.map(item =>
               item.id === friend.id ? {...item, favorite: !friend.favorite} : item,
-            )
-            .sort((left, right) => {
-              if (left.favorite !== right.favorite) {
-                return left.favorite ? -1 : 1;
-              }
-              return left.nickname.localeCompare(right.nickname, 'ko');
-            }),
+            ),
+          ),
         );
       } finally {
         setUpdatingFavoriteId(undefined);
@@ -116,8 +155,24 @@ export const useFriendHubData = () => {
     async (requestId: string) => {
       try {
         setMutatingRequestId(requestId);
-        await friendRepository.acceptFriendRequest(requestId);
-        await reload();
+        const mutation = await friendRepository.acceptFriendRequest(requestId);
+        stateVersionRef.current += 1;
+        setReceivedRequests(current =>
+          current.filter(request => request.id !== requestId),
+        );
+        setIncomingRequestCount(current =>
+          current === undefined ? current : Math.max(0, current - 1),
+        );
+        const acceptedFriend = mutation.friend;
+        if (acceptedFriend) {
+          setFriends(current =>
+            sortFriends([
+              ...current.filter(friend => friend.id !== acceptedFriend.id),
+              acceptedFriend,
+            ]),
+          );
+        }
+        reload().catch(() => undefined);
       } finally {
         setMutatingRequestId(undefined);
       }
@@ -130,6 +185,7 @@ export const useFriendHubData = () => {
       try {
         setMutatingRequestId(requestId);
         await friendRepository.declineFriendRequest(requestId);
+        stateVersionRef.current += 1;
         setReceivedRequests(current =>
           current.filter(request => request.id !== requestId),
         );
@@ -148,6 +204,7 @@ export const useFriendHubData = () => {
       try {
         setMutatingRequestId(requestId);
         await friendRepository.cancelFriendRequest(requestId);
+        stateVersionRef.current += 1;
         setSentRequests(current =>
           current.filter(request => request.id !== requestId),
         );

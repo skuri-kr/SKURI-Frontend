@@ -38,6 +38,7 @@ export const FriendAddScreen = () => {
   const [nicknameQuery, setNicknameQuery] = React.useState('');
   const {
     loadingMyCode,
+    completedSearchQuery,
     invalidateFriendCodePreview,
     loadMoreSearchResults,
     myCode,
@@ -54,7 +55,7 @@ export const FriendAddScreen = () => {
     searchNextCursor,
     searching,
     sendFriendRequest,
-    sendingToId,
+    sendingFriendIds,
   } = useFriendAddData();
 
   const handlePreview = React.useCallback(async () => {
@@ -77,6 +78,9 @@ export const FriendAddScreen = () => {
     async (result: FriendSearchResult) => {
       try {
         const mutation = await sendFriendRequest(result.id);
+        if (!mutation) {
+          return;
+        }
         if (mutation.status === 'ACCEPTED') {
           Alert.alert('친구가 되었어요', `${result.nickname}님과 친구가 되었습니다.`, [
             {text: '확인', onPress: () => navigation.goBack()},
@@ -202,7 +206,7 @@ export const FriendAddScreen = () => {
               {previewing ? <ActivityIndicator color={COLORS.text.inverse} size="small" /> : <Text style={styles.searchButtonText}>확인</Text>}
             </TouchableOpacity>
           </View>
-          {preview ? <SearchResultRow result={preview} loading={sendingToId === preview.id} onSend={() => { handleSendRequest(preview).catch(() => undefined); }} /> : null}
+          {preview ? <SearchResultRow result={preview} loading={sendingFriendIds.has(preview.id)} onSend={() => { handleSendRequest(preview).catch(() => undefined); }} /> : null}
         </View>
 
         <Text style={styles.sectionTitle}>닉네임으로 찾기</Text>
@@ -226,9 +230,9 @@ export const FriendAddScreen = () => {
               {searching ? <ActivityIndicator color={COLORS.text.inverse} size="small" /> : <Icon color={COLORS.text.inverse} name="search" size={18} />}
             </TouchableOpacity>
           </View>
-          {searchResults.map(result => <SearchResultRow key={result.id} result={result} loading={sendingToId === result.id} onSend={() => { handleSendRequest(result).catch(() => undefined); }} />)}
+          {searchResults.map(result => <SearchResultRow key={result.id} result={result} loading={sendingFriendIds.has(result.id)} onSend={() => { handleSendRequest(result).catch(() => undefined); }} />)}
           {searchNextCursor ? <TouchableOpacity accessibilityRole="button" activeOpacity={0.82} disabled={searching} onPress={() => { loadMoreSearchResults(nicknameQuery).catch(searchError => Alert.alert('친구 검색', getErrorMessage(searchError, '검색 결과를 더 불러오지 못했습니다.'))); }} style={styles.loadMoreButton}>{searching ? <ActivityIndicator color={COLORS.brand.primary} size="small" /> : <Text style={styles.loadMoreText}>더 보기</Text>}</TouchableOpacity> : null}
-          {!searching && nicknameQuery.trim().length >= 2 && searchResults.length === 0 ? <Text style={styles.emptySearch}>검색 결과가 없어요.</Text> : null}
+          {!searching && completedSearchQuery === nicknameQuery.trim() && searchResults.length === 0 ? <Text style={styles.emptySearch}>검색 결과가 없어요.</Text> : null}
         </View>
         <StateCard
           description="카메라 권한과 QR 인식 기능은 후속 버전에서 제공할 예정이에요."

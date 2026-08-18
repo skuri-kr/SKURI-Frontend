@@ -2,6 +2,7 @@ import React from 'react';
 import {
   ActivityIndicator,
   Alert,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -150,7 +151,19 @@ export const FriendHubScreen = () => {
         title="친구"
       />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            colors={[COLORS.brand.primary]}
+            onRefresh={() => {
+              reload().catch(() => undefined);
+            }}
+            refreshing={loading && hasLoadedOnce}
+            tintColor={COLORS.brand.primary}
+          />
+        }
+        showsVerticalScrollIndicator={false}>
         <SegmentedControl<FriendHubTab>
           items={[
             {id: 'friends', label: `친구 ${friends.length}`},

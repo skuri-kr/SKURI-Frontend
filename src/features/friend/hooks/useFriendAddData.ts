@@ -19,15 +19,19 @@ export const useFriendAddData = () => {
     [],
   );
   const [searchNextCursor, setSearchNextCursor] = React.useState<string | null>(null);
+  const [completedSearchQuery, setCompletedSearchQuery] = React.useState<string>();
   const [myCodeError, setMyCodeError] = React.useState<string>();
   const [loadingMyCode, setLoadingMyCode] = React.useState(true);
   const [searching, setSearching] = React.useState(false);
   const [previewing, setPreviewing] = React.useState(false);
-  const [sendingToId, setSendingToId] = React.useState<string>();
+  const [sendingFriendIds, setSendingFriendIds] = React.useState<Set<string>>(
+    () => new Set(),
+  );
   const [regenerating, setRegenerating] = React.useState(false);
   const previewRequestVersionRef = React.useRef(0);
   const searchRequestVersionRef = React.useRef(0);
   const loadingMoreSearchRef = React.useRef(false);
+  const sendingFriendIdsRef = React.useRef(new Set<string>());
 
   const loadMyCode = React.useCallback(async () => {
     try {
@@ -91,12 +95,14 @@ export const useFriendAddData = () => {
     searchRequestVersionRef.current += 1;
     setSearchResults([]);
     setSearchNextCursor(null);
+    setCompletedSearchQuery(undefined);
     setSearching(false);
   }, []);
 
   const searchFriends = React.useCallback(
     async (query: string) => {
-      if (query.trim().length < 2) {
+      const normalizedQuery = query.trim();
+      if (normalizedQuery.length < 2) {
         throw new Error('닉네임을 두 글자 이상 입력해주세요.');
       }
 
@@ -107,6 +113,7 @@ export const useFriendAddData = () => {
         setSearching(true);
         setSearchResults([]);
         setSearchNextCursor(null);
+        setCompletedSearchQuery(undefined);
         const page = await friendRepository.searchFriends({
           query,
           size: 20,
@@ -117,6 +124,7 @@ export const useFriendAddData = () => {
 
         setSearchResults(page.items);
         setSearchNextCursor(page.nextCursor);
+        setCompletedSearchQuery(normalizedQuery);
       } catch (error) {
         if (requestVersion !== searchRequestVersionRef.current) {
           return;
@@ -124,6 +132,7 @@ export const useFriendAddData = () => {
 
         setSearchResults([]);
         setSearchNextCursor(null);
+        setCompletedSearchQuery(undefined);
         throw new Error(getErrorMessage(error, '친구를 검색하지 못했습니다.'));
       } finally {
         if (requestVersion === searchRequestVersionRef.current) {
@@ -168,8 +177,13 @@ export const useFriendAddData = () => {
 
   const sendFriendRequest = React.useCallback(
     async (friendId: string) => {
+      if (sendingFriendIdsRef.current.has(friendId)) {
+        return undefined;
+      }
+
+      sendingFriendIdsRef.current.add(friendId);
+      setSendingFriendIds(new Set(sendingFriendIdsRef.current));
       try {
-        setSendingToId(friendId);
         const mutation = await friendRepository.createFriendRequest(friendId);
         setPreview(current =>
           current?.id === friendId
@@ -185,7 +199,8 @@ export const useFriendAddData = () => {
         );
         return mutation;
       } finally {
-        setSendingToId(undefined);
+        sendingFriendIdsRef.current.delete(friendId);
+        setSendingFriendIds(new Set(sendingFriendIdsRef.current));
       }
     },
     [friendRepository],
@@ -216,10 +231,11 @@ export const useFriendAddData = () => {
     reloadMyCode: loadMyCode,
     resetSearch,
     searchFriends,
+    completedSearchQuery,
     searchResults,
     searchNextCursor,
     searching,
     sendFriendRequest,
-    sendingToId,
+    sendingFriendIds,
   };
 };
