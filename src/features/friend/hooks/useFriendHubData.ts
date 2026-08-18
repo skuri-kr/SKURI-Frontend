@@ -4,6 +4,8 @@ import {useFriendRepository} from '@/di';
 
 import type {FriendRequestItem, FriendSummary} from '../model/friend';
 
+type FriendRequestDirection = 'RECEIVED' | 'SENT';
+
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
 
@@ -28,16 +30,23 @@ export const useFriendHubData = () => {
   const [sentNextCursor, setSentNextCursor] = React.useState<string | null>(null);
   const [incomingRequestCount, setIncomingRequestCount] = React.useState<number>();
   const [hasLoadedOnce, setHasLoadedOnce] = React.useState(false);
-  const [loadingMoreDirection, setLoadingMoreDirection] = React.useState<
-    'RECEIVED' | 'SENT'
-  >();
+  const [loadingMoreDirections, setLoadingMoreDirections] = React.useState<
+    Set<FriendRequestDirection>
+  >(() => new Set());
   const [error, setError] = React.useState<string>();
   const [loading, setLoading] = React.useState(true);
-  const [mutatingRequestId, setMutatingRequestId] = React.useState<string>();
+  const [mutatingRequestIds, setMutatingRequestIds] = React.useState<Set<string>>(
+    () => new Set(),
+  );
   const [updatingFavoriteId, setUpdatingFavoriteId] = React.useState<string>();
   const stateVersionRef = React.useRef(0);
   const reloadRequestVersionRef = React.useRef(0);
-  const loadMoreRequestVersionRef = React.useRef(0);
+  const loadMoreRequestVersionRef = React.useRef<Record<FriendRequestDirection, number>>({
+    RECEIVED: 0,
+    SENT: 0,
+  });
+  const loadingMoreDirectionsRef = React.useRef(new Set<FriendRequestDirection>());
+  const mutatingRequestIdsRef = React.useRef(new Set<string>());
 
   const reload = React.useCallback(async () => {
     const reloadRequestVersion = reloadRequestVersionRef.current + 1;
@@ -86,19 +95,20 @@ export const useFriendHubData = () => {
   }, [friendRepository]);
 
   const loadMoreRequests = React.useCallback(
-    async (direction: 'RECEIVED' | 'SENT') => {
+    async (direction: FriendRequestDirection) => {
       const cursor =
         direction === 'RECEIVED' ? receivedNextCursor : sentNextCursor;
-      if (!cursor) {
+      if (!cursor || loadingMoreDirectionsRef.current.has(direction)) {
         return;
       }
 
       const stateVersion = stateVersionRef.current;
-      const loadMoreRequestVersion = loadMoreRequestVersionRef.current + 1;
-      loadMoreRequestVersionRef.current = loadMoreRequestVersion;
+      const loadMoreRequestVersion = loadMoreRequestVersionRef.current[direction] + 1;
+      loadMoreRequestVersionRef.current[direction] = loadMoreRequestVersion;
+      loadingMoreDirectionsRef.current.add(direction);
+      setLoadingMoreDirections(new Set(loadingMoreDirectionsRef.current));
 
       try {
-        setLoadingMoreDirection(direction);
         const page = await friendRepository.getFriendRequests({
           cursor,
           direction,
@@ -106,7 +116,7 @@ export const useFriendHubData = () => {
         });
         if (
           stateVersion !== stateVersionRef.current ||
-          loadMoreRequestVersion !== loadMoreRequestVersionRef.current
+          loadMoreRequestVersion !== loadMoreRequestVersionRef.current[direction]
         ) {
           return;
         }
@@ -119,8 +129,9 @@ export const useFriendHubData = () => {
         setSentRequests(current => [...current, ...page.items]);
         setSentNextCursor(page.nextCursor);
       } finally {
-        if (loadMoreRequestVersion === loadMoreRequestVersionRef.current) {
-          setLoadingMoreDirection(undefined);
+        if (loadMoreRequestVersion === loadMoreRequestVersionRef.current[direction]) {
+          loadingMoreDirectionsRef.current.delete(direction);
+          setLoadingMoreDirections(new Set(loadingMoreDirectionsRef.current));
         }
       }
     },
@@ -130,6 +141,21 @@ export const useFriendHubData = () => {
   React.useEffect(() => {
     reload().catch(() => undefined);
   }, [reload]);
+
+  const beginRequestMutation = React.useCallback((requestId: string) => {
+    if (mutatingRequestIdsRef.current.has(requestId)) {
+      return false;
+    }
+
+    mutatingRequestIdsRef.current.add(requestId);
+    setMutatingRequestIds(new Set(mutatingRequestIdsRef.current));
+    return true;
+  }, []);
+
+  const endRequestMutation = React.useCallback((requestId: string) => {
+    mutatingRequestIdsRef.current.delete(requestId);
+    setMutatingRequestIds(new Set(mutatingRequestIdsRef.current));
+  }, []);
 
   const updateFavorite = React.useCallback(
     async (friend: FriendSummary) => {
@@ -153,8 +179,11 @@ export const useFriendHubData = () => {
 
   const acceptRequest = React.useCallback(
     async (requestId: string) => {
+      if (!beginRequestMutation(requestId)) {
+        return;
+      }
+
       try {
-        setMutatingRequestId(requestId);
         const mutation = await friendRepository.acceptFriendRequest(requestId);
         stateVersionRef.current += 1;
         setReceivedRequests(current =>
@@ -174,16 +203,19 @@ export const useFriendHubData = () => {
         }
         reload().catch(() => undefined);
       } finally {
-        setMutatingRequestId(undefined);
+        endRequestMutation(requestId);
       }
     },
-    [friendRepository, reload],
+    [beginRequestMutation, endRequestMutation, friendRepository, reload],
   );
 
   const declineRequest = React.useCallback(
     async (requestId: string) => {
+      if (!beginRequestMutation(requestId)) {
+        return;
+      }
+
       try {
-        setMutatingRequestId(requestId);
         await friendRepository.declineFriendRequest(requestId);
         stateVersionRef.current += 1;
         setReceivedRequests(current =>
@@ -193,26 +225,29 @@ export const useFriendHubData = () => {
           current === undefined ? current : Math.max(0, current - 1),
         );
       } finally {
-        setMutatingRequestId(undefined);
+        endRequestMutation(requestId);
       }
     },
-    [friendRepository],
+    [beginRequestMutation, endRequestMutation, friendRepository],
   );
 
   const cancelRequest = React.useCallback(
     async (requestId: string) => {
+      if (!beginRequestMutation(requestId)) {
+        return;
+      }
+
       try {
-        setMutatingRequestId(requestId);
         await friendRepository.cancelFriendRequest(requestId);
         stateVersionRef.current += 1;
         setSentRequests(current =>
           current.filter(request => request.id !== requestId),
         );
       } finally {
-        setMutatingRequestId(undefined);
+        endRequestMutation(requestId);
       }
     },
-    [friendRepository],
+    [beginRequestMutation, endRequestMutation, friendRepository],
   );
 
   return {
@@ -224,9 +259,9 @@ export const useFriendHubData = () => {
     hasLoadedOnce,
     incomingRequestCount,
     loading,
-    loadingMoreDirection,
+    loadingMoreDirections,
     loadMoreRequests,
-    mutatingRequestId,
+    mutatingRequestIds,
     receivedRequests,
     receivedNextCursor,
     reload,

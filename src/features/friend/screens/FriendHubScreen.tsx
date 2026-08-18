@@ -43,9 +43,9 @@ export const FriendHubScreen = () => {
     hasLoadedOnce,
     incomingRequestCount,
     loading,
-    loadingMoreDirection,
+    loadingMoreDirections,
     loadMoreRequests,
-    mutatingRequestId,
+    mutatingRequestIds,
     receivedRequests,
     receivedNextCursor,
     reload,
@@ -251,7 +251,7 @@ export const FriendHubScreen = () => {
                 {receivedRequests.map(request => (
                   <FriendRequestCard
                     key={request.id}
-                    loading={mutatingRequestId === request.id}
+                    loading={mutatingRequestIds.has(request.id)}
                     mode="received"
                     onAccept={() => { handleAccept(request.id).catch(() => undefined); }}
                     onDecline={() => handleDecline(request.id)}
@@ -260,7 +260,7 @@ export const FriendHubScreen = () => {
                 ))}
                 {receivedNextCursor ? (
                   <LoadMoreButton
-                    loading={loadingMoreDirection === 'RECEIVED'}
+                    loading={loadingMoreDirections.has('RECEIVED')}
                     onPress={() => {
                       loadMoreRequests('RECEIVED').catch(loadError => {
                         Alert.alert('오류', getErrorMessage(loadError, '친구 요청을 더 불러오지 못했습니다.'));
@@ -276,7 +276,7 @@ export const FriendHubScreen = () => {
                 {sentRequests.map(request => (
                   <FriendRequestCard
                     key={request.id}
-                    loading={mutatingRequestId === request.id}
+                    loading={mutatingRequestIds.has(request.id)}
                     mode="sent"
                     onCancel={() => handleCancel(request.id)}
                     request={request}
@@ -284,7 +284,7 @@ export const FriendHubScreen = () => {
                 ))}
                 {sentNextCursor ? (
                   <LoadMoreButton
-                    loading={loadingMoreDirection === 'SENT'}
+                    loading={loadingMoreDirections.has('SENT')}
                     onPress={() => {
                       loadMoreRequests('SENT').catch(loadError => {
                         Alert.alert('오류', getErrorMessage(loadError, '친구 요청을 더 불러오지 못했습니다.'));

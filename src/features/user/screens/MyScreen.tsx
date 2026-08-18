@@ -51,10 +51,15 @@ export const MyScreen = () => {
 
   const [withdrawing, setWithdrawing] = React.useState(false);
   const [signingOut, setSigningOut] = React.useState(false);
-
+  const hasReceivedInitialFocus = React.useRef(false);
 
   useFocusEffect(
     React.useCallback(() => {
+      if (!hasReceivedInitialFocus.current) {
+        hasReceivedInitialFocus.current = true;
+        return;
+      }
+
       Promise.all([
         reload(),
         reloadFriendInboxCounts(),

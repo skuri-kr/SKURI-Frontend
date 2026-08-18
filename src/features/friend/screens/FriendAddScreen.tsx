@@ -137,7 +137,10 @@ export const FriendAddScreen = () => {
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
       <StackHeader onPressBack={() => navigation.goBack()} title="친구 추가" />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionTitle}>내 친구 코드</Text>
         <View style={styles.codeCard}>
           {loadingMyCode ? <ActivityIndicator color={COLORS.brand.primary} /> : null}

@@ -2,7 +2,7 @@ import React from 'react';
 import {ActivityIndicator, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 
 import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
-import {formatKoreanAbsoluteDate} from '@/shared/lib/date/datetime';
+import {formatKoreanCompactDateTime} from '@/shared/lib/date/datetime';
 
 import type {FriendRequestItem} from '../model/friend';
 import {FriendAvatar} from './FriendAvatar';
@@ -36,8 +36,8 @@ export const FriendRequestCard = ({
     </View>
     <Text style={styles.expiry}>
       {mode === 'received'
-        ? `${formatKoreanAbsoluteDate(request.expiresAt)}까지 응답할 수 있어요.`
-        : `${formatKoreanAbsoluteDate(request.expiresAt)}까지 대기 중이에요.`}
+        ? `${formatKoreanCompactDateTime(request.expiresAt)}까지 응답할 수 있어요.`
+        : `${formatKoreanCompactDateTime(request.expiresAt)}까지 대기 중이에요.`}
     </Text>
     {mode === 'received' ? (
       <View style={styles.actions}>
