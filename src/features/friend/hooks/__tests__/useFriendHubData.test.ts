@@ -241,6 +241,98 @@ describe('useFriendHubData', () => {
     expect(result.current.friends).toEqual([{...friend, favorite: true}]);
   });
 
+  it('즐겨찾기 변경 중에도 진행 중인 요청 다음 페이지를 이어 붙인다', async () => {
+    const repository = createRepository();
+    const nextPage = createDeferred<{
+      hasNext: boolean;
+      items: Array<{
+        createdAt: string;
+        department: string | null;
+        expiresAt: string;
+        friend: {department: string | null; id: string; nickname: string; photoUrl: string | null};
+        id: string;
+      }>;
+      nextCursor: string | null;
+    }>();
+    repository.getFriends.mockResolvedValue([friend]);
+    repository.getFriendRequests.mockImplementation(({cursor, direction}) => {
+      if (direction === 'RECEIVED' && cursor === 'received-cursor') {
+        return nextPage.promise;
+      }
+      if (direction === 'RECEIVED') {
+        return Promise.resolve({
+          hasNext: true,
+          items: [
+            {
+              createdAt: '2026-08-18T11:00:00',
+              department: null,
+              expiresAt: '2026-09-17T11:00:00',
+              friend: {department: null, id: 'friend-1', nickname: '가람', photoUrl: null},
+              id: 'request-1',
+            },
+          ],
+          nextCursor: 'received-cursor',
+        });
+      }
+      return Promise.resolve({hasNext: false, items: [], nextCursor: null});
+    });
+    repository.updateFavorite.mockResolvedValue(undefined);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await waitFor(() => {
+      expect(result.current.receivedNextCursor).toBe('received-cursor');
+    });
+
+    let loadMorePromise!: Promise<void>;
+    await act(async () => {
+      loadMorePromise = result.current.loadMoreRequests('RECEIVED');
+      await result.current.updateFavorite(friend);
+    });
+
+    await act(async () => {
+      nextPage.resolve({
+        hasNext: false,
+        items: [
+          {
+            createdAt: '2026-08-18T12:00:00',
+            department: null,
+            expiresAt: '2026-09-17T12:00:00',
+            friend: {department: null, id: 'friend-2', nickname: '나래', photoUrl: null},
+            id: 'request-2',
+          },
+        ],
+        nextCursor: null,
+      });
+      await loadMorePromise;
+    });
+
+    expect(result.current.receivedRequests.map(request => request.id)).toEqual([
+      'request-1',
+      'request-2',
+    ]);
+  });
+
+  it('같은 닉네임 친구는 ID 순으로 안정적으로 정렬한다', async () => {
+    const repository = createRepository();
+    repository.getFriends.mockResolvedValue([
+      {...friend, id: 'friend-2', nickname: '가람'},
+      {...friend, id: 'friend-1', nickname: '가람'},
+    ]);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await waitFor(() => {
+      expect(result.current.friends.map(item => item.id)).toEqual(['friend-1', 'friend-2']);
+    });
+  });
+
   it('받은 요청과 보낸 요청의 다음 페이지를 동시에 불러온다', async () => {
     const repository = createRepository();
     const initialReceivedRequests = [

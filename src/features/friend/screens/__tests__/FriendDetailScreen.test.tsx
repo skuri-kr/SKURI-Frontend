@@ -1,0 +1,93 @@
+import React from 'react';
+import {Alert} from 'react-native';
+import {fireEvent, render, waitFor} from '@testing-library/react-native';
+
+import {useNavigation, useRoute} from '@react-navigation/native';
+
+import {useFriendDetailData} from '../../hooks/useFriendDetailData';
+import {FriendDetailScreen} from '../FriendDetailScreen';
+
+jest.mock('@react-navigation/native', () => ({
+  useNavigation: jest.fn(),
+  useRoute: jest.fn(),
+}));
+
+jest.mock('react-native-safe-area-context', () => ({
+  SafeAreaView: ({children}: {children: React.ReactNode}) => {
+    const {createElement} = require('react');
+    const {View} = require('react-native');
+    return createElement(View, undefined, children);
+  },
+}));
+
+jest.mock('react-native-vector-icons/Ionicons', () => 'Icon');
+
+jest.mock('@/shared/design-system/components', () => ({
+  SettingsRow: ({onPress, title}: {onPress: () => void; title: string}) => {
+    const {createElement} = require('react');
+    const {Text, TouchableOpacity} = require('react-native');
+    return createElement(TouchableOpacity, {onPress}, createElement(Text, undefined, title));
+  },
+  SettingsSection: ({children}: {children: React.ReactNode}) => children,
+  StackHeader: () => null,
+  StateCard: () => null,
+}));
+
+jest.mock('@/shared/hooks/useScreenView', () => ({useScreenView: jest.fn()}));
+
+jest.mock('../../components/FriendAvatar', () => ({FriendAvatar: () => null}));
+
+jest.mock('../../hooks/useFriendDetailData', () => ({
+  useFriendDetailData: jest.fn(),
+}));
+
+const mockedUseNavigation = jest.mocked(useNavigation);
+const mockedUseRoute = jest.mocked(useRoute);
+const mockedUseFriendDetailData = jest.mocked(useFriendDetailData);
+
+describe('FriendDetailScreen', () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it('화면을 떠난 뒤 친구 끊기와 차단이 완료되어도 현재 화면을 뒤로 이동하지 않는다', async () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(false)};
+    const removeFriend = jest.fn().mockResolvedValue(undefined);
+    const blockFriend = jest.fn().mockResolvedValue(undefined);
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseRoute.mockReturnValue({params: {friendId: 'friend-1'}} as ReturnType<typeof useRoute>);
+    mockedUseFriendDetailData.mockReturnValue({
+      blockFriend,
+      error: undefined,
+      friend: {
+        department: null,
+        favorite: false,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      },
+      loading: false,
+      mutating: false,
+      reload: jest.fn(),
+      removeFriend,
+      updateFavorite: jest.fn(),
+    } as ReturnType<typeof useFriendDetailData>);
+    jest.spyOn(Alert, 'alert').mockImplementation((...args) => {
+      const action = args[2]?.find(button => button.text !== '취소');
+      action?.onPress?.();
+    });
+
+    const view = render(<FriendDetailScreen />);
+
+    fireEvent.press(view.getByText('친구 끊기'));
+    fireEvent.press(view.getByText('차단하기'));
+
+    await waitFor(() => {
+      expect(removeFriend).toHaveBeenCalled();
+      expect(blockFriend).toHaveBeenCalled();
+    });
+
+    expect(navigation.goBack).not.toHaveBeenCalled();
+    expect(navigation.isFocused).toHaveBeenCalledTimes(2);
+  });
+});

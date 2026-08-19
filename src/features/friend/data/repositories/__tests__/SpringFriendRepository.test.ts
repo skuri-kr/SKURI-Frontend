@@ -50,6 +50,13 @@ describe('SpringFriendRepository', () => {
           nickname: '가람',
           photoUrl: null,
         },
+        {
+          department: null,
+          favorite: true,
+          friendPublicId: 'friend-0',
+          nickname: '가람',
+          photoUrl: null,
+        },
       ],
       success: true,
     });
@@ -57,6 +64,13 @@ describe('SpringFriendRepository', () => {
     const repository = new SpringFriendRepository(apiClient);
 
     await expect(repository.getFriends()).resolves.toEqual([
+      {
+        department: null,
+        favorite: true,
+        id: 'friend-0',
+        nickname: '가람',
+        photoUrl: null,
+      },
       {
         department: null,
         favorite: true,
