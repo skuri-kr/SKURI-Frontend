@@ -418,4 +418,53 @@ describe('useFriendHubData', () => {
 
     expect(result.current.mutatingRequestIds).toEqual(new Set());
   });
+
+  it('서로 다른 친구의 즐겨찾기 저장 상태를 독립적으로 유지한다', async () => {
+    const repository = createRepository();
+    const secondFriend = {
+      department: null,
+      favorite: false,
+      id: 'friend-2',
+      nickname: '나래',
+      photoUrl: null,
+    };
+    const firstUpdate = createDeferred<void>();
+    const secondUpdate = createDeferred<void>();
+    repository.getFriends.mockResolvedValue([friend, secondFriend]);
+    repository.updateFavorite.mockImplementation((friendId: string) =>
+      friendId === friend.id ? firstUpdate.promise : secondUpdate.promise,
+    );
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await waitFor(() => {
+      expect(result.current.friends).toHaveLength(2);
+    });
+
+    let firstPromise!: Promise<void>;
+    let secondPromise!: Promise<void>;
+    await act(async () => {
+      firstPromise = result.current.updateFavorite(friend);
+      secondPromise = result.current.updateFavorite(secondFriend);
+    });
+
+    expect(result.current.updatingFavoriteIds).toEqual(new Set(['friend-1', 'friend-2']));
+
+    await act(async () => {
+      firstUpdate.resolve(undefined);
+      await firstPromise;
+    });
+
+    expect(result.current.updatingFavoriteIds).toEqual(new Set(['friend-2']));
+
+    await act(async () => {
+      secondUpdate.resolve(undefined);
+      await secondPromise;
+    });
+
+    expect(result.current.updatingFavoriteIds).toEqual(new Set());
+  });
 });
