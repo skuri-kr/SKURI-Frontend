@@ -27,7 +27,7 @@ const sortFriends = (friends: FriendSummary[]) =>
       return left.favorite ? -1 : 1;
     }
 
-    return FRIEND_NAME_COLLATOR.compare(left.nickname, right.nickname);
+    return FRIEND_NAME_COLLATOR.compare(left.nickname, right.nickname) || left.id.localeCompare(right.id);
   });
 
 export class SpringFriendRepository implements IFriendRepository {

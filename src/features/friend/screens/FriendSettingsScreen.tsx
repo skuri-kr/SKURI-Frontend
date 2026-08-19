@@ -72,7 +72,7 @@ export const FriendSettingsScreen = () => {
 
   const handleUnblock = React.useCallback(
     (friendId: string, nickname: string) => {
-      Alert.alert('차단 해제', `${nickname}님의 차단을 해제할까요?`, [
+      Alert.alert('차단 해제', `${nickname}님의 차단을 해제할까요? 차단을 해제해도 이전 친구 관계는 복원되지 않습니다.`, [
         {text: '취소', style: 'cancel'},
         {
           text: '차단 해제',

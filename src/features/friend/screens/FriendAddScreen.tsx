@@ -152,11 +152,11 @@ export const FriendAddScreen = () => {
               <Text style={styles.code}>{myCode.code}</Text>
               <Text style={styles.codeHint}>이 코드를 친구에게 보내면 빠르게 친구 요청을 받을 수 있어요.</Text>
               <View style={styles.codeActions}>
-                <TouchableOpacity accessibilityRole="button" activeOpacity={0.82} onPress={handleCopyMyCode} style={styles.secondaryAction}>
+                <TouchableOpacity accessibilityRole="button" activeOpacity={0.82} disabled={regenerating} onPress={handleCopyMyCode} style={styles.secondaryAction}>
                   <Icon color={COLORS.text.secondary} name="copy-outline" size={17} />
                   <Text style={styles.secondaryActionText}>복사</Text>
                 </TouchableOpacity>
-                <TouchableOpacity accessibilityRole="button" activeOpacity={0.82} onPress={() => { handleShareMyCode().catch(() => undefined); }} style={styles.secondaryAction}>
+                <TouchableOpacity accessibilityRole="button" activeOpacity={0.82} disabled={regenerating} onPress={() => { handleShareMyCode().catch(() => undefined); }} style={styles.secondaryAction}>
                   <Icon color={COLORS.text.secondary} name="share-social-outline" size={17} />
                   <Text style={styles.secondaryActionText}>공유</Text>
                 </TouchableOpacity>

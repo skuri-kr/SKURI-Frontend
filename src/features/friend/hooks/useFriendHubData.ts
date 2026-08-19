@@ -14,7 +14,8 @@ const sortFriends = (friends: FriendSummary[]) =>
     if (left.favorite !== right.favorite) {
       return left.favorite ? -1 : 1;
     }
-    return left.nickname.localeCompare(right.nickname, 'ko');
+    const nicknameComparison = left.nickname.localeCompare(right.nickname, 'ko');
+    return nicknameComparison || left.id.localeCompare(right.id);
   });
 
 export const useFriendHubData = () => {
@@ -42,6 +43,7 @@ export const useFriendHubData = () => {
     () => new Set(),
   );
   const stateVersionRef = React.useRef(0);
+  const requestListVersionRef = React.useRef(0);
   const reloadRequestVersionRef = React.useRef(0);
   const loadMoreRequestVersionRef = React.useRef<Record<FriendRequestDirection, number>>({
     RECEIVED: 0,
@@ -73,6 +75,7 @@ export const useFriendHubData = () => {
       }
 
       stateVersionRef.current += 1;
+      requestListVersionRef.current += 1;
       setFriends(sortFriends(nextFriends));
       setReceivedRequests(receivedPage.items);
       setSentRequests(sentPage.items);
@@ -105,7 +108,7 @@ export const useFriendHubData = () => {
         return;
       }
 
-      const stateVersion = stateVersionRef.current;
+      const requestListVersion = requestListVersionRef.current;
       const loadMoreRequestVersion = loadMoreRequestVersionRef.current[direction] + 1;
       loadMoreRequestVersionRef.current[direction] = loadMoreRequestVersion;
       loadingMoreDirectionsRef.current.add(direction);
@@ -118,7 +121,7 @@ export const useFriendHubData = () => {
           size: 20,
         });
         if (
-          stateVersion !== stateVersionRef.current ||
+          requestListVersion !== requestListVersionRef.current ||
           loadMoreRequestVersion !== loadMoreRequestVersionRef.current[direction]
         ) {
           return;
@@ -207,6 +210,7 @@ export const useFriendHubData = () => {
       try {
         const mutation = await friendRepository.acceptFriendRequest(requestId);
         stateVersionRef.current += 1;
+        requestListVersionRef.current += 1;
         setReceivedRequests(current =>
           current.filter(request => request.id !== requestId),
         );
@@ -239,6 +243,7 @@ export const useFriendHubData = () => {
       try {
         await friendRepository.declineFriendRequest(requestId);
         stateVersionRef.current += 1;
+        requestListVersionRef.current += 1;
         setReceivedRequests(current =>
           current.filter(request => request.id !== requestId),
         );
@@ -261,6 +266,7 @@ export const useFriendHubData = () => {
       try {
         await friendRepository.cancelFriendRequest(requestId);
         stateVersionRef.current += 1;
+        requestListVersionRef.current += 1;
         setSentRequests(current =>
           current.filter(request => request.id !== requestId),
         );

@@ -88,23 +88,11 @@ export const FriendHubScreen = () => {
     [acceptRequest],
   );
 
-  const handleDecline = React.useCallback(
-    (requestId: string) => {
-      Alert.alert('친구 요청 거절', '이 친구 요청을 거절할까요?', [
-        {text: '취소', style: 'cancel'},
-        {
-          text: '거절',
-          style: 'destructive',
-          onPress: () => {
-            declineRequest(requestId).catch(declineError => {
-              Alert.alert('오류', getErrorMessage(declineError, '친구 요청을 거절하지 못했습니다.'));
-            });
-          },
-        },
-      ]);
-    },
-    [declineRequest],
-  );
+  const handleDecline = React.useCallback((requestId: string) => {
+    declineRequest(requestId).catch(declineError => {
+      Alert.alert('오류', getErrorMessage(declineError, '친구 요청을 거절하지 못했습니다.'));
+    });
+  }, [declineRequest]);
 
   const handleCancel = React.useCallback(
     (requestId: string) => {
