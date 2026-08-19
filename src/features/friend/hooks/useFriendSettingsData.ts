@@ -17,7 +17,10 @@ export const useFriendSettingsData = () => {
   const [loadingBlocks, setLoadingBlocks] = React.useState(true);
   const [hasLoadedBlocks, setHasLoadedBlocks] = React.useState(false);
   const [savingPrivacy, setSavingPrivacy] = React.useState(false);
-  const [unblockingId, setUnblockingId] = React.useState<string>();
+  const [unblockingIds, setUnblockingIds] = React.useState<Set<string>>(
+    () => new Set(),
+  );
+  const unblockingIdsRef = React.useRef(new Set<string>());
 
   const loadPrivacy = React.useCallback(async () => {
     try {
@@ -66,12 +69,18 @@ export const useFriendSettingsData = () => {
 
   const unblockMember = React.useCallback(
     async (friendId: string) => {
+      if (unblockingIdsRef.current.has(friendId)) {
+        return;
+      }
+
+      unblockingIdsRef.current.add(friendId);
+      setUnblockingIds(new Set(unblockingIdsRef.current));
       try {
-        setUnblockingId(friendId);
         await friendRepository.unblockMember(friendId);
         setBlocks(current => current.filter(block => block.id !== friendId));
       } finally {
-        setUnblockingId(undefined);
+        unblockingIdsRef.current.delete(friendId);
+        setUnblockingIds(new Set(unblockingIdsRef.current));
       }
     },
     [friendRepository],
@@ -90,7 +99,7 @@ export const useFriendSettingsData = () => {
     reloadPrivacy: loadPrivacy,
     savingPrivacy,
     unblockMember,
-    unblockingId,
+    unblockingIds,
     updateNicknameSearchable,
   };
 };

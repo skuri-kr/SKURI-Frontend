@@ -38,7 +38,9 @@ export const useFriendHubData = () => {
   const [mutatingRequestIds, setMutatingRequestIds] = React.useState<Set<string>>(
     () => new Set(),
   );
-  const [updatingFavoriteId, setUpdatingFavoriteId] = React.useState<string>();
+  const [updatingFavoriteIds, setUpdatingFavoriteIds] = React.useState<Set<string>>(
+    () => new Set(),
+  );
   const stateVersionRef = React.useRef(0);
   const reloadRequestVersionRef = React.useRef(0);
   const loadMoreRequestVersionRef = React.useRef<Record<FriendRequestDirection, number>>({
@@ -47,6 +49,7 @@ export const useFriendHubData = () => {
   });
   const loadingMoreDirectionsRef = React.useRef(new Set<FriendRequestDirection>());
   const mutatingRequestIdsRef = React.useRef(new Set<string>());
+  const updatingFavoriteIdsRef = React.useRef(new Set<string>());
 
   const reload = React.useCallback(async () => {
     const reloadRequestVersion = reloadRequestVersionRef.current + 1;
@@ -157,10 +160,28 @@ export const useFriendHubData = () => {
     setMutatingRequestIds(new Set(mutatingRequestIdsRef.current));
   }, []);
 
+  const beginFavoriteUpdate = React.useCallback((friendId: string) => {
+    if (updatingFavoriteIdsRef.current.has(friendId)) {
+      return false;
+    }
+
+    updatingFavoriteIdsRef.current.add(friendId);
+    setUpdatingFavoriteIds(new Set(updatingFavoriteIdsRef.current));
+    return true;
+  }, []);
+
+  const endFavoriteUpdate = React.useCallback((friendId: string) => {
+    updatingFavoriteIdsRef.current.delete(friendId);
+    setUpdatingFavoriteIds(new Set(updatingFavoriteIdsRef.current));
+  }, []);
+
   const updateFavorite = React.useCallback(
     async (friend: FriendSummary) => {
+      if (!beginFavoriteUpdate(friend.id)) {
+        return;
+      }
+
       try {
-        setUpdatingFavoriteId(friend.id);
         await friendRepository.updateFavorite(friend.id, !friend.favorite);
         stateVersionRef.current += 1;
         setFriends(current =>
@@ -171,10 +192,10 @@ export const useFriendHubData = () => {
           ),
         );
       } finally {
-        setUpdatingFavoriteId(undefined);
+        endFavoriteUpdate(friend.id);
       }
     },
-    [friendRepository],
+    [beginFavoriteUpdate, endFavoriteUpdate, friendRepository],
   );
 
   const acceptRequest = React.useCallback(
@@ -268,6 +289,6 @@ export const useFriendHubData = () => {
     sentRequests,
     sentNextCursor,
     updateFavorite,
-    updatingFavoriteId,
+    updatingFavoriteIds,
   };
 };

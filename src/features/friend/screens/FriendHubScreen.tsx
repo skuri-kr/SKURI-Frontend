@@ -52,7 +52,7 @@ export const FriendHubScreen = () => {
     sentRequests,
     sentNextCursor,
     updateFavorite,
-    updatingFavoriteId,
+    updatingFavoriteIds,
   } = useFriendHubData();
 
   useFocusEffect(
@@ -224,7 +224,7 @@ export const FriendHubScreen = () => {
               {friends.map((friend, index) => (
                 <View key={friend.id} style={index < friends.length - 1 ? styles.rowDivider : undefined}>
                   <FriendRow
-                    disabled={updatingFavoriteId === friend.id}
+                    disabled={updatingFavoriteIds.has(friend.id)}
                     friend={friend}
                     onPress={() => navigation.navigate('FriendDetail', {friendId: friend.id})}
                     onPressFavorite={() => { handleFavorite(friend).catch(() => undefined); }}

@@ -32,7 +32,7 @@ export const FriendDetailScreen = () => {
   }, [friend?.nickname, navigation, removeFriend]);
 
   const handleBlock = React.useCallback(() => {
-    Alert.alert('친구 차단', `${friend?.nickname || '이 친구'}님을 차단할까요? 친구 관계와 대기 중인 요청도 함께 정리됩니다.`, [
+    Alert.alert('친구 차단', `${friend?.nickname || '이 친구'}님을 차단할까요? 친구 관계와 대기 중인 요청도 함께 정리됩니다.\n\n공개 게시판과 공개 채팅의 기존 콘텐츠는 계속 보일 수 있습니다.`, [
       {text: '취소', style: 'cancel'},
       {text: '차단', style: 'destructive', onPress: () => {
         blockFriend().then(() => navigation.goBack()).catch(blockError => Alert.alert('오류', getErrorMessage(blockError, '친구를 차단하지 못했습니다.')));

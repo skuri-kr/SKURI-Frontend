@@ -66,7 +66,7 @@ export const FriendSettingsScreen = () => {
     reloadPrivacy,
     savingPrivacy,
     unblockMember,
-    unblockingId,
+    unblockingIds,
     updateNicknameSearchable,
   } = useFriendSettingsData();
 
@@ -192,10 +192,10 @@ export const FriendSettingsScreen = () => {
                     <TouchableOpacity
                       accessibilityRole="button"
                       activeOpacity={0.82}
-                      disabled={unblockingId === block.id}
+                      disabled={unblockingIds.has(block.id)}
                       onPress={() => handleUnblock(block.id, block.nickname)}
                       style={styles.unblockButton}>
-                      {unblockingId === block.id ? (
+                      {unblockingIds.has(block.id) ? (
                         <ActivityIndicator color={COLORS.text.secondary} size="small" />
                       ) : (
                         <Text style={styles.unblockText}>차단 해제</Text>

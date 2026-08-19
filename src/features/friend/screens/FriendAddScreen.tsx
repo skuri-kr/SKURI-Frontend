@@ -81,6 +81,9 @@ export const FriendAddScreen = () => {
         if (!mutation) {
           return;
         }
+        if (!navigation.isFocused()) {
+          return;
+        }
         if (mutation.status === 'ACCEPTED') {
           Alert.alert('친구가 되었어요', `${result.nickname}님과 친구가 되었습니다.`, [
             {text: '확인', onPress: () => navigation.goBack()},
