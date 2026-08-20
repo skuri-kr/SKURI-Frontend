@@ -5,6 +5,8 @@ import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {type CampusStackParamList} from '@/app/navigation/types';
 import {SettingsRow, SettingsSection, StackHeader, StateCard} from '@/shared/design-system/components';
 import {COLORS, SPACING} from '@/shared/design-system/tokens';
@@ -27,6 +29,7 @@ export const FriendDetailScreen = () => {
       {text: '취소', style: 'cancel'},
       {text: '친구 끊기', style: 'destructive', onPress: () => {
         removeFriend().then(() => {
+          invalidateData(FRIEND_HUB_INVALIDATION_KEY);
           if (navigation.isFocused()) {
             navigation.goBack();
           }
@@ -40,6 +43,7 @@ export const FriendDetailScreen = () => {
       {text: '취소', style: 'cancel'},
       {text: '차단', style: 'destructive', onPress: () => {
         blockFriend().then(() => {
+          invalidateData(FRIEND_HUB_INVALIDATION_KEY);
           if (navigation.isFocused()) {
             navigation.goBack();
           }
