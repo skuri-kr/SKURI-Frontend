@@ -11,6 +11,14 @@ import type {
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
 
+const reconcileFriendRequestability = <T extends FriendSearchResult>(
+  result: T,
+  requestedFriendIds: ReadonlySet<string>,
+): T =>
+  requestedFriendIds.has(result.id)
+    ? {...result, canSendFriendRequest: false}
+    : result;
+
 export const useFriendAddData = () => {
   const friendRepository = useFriendRepository();
   const [myCode, setMyCode] = React.useState<FriendCode>();
@@ -32,6 +40,7 @@ export const useFriendAddData = () => {
   const searchRequestVersionRef = React.useRef(0);
   const loadingMoreSearchRef = React.useRef(false);
   const sendingFriendIdsRef = React.useRef(new Set<string>());
+  const requestedFriendIdsRef = React.useRef(new Set<string>());
 
   const loadMyCode = React.useCallback(async () => {
     try {
@@ -73,8 +82,12 @@ export const useFriendAddData = () => {
           return undefined;
         }
 
-        setPreview(result);
-        return result;
+        const reconciledResult = reconcileFriendRequestability(
+          result,
+          requestedFriendIdsRef.current,
+        );
+        setPreview(reconciledResult);
+        return reconciledResult;
       } catch (error) {
         if (requestVersion !== previewRequestVersionRef.current) {
           return undefined;
@@ -122,7 +135,14 @@ export const useFriendAddData = () => {
           return;
         }
 
-        setSearchResults(page.items);
+        setSearchResults(
+          page.items.map(result =>
+            reconcileFriendRequestability(
+              result,
+              requestedFriendIdsRef.current,
+            ),
+          ),
+        );
         setSearchNextCursor(page.nextCursor);
         setCompletedSearchQuery(normalizedQuery);
       } catch (error) {
@@ -163,7 +183,15 @@ export const useFriendAddData = () => {
           return;
         }
 
-        setSearchResults(current => [...current, ...page.items]);
+        setSearchResults(current => [
+          ...current,
+          ...page.items.map(result =>
+            reconcileFriendRequestability(
+              result,
+              requestedFriendIdsRef.current,
+            ),
+          ),
+        ]);
         setSearchNextCursor(page.nextCursor);
       } finally {
         loadingMoreSearchRef.current = false;
@@ -185,6 +213,7 @@ export const useFriendAddData = () => {
       setSendingFriendIds(new Set(sendingFriendIdsRef.current));
       try {
         const mutation = await friendRepository.createFriendRequest(friendId);
+        requestedFriendIdsRef.current.add(friendId);
         setPreview(current =>
           current?.id === friendId
             ? {...current, canSendFriendRequest: false}

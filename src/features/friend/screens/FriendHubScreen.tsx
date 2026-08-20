@@ -80,6 +80,7 @@ export const FriendHubScreen = () => {
   const {
     acceptRequest,
     cancelRequest,
+    completedRequestActions,
     declineRequest,
     friendError,
     friends,
@@ -318,6 +319,7 @@ export const FriendHubScreen = () => {
                 {receivedRequests.length > 0 ? receivedRequests.map(request => (
                   <FriendRequestCard
                     key={request.id}
+                    completedAction={completedRequestActions.get(request.id)}
                     loading={mutatingRequestIds.has(request.id)}
                     mode="received"
                     onAccept={() => { handleAccept(request.id).catch(() => undefined); }}
@@ -354,6 +356,7 @@ export const FriendHubScreen = () => {
                 {sentRequests.length > 0 ? sentRequests.map(request => (
                   <FriendRequestCard
                     key={request.id}
+                    completedAction={completedRequestActions.get(request.id)}
                     loading={mutatingRequestIds.has(request.id)}
                     mode="sent"
                     onCancel={() => handleCancel(request.id)}

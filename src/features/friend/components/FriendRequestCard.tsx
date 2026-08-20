@@ -1,5 +1,6 @@
 import React from 'react';
 import {ActivityIndicator, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
 
 import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
 import {formatKoreanCompactDateTime} from '@/shared/lib/date/datetime';
@@ -8,6 +9,7 @@ import type {FriendRequestItem} from '../model/friend';
 import {FriendAvatar} from './FriendAvatar';
 
 interface FriendRequestCardProps {
+  completedAction?: 'ACCEPTED' | 'CANCELED' | 'DECLINED';
   loading?: boolean;
   mode: 'received' | 'sent';
   onAccept?: () => void;
@@ -18,6 +20,7 @@ interface FriendRequestCardProps {
 }
 
 export const FriendRequestCard = ({
+  completedAction,
   loading = false,
   mode,
   onAccept,
@@ -46,7 +49,18 @@ export const FriendRequestCard = ({
         ? `${formatKoreanCompactDateTime(request.expiresAt)}까지 응답할 수 있어요.`
         : `${formatKoreanCompactDateTime(request.expiresAt)}까지 대기 중이에요.`}
     </Text>
-    {mode === 'received' ? (
+    {completedAction ? (
+      <View accessibilityLiveRegion="polite" style={styles.completedAction}>
+        <Icon color={COLORS.brand.primary} name="checkmark-circle" size={18} />
+        <Text style={styles.completedActionText}>
+          {completedAction === 'ACCEPTED'
+            ? '수락했어요'
+            : completedAction === 'DECLINED'
+              ? '거절했어요'
+              : '요청을 취소했어요'}
+        </Text>
+      </View>
+    ) : mode === 'received' ? (
       <View style={styles.actions}>
         <TouchableOpacity
           accessibilityRole="button"
@@ -94,5 +108,7 @@ const styles = StyleSheet.create({
   secondaryText: {color: COLORS.text.secondary, fontSize: 14, fontWeight: '700'},
   cancelButton: {alignItems: 'center', backgroundColor: COLORS.background.subtle, borderRadius: RADIUS.md, height: 40, justifyContent: 'center', marginTop: SPACING.lg},
   cancelText: {color: COLORS.text.secondary, fontSize: 14, fontWeight: '700'},
+  completedAction: {alignItems: 'center', backgroundColor: COLORS.background.subtle, borderRadius: RADIUS.md, flexDirection: 'row', gap: SPACING.xs, height: 40, justifyContent: 'center', marginTop: SPACING.lg},
+  completedActionText: {color: COLORS.brand.primaryStrong, fontSize: 14, fontWeight: '700'},
   loadingButton: {opacity: 0.7},
 });

@@ -21,6 +21,8 @@ export const useFriendSettingsData = () => {
     () => new Set(),
   );
   const unblockingIdsRef = React.useRef(new Set<string>());
+  const blocksLoadVersionRef = React.useRef(0);
+  const blocksStateVersionRef = React.useRef(0);
 
   const loadPrivacy = React.useCallback(async () => {
     try {
@@ -35,15 +37,34 @@ export const useFriendSettingsData = () => {
   }, [friendRepository]);
 
   const loadBlocks = React.useCallback(async () => {
+    const loadVersion = blocksLoadVersionRef.current + 1;
+    blocksLoadVersionRef.current = loadVersion;
+    const blocksStateVersion = blocksStateVersionRef.current;
+
     try {
       setLoadingBlocks(true);
       setBlocksError(undefined);
-      setBlocks(await friendRepository.getBlocks());
+      const nextBlocks = await friendRepository.getBlocks();
+      if (
+        loadVersion !== blocksLoadVersionRef.current ||
+        blocksStateVersion !== blocksStateVersionRef.current
+      ) {
+        return;
+      }
+      setBlocks(nextBlocks);
       setHasLoadedBlocks(true);
     } catch (loadError) {
+      if (
+        loadVersion !== blocksLoadVersionRef.current ||
+        blocksStateVersion !== blocksStateVersionRef.current
+      ) {
+        return;
+      }
       setBlocksError(getErrorMessage(loadError, '차단 목록을 불러오지 못했습니다.'));
     } finally {
-      setLoadingBlocks(false);
+      if (loadVersion === blocksLoadVersionRef.current) {
+        setLoadingBlocks(false);
+      }
     }
   }, [friendRepository]);
 
@@ -77,6 +98,7 @@ export const useFriendSettingsData = () => {
       setUnblockingIds(new Set(unblockingIdsRef.current));
       try {
         await friendRepository.unblockMember(friendId);
+        blocksStateVersionRef.current += 1;
         setBlocks(current => current.filter(block => block.id !== friendId));
       } finally {
         unblockingIdsRef.current.delete(friendId);

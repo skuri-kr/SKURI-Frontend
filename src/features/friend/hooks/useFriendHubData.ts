@@ -6,6 +6,7 @@ import type {FriendRequestItem, FriendSummary} from '../model/friend';
 
 type FriendRequestDirection = 'RECEIVED' | 'SENT';
 type FriendHubReloadTarget = 'friends' | FriendRequestDirection;
+type FriendRequestCompletion = 'ACCEPTED' | 'CANCELED' | 'DECLINED';
 type FriendHubReloadScope = Partial<{
   friends: boolean;
   receivedRequests: boolean;
@@ -30,6 +31,8 @@ const settle = <T,>(operation: () => Promise<T>): Promise<AsyncResult<T>> =>
     .then(operation)
     .then(value => ({ok: true, value} as const))
     .catch(error => ({error, ok: false} as const));
+
+const REQUEST_COMPLETION_DURATION_MS = 1200;
 
 export const useFriendHubData = () => {
   const friendRepository = useFriendRepository();
@@ -59,6 +62,9 @@ export const useFriendHubData = () => {
   const [updatingFavoriteIds, setUpdatingFavoriteIds] = React.useState<Set<string>>(
     () => new Set(),
   );
+  const [completedRequestActions, setCompletedRequestActions] = React.useState<
+    Map<string, FriendRequestCompletion>
+  >(() => new Map());
   const sectionStateVersionsRef = React.useRef<
     Record<FriendHubReloadTarget, number>
   >({
@@ -93,6 +99,9 @@ export const useFriendHubData = () => {
   );
   const mutatingRequestIdsRef = React.useRef(new Set<string>());
   const updatingFavoriteIdsRef = React.useRef(new Set<string>());
+  const requestCompletionTimersRef = React.useRef(
+    new Map<string, ReturnType<typeof setTimeout>>(),
+  );
 
   const reload = React.useCallback(
     async (scope?: FriendHubReloadScope) => {
@@ -296,6 +305,14 @@ export const useFriendHubData = () => {
     reload().catch(() => undefined);
   }, [reload]);
 
+  React.useEffect(
+    () => () => {
+      requestCompletionTimersRef.current.forEach(timer => clearTimeout(timer));
+      requestCompletionTimersRef.current.clear();
+    },
+    [],
+  );
+
   const beginRequestMutation = React.useCallback((requestId: string) => {
     if (mutatingRequestIdsRef.current.has(requestId)) {
       return false;
@@ -326,6 +343,39 @@ export const useFriendHubData = () => {
     setUpdatingFavoriteIds(new Set(updatingFavoriteIdsRef.current));
   }, []);
 
+  const completeRequest = React.useCallback(
+    (requestId: string, completion: FriendRequestCompletion) => {
+      setCompletedRequestActions(current => {
+        const next = new Map(current);
+        next.set(requestId, completion);
+        return next;
+      });
+
+      const existingTimer = requestCompletionTimersRef.current.get(requestId);
+      if (existingTimer) {
+        clearTimeout(existingTimer);
+      }
+      requestCompletionTimersRef.current.set(
+        requestId,
+        setTimeout(() => {
+          requestCompletionTimersRef.current.delete(requestId);
+          setCompletedRequestActions(current => {
+            const next = new Map(current);
+            next.delete(requestId);
+            return next;
+          });
+          setReceivedRequests(current =>
+            current.filter(request => request.id !== requestId),
+          );
+          setSentRequests(current =>
+            current.filter(request => request.id !== requestId),
+          );
+        }, REQUEST_COMPLETION_DURATION_MS),
+      );
+    },
+    [],
+  );
+
   const updateFavorite = React.useCallback(
     async (friend: FriendSummary) => {
       if (!beginFavoriteUpdate(friend.id)) {
@@ -344,6 +394,7 @@ export const useFriendHubData = () => {
           ),
         );
         await friendRepository.updateFavorite(friend.id, !friend.favorite);
+        sectionStateVersionsRef.current.friends += 1;
       } catch (favoriteError) {
         sectionStateVersionsRef.current.friends += 1;
         setFriends(current =>
@@ -374,9 +425,6 @@ export const useFriendHubData = () => {
         sectionStateVersionsRef.current.friends += 1;
         sectionStateVersionsRef.current.RECEIVED += 1;
         requestListVersionsRef.current.RECEIVED += 1;
-        setReceivedRequests(current =>
-          current.filter(request => request.id !== requestId),
-        );
         setIncomingRequestCount(current =>
           current === undefined ? current : Math.max(0, current - 1),
         );
@@ -394,11 +442,12 @@ export const useFriendHubData = () => {
           receivedRequests: false,
           sentRequests: false,
         }).catch(() => undefined);
+        completeRequest(requestId, 'ACCEPTED');
       } finally {
         endRequestMutation(requestId);
       }
     },
-    [beginRequestMutation, endRequestMutation, friendRepository, reload],
+    [beginRequestMutation, completeRequest, endRequestMutation, friendRepository, reload],
   );
 
   const declineRequest = React.useCallback(
@@ -411,17 +460,15 @@ export const useFriendHubData = () => {
         await friendRepository.declineFriendRequest(requestId);
         sectionStateVersionsRef.current.RECEIVED += 1;
         requestListVersionsRef.current.RECEIVED += 1;
-        setReceivedRequests(current =>
-          current.filter(request => request.id !== requestId),
-        );
         setIncomingRequestCount(current =>
           current === undefined ? current : Math.max(0, current - 1),
         );
+        completeRequest(requestId, 'DECLINED');
       } finally {
         endRequestMutation(requestId);
       }
     },
-    [beginRequestMutation, endRequestMutation, friendRepository],
+    [beginRequestMutation, completeRequest, endRequestMutation, friendRepository],
   );
 
   const cancelRequest = React.useCallback(
@@ -434,14 +481,12 @@ export const useFriendHubData = () => {
         await friendRepository.cancelFriendRequest(requestId);
         sectionStateVersionsRef.current.SENT += 1;
         requestListVersionsRef.current.SENT += 1;
-        setSentRequests(current =>
-          current.filter(request => request.id !== requestId),
-        );
+        completeRequest(requestId, 'CANCELED');
       } finally {
         endRequestMutation(requestId);
       }
     },
-    [beginRequestMutation, endRequestMutation, friendRepository],
+    [beginRequestMutation, completeRequest, endRequestMutation, friendRepository],
   );
 
   const hasLoadedOnce = hasLoadedFriends || hasLoadedReceivedRequests || hasLoadedSentRequests;
@@ -450,6 +495,7 @@ export const useFriendHubData = () => {
   return {
     acceptRequest,
     cancelRequest,
+    completedRequestActions,
     declineRequest,
     error,
     friendError,
