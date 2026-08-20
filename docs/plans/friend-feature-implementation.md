@@ -194,7 +194,7 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 
 - 받은·보낸 탭은 각각 서버의 `direction=RECEIVED|SENT`를 사용하며 현재 PENDING 요청만 표시한다.
 - 한 페이지는 20건이고 서버의 opaque cursor를 사용한다. `createdAt DESC`, `requestId DESC` 순서로 이어 붙인다.
-- 수락·거절·취소 결과는 mutation 직후 짧게 표시한 뒤 현재 PENDING 목록에서 제거하고 query를 재조회한다.
+- 수락·거절·취소 결과는 같은 카드의 버튼 영역에 완료 상태로 1.2초간 표시한 뒤 현재 PENDING 목록에서 제거하고 query를 재조회한다.
 - 거절·취소·만료 terminal 이력 조회는 V1에서 제공하지 않고 후속 TODO로 남긴다.
 
 거절 동작:
