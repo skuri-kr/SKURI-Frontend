@@ -17,6 +17,8 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 import {type CampusStackParamList} from '@/app/navigation/types';
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {StateCard, StackHeader} from '@/shared/design-system/components';
 import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
 import {useScreenView} from '@/shared/hooks/useScreenView';
@@ -113,7 +115,9 @@ export const FriendAddScreen = () => {
     const timer = setTimeout(() => {
       nicknameSearchTimerRef.current = undefined;
       searchFriends(query).catch(searchError => {
-        Alert.alert('친구 검색', getErrorMessage(searchError, '친구를 검색하지 못했습니다.'));
+        if (navigation.isFocused()) {
+          Alert.alert('친구 검색', getErrorMessage(searchError, '친구를 검색하지 못했습니다.'));
+        }
       });
     }, NICKNAME_SEARCH_DEBOUNCE_MS);
     nicknameSearchTimerRef.current = timer;
@@ -124,7 +128,7 @@ export const FriendAddScreen = () => {
         nicknameSearchTimerRef.current = undefined;
       }
     };
-  }, [nicknameQuery, searchFriends]);
+  }, [navigation, nicknameQuery, searchFriends]);
 
   const duplicateResultIds = React.useMemo(
     () => getDuplicateResultIds(searchResults),
@@ -145,6 +149,7 @@ export const FriendAddScreen = () => {
         if (!mutation) {
           return;
         }
+        invalidateData(FRIEND_HUB_INVALIDATION_KEY);
         if (!navigation.isFocused()) {
           return;
         }
@@ -162,7 +167,9 @@ export const FriendAddScreen = () => {
           },
         ]);
       } catch (requestError) {
-        Alert.alert('오류', getErrorMessage(requestError, '친구 요청을 보내지 못했습니다.'));
+        if (navigation.isFocused()) {
+          Alert.alert('오류', getErrorMessage(requestError, '친구 요청을 보내지 못했습니다.'));
+        }
       }
     },
     [navigation, sendFriendRequest],

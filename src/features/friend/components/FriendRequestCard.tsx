@@ -14,6 +14,7 @@ interface FriendRequestCardProps {
   onCancel?: () => void;
   onDecline?: () => void;
   request: FriendRequestItem;
+  showIdentifier?: boolean;
 }
 
 export const FriendRequestCard = ({
@@ -23,6 +24,7 @@ export const FriendRequestCard = ({
   onCancel,
   onDecline,
   request,
+  showIdentifier = false,
 }: FriendRequestCardProps) => (
   <View style={styles.card}>
     <View style={styles.header}>
@@ -32,6 +34,11 @@ export const FriendRequestCard = ({
         <Text style={styles.department}>
           {request.friend.department || '학과 정보 없음'}
         </Text>
+        {showIdentifier ? (
+          <Text style={styles.identifier}>
+            식별 코드 · {request.friend.id.slice(-6).toUpperCase()}
+          </Text>
+        ) : null}
       </View>
     </View>
     <Text style={styles.expiry}>
@@ -77,6 +84,7 @@ const styles = StyleSheet.create({
   content: {flex: 1, marginLeft: SPACING.md},
   name: {color: COLORS.text.primary, fontSize: 15, fontWeight: '700', lineHeight: 22},
   department: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: 2},
+  identifier: {color: COLORS.text.tertiary, fontSize: 11, lineHeight: 16, marginTop: 2},
   expiry: {color: COLORS.text.tertiary, fontSize: 12, lineHeight: 18, marginTop: SPACING.md},
   actions: {flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.lg},
   button: {alignItems: 'center', borderRadius: RADIUS.md, flex: 1, height: 40, justifyContent: 'center'},

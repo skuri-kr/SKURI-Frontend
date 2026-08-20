@@ -9,12 +9,20 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import {useFocusEffect, useNavigation, useRoute, type RouteProp} from '@react-navigation/native';
+import {
+  useFocusEffect,
+  useIsFocused,
+  useNavigation,
+  useRoute,
+  type RouteProp,
+} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 import {type CampusStackParamList} from '@/app/navigation/types';
+import {useInvalidationVersion} from '@/app/data-freshness/dataInvalidation';
+import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {SegmentedControl, StackHeader, StateCard} from '@/shared/design-system/components';
 import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
 import {useScreenView} from '@/shared/hooks/useScreenView';
@@ -25,6 +33,33 @@ import {useFriendHubData} from '../hooks/useFriendHubData';
 
 type FriendHubTab = 'friends' | 'requests';
 
+const getDuplicateRequestFriendIds = (
+  requests: ReadonlyArray<{
+    friend: {department: string | null; id: string; nickname: string};
+  }>,
+) => {
+  const counts = new Map<string, number>();
+  requests.forEach(request => {
+    const key = JSON.stringify([
+      request.friend.nickname,
+      request.friend.department,
+    ]);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  });
+
+  return new Set(
+    requests
+      .filter(request => {
+        const key = JSON.stringify([
+          request.friend.nickname,
+          request.friend.department,
+        ]);
+        return counts.get(key)! > 1;
+      })
+      .map(request => request.friend.id),
+  );
+};
+
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
 
@@ -33,7 +68,12 @@ export const FriendHubScreen = () => {
 
   const navigation = useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
   const route = useRoute<RouteProp<CampusStackParamList, 'FriendHub'>>();
+  const isFocused = useIsFocused();
   const hasReceivedInitialFocus = React.useRef(false);
+  const lastInvalidationVersionRef = React.useRef<number | undefined>(undefined);
+  const friendHubInvalidationVersion = useInvalidationVersion(
+    FRIEND_HUB_INVALIDATION_KEY,
+  );
   const [selectedTab, setSelectedTab] = React.useState<FriendHubTab>(
     route.params?.initialTab ?? 'friends',
   );
@@ -64,6 +104,26 @@ export const FriendHubScreen = () => {
     updateFavorite,
     updatingFavoriteIds,
   } = useFriendHubData();
+
+  React.useEffect(() => {
+    if (lastInvalidationVersionRef.current === undefined) {
+      lastInvalidationVersionRef.current = friendHubInvalidationVersion;
+      return;
+    }
+    if (lastInvalidationVersionRef.current === friendHubInvalidationVersion) {
+      return;
+    }
+
+    lastInvalidationVersionRef.current = friendHubInvalidationVersion;
+    if (isFocused) {
+      reload().catch(() => undefined);
+    }
+  }, [friendHubInvalidationVersion, isFocused, reload]);
+
+  const duplicateRequestFriendIds = React.useMemo(
+    () => getDuplicateRequestFriendIds([...receivedRequests, ...sentRequests]),
+    [receivedRequests, sentRequests],
+  );
 
   React.useEffect(() => {
     const initialTab = route.params?.initialTab;
@@ -263,6 +323,7 @@ export const FriendHubScreen = () => {
                     onAccept={() => { handleAccept(request.id).catch(() => undefined); }}
                     onDecline={() => handleDecline(request.id)}
                     request={request}
+                    showIdentifier={duplicateRequestFriendIds.has(request.friend.id)}
                   />
                 )) : sentRequests.length > 0 || !hasLoadedSentRequests || sentRequestsError ? <Text style={styles.emptySectionText}>받은 요청이 없어요.</Text> : null}
                 {receivedNextCursor ? (
@@ -297,6 +358,7 @@ export const FriendHubScreen = () => {
                     mode="sent"
                     onCancel={() => handleCancel(request.id)}
                     request={request}
+                    showIdentifier={duplicateRequestFriendIds.has(request.friend.id)}
                   />
                 )) : receivedRequests.length > 0 || !hasLoadedReceivedRequests || receivedRequestsError ? <Text style={styles.emptySectionText}>보낸 요청이 없어요.</Text> : null}
                 {sentNextCursor ? (
