@@ -12,11 +12,13 @@ const mockedUseFriendRepository = jest.mocked(useFriendRepository);
 
 const createDeferred = <T,>() => {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>(resolvePromise => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
 
-  return {promise, resolve};
+  return {promise, reject, resolve};
 };
 
 const createRepository = () => ({
@@ -76,5 +78,70 @@ describe('useFriendDetailData', () => {
     expect(repository.updateFavorite).toHaveBeenCalledTimes(1);
     expect(repository.updateFavorite).toHaveBeenCalledWith('friend-1', true);
     expect(result.current.friend?.favorite).toBe(true);
+  });
+
+  it('즐겨찾기를 즉시 반영하고 저장에 실패하면 이전 상태로 되돌린다', async () => {
+    const repository = createRepository();
+    const favoriteDeferred = createDeferred<void>();
+    repository.updateFavorite.mockReturnValue(favoriteDeferred.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendDetailData('friend-1'));
+
+    await waitFor(() => {
+      expect(result.current.friend?.id).toBe('friend-1');
+    });
+
+    let favoriteMutation!: Promise<void>;
+    act(() => {
+      favoriteMutation = result.current.updateFavorite();
+    });
+
+    expect(result.current.friend?.favorite).toBe(true);
+    expect(result.current.mutating).toBe(true);
+
+    await act(async () => {
+      favoriteDeferred.reject(new Error('network unavailable'));
+      await expect(favoriteMutation).rejects.toThrow('network unavailable');
+    });
+
+    expect(result.current.friend?.favorite).toBe(false);
+    expect(result.current.mutating).toBe(false);
+  });
+
+  it('친구 끊기 중에는 다른 친구 관리 요청을 실행하지 않는다', async () => {
+    const repository = createRepository();
+    const removalDeferred = createDeferred<void>();
+    repository.removeFriend.mockReturnValue(removalDeferred.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendDetailData('friend-1'));
+
+    await waitFor(() => {
+      expect(result.current.friend?.id).toBe('friend-1');
+    });
+
+    let removalMutation!: Promise<void>;
+    await act(async () => {
+      removalMutation = result.current.removeFriend();
+      await result.current.blockFriend();
+      await result.current.updateFavorite();
+    });
+
+    expect(repository.removeFriend).toHaveBeenCalledTimes(1);
+    expect(repository.blockMember).not.toHaveBeenCalled();
+    expect(repository.updateFavorite).not.toHaveBeenCalled();
+    expect(result.current.mutating).toBe(true);
+
+    await act(async () => {
+      removalDeferred.resolve();
+      await removalMutation;
+    });
+
+    expect(result.current.mutating).toBe(false);
   });
 });

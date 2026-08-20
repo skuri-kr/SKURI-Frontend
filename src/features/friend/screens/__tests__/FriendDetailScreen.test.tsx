@@ -23,10 +23,10 @@ jest.mock('react-native-safe-area-context', () => ({
 jest.mock('react-native-vector-icons/Ionicons', () => 'Icon');
 
 jest.mock('@/shared/design-system/components', () => ({
-  SettingsRow: ({onPress, title}: {onPress: () => void; title: string}) => {
+  SettingsRow: ({disabled, onPress, title}: {disabled?: boolean; onPress: () => void; title: string}) => {
     const {createElement} = require('react');
     const {Text, TouchableOpacity} = require('react-native');
-    return createElement(TouchableOpacity, {onPress}, createElement(Text, undefined, title));
+    return createElement(TouchableOpacity, {disabled, onPress}, createElement(Text, undefined, title));
   },
   SettingsSection: ({children}: {children: React.ReactNode}) => children,
   StackHeader: () => null,
@@ -89,5 +89,40 @@ describe('FriendDetailScreen', () => {
 
     expect(navigation.goBack).not.toHaveBeenCalled();
     expect(navigation.isFocused).toHaveBeenCalledTimes(2);
+  });
+
+  it('친구 관리 요청이 진행 중이면 모든 친구 관리 액션을 비활성화한다', () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true)};
+    const removeFriend = jest.fn();
+    const blockFriend = jest.fn();
+    const updateFavorite = jest.fn();
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseRoute.mockReturnValue({params: {friendId: 'friend-1'}} as ReturnType<typeof useRoute>);
+    mockedUseFriendDetailData.mockReturnValue({
+      blockFriend,
+      error: undefined,
+      friend: {
+        department: null,
+        favorite: false,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      },
+      loading: false,
+      mutating: true,
+      reload: jest.fn(),
+      removeFriend,
+      updateFavorite,
+    } as ReturnType<typeof useFriendDetailData>);
+
+    const view = render(<FriendDetailScreen />);
+
+    fireEvent.press(view.getByText('즐겨찾기에 추가'));
+    fireEvent.press(view.getByText('친구 끊기'));
+    fireEvent.press(view.getByText('차단하기'));
+
+    expect(updateFavorite).not.toHaveBeenCalled();
+    expect(removeFriend).not.toHaveBeenCalled();
+    expect(blockFriend).not.toHaveBeenCalled();
   });
 });
