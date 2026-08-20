@@ -38,7 +38,7 @@ export const useFriendAddData = () => {
   const [regenerating, setRegenerating] = React.useState(false);
   const previewRequestVersionRef = React.useRef(0);
   const searchRequestVersionRef = React.useRef(0);
-  const loadingMoreSearchRef = React.useRef(false);
+  const loadingMoreSearchVersionRef = React.useRef<number | undefined>(undefined);
   const sendingFriendIdsRef = React.useRef(new Set<string>());
   const requestedFriendIdsRef = React.useRef(new Set<string>());
 
@@ -165,12 +165,15 @@ export const useFriendAddData = () => {
 
   const loadMoreSearchResults = React.useCallback(
     async (query: string) => {
-      if (!searchNextCursor || loadingMoreSearchRef.current) {
+      const requestVersion = searchRequestVersionRef.current;
+      if (
+        !searchNextCursor ||
+        loadingMoreSearchVersionRef.current === requestVersion
+      ) {
         return;
       }
 
-      const requestVersion = searchRequestVersionRef.current;
-      loadingMoreSearchRef.current = true;
+      loadingMoreSearchVersionRef.current = requestVersion;
 
       try {
         setSearching(true);
@@ -194,7 +197,9 @@ export const useFriendAddData = () => {
         ]);
         setSearchNextCursor(page.nextCursor);
       } finally {
-        loadingMoreSearchRef.current = false;
+        if (loadingMoreSearchVersionRef.current === requestVersion) {
+          loadingMoreSearchVersionRef.current = undefined;
+        }
         if (requestVersion === searchRequestVersionRef.current) {
           setSearching(false);
         }
