@@ -384,13 +384,23 @@ describe('useFriendHubData', () => {
 
     expect(result.current.receivedRequests).toHaveLength(1);
     expect(result.current.completedRequestActions.get('request-1')).toBe('ACCEPTED');
+    repository.getFriendRequests.mockResolvedValueOnce({
+      hasNext: false,
+      items: [],
+      nextCursor: null,
+    });
 
     await act(async () => {
       jest.advanceTimersByTime(1200);
+      await Promise.resolve();
     });
 
     expect(result.current.receivedRequests).toEqual([]);
     expect(result.current.completedRequestActions.get('request-1')).toBeUndefined();
+    expect(repository.getFriendRequests).toHaveBeenLastCalledWith({
+      direction: 'RECEIVED',
+      size: 20,
+    });
     jest.useRealTimers();
   });
 

@@ -136,4 +136,36 @@ describe('FriendDetailScreen', () => {
     expect(removeFriend).not.toHaveBeenCalled();
     expect(blockFriend).not.toHaveBeenCalled();
   });
+
+  it('즐겨찾기 저장 성공 후에는 화면 포커스와 무관하게 허브를 무효화한다', async () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(false)};
+    const updateFavorite = jest.fn().mockResolvedValue(undefined);
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseRoute.mockReturnValue({params: {friendId: 'friend-1'}} as ReturnType<typeof useRoute>);
+    mockedUseFriendDetailData.mockReturnValue({
+      blockFriend: jest.fn(),
+      error: undefined,
+      friend: {
+        department: null,
+        favorite: false,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      },
+      loading: false,
+      mutating: false,
+      reload: jest.fn(),
+      removeFriend: jest.fn(),
+      updateFavorite,
+    } as ReturnType<typeof useFriendDetailData>);
+
+    const view = render(<FriendDetailScreen />);
+
+    fireEvent.press(view.getByText('즐겨찾기에 추가'));
+
+    await waitFor(() => {
+      expect(updateFavorite).toHaveBeenCalled();
+      expect(mockedInvalidateData).toHaveBeenCalledWith(FRIEND_HUB_INVALIDATION_KEY);
+    });
+  });
 });

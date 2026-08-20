@@ -192,4 +192,33 @@ describe('useFriendSettingsData', () => {
 
     expect(result.current.blocks).toEqual([]);
   });
+
+  it('설정 저장보다 먼저 시작한 공개 설정 조회가 저장 값을 되돌리지 않는다', async () => {
+    const repository = createRepository();
+    const stalePrivacy = createDeferred<{nicknameSearchable: boolean}>();
+    repository.getMyPrivacy
+      .mockResolvedValueOnce({nicknameSearchable: true})
+      .mockReturnValueOnce(stalePrivacy.promise);
+    repository.getBlocks.mockResolvedValue([]);
+    repository.updateMyPrivacy.mockResolvedValue({nicknameSearchable: false});
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendSettingsData());
+
+    await waitFor(() => {
+      expect(result.current.privacy).toEqual({nicknameSearchable: true});
+    });
+
+    let reloadPromise!: Promise<void>;
+    await act(async () => {
+      reloadPromise = result.current.reloadPrivacy();
+      await result.current.updateNicknameSearchable(false);
+      stalePrivacy.resolve({nicknameSearchable: true});
+      await reloadPromise;
+    });
+
+    expect(result.current.privacy).toEqual({nicknameSearchable: false});
+  });
 });
