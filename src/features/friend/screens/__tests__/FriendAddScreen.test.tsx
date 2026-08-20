@@ -4,6 +4,9 @@ import {act, fireEvent, render, waitFor} from '@testing-library/react-native';
 
 import {useNavigation} from '@react-navigation/native';
 
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
+
 import {useFriendAddData} from '../../hooks/useFriendAddData';
 import {FriendAddScreen} from '../FriendAddScreen';
 
@@ -11,6 +14,10 @@ jest.mock('@react-native-clipboard/clipboard', () => ({setString: jest.fn()}));
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: jest.fn(),
+}));
+
+jest.mock('@/app/data-freshness/dataInvalidation', () => ({
+  invalidateData: jest.fn(),
 }));
 
 jest.mock('react-native-safe-area-context', () => ({
@@ -46,6 +53,7 @@ jest.mock('../../hooks/useFriendAddData', () => ({
 
 const mockedUseNavigation = jest.mocked(useNavigation);
 const mockedUseFriendAddData = jest.mocked(useFriendAddData);
+const mockedInvalidateData = jest.mocked(invalidateData);
 
 const createFriendAddData = (overrides: Partial<ReturnType<typeof useFriendAddData>> = {}) => ({
   completedSearchQuery: undefined,
@@ -136,6 +144,7 @@ describe('FriendAddScreen', () => {
 
     expect(alertSpy).not.toHaveBeenCalled();
     expect(navigation.goBack).not.toHaveBeenCalled();
+    expect(mockedInvalidateData).toHaveBeenCalledWith(FRIEND_HUB_INVALIDATION_KEY);
   });
 
   it('두 글자 이상 닉네임을 입력하면 300ms 뒤 자동으로 검색한다', () => {
@@ -177,6 +186,34 @@ describe('FriendAddScreen', () => {
     });
 
     expect(alertSpy).toHaveBeenCalledWith('친구 검색', 'network unavailable');
+  });
+
+  it('화면을 떠난 뒤 실패한 자동 닉네임 검색은 오류를 표시하지 않는다', async () => {
+    jest.useFakeTimers();
+    const navigation = {
+      goBack: jest.fn(),
+      isFocused: jest.fn().mockReturnValue(false),
+    };
+    const searchFriends = jest
+      .fn()
+      .mockRejectedValue(new Error('network unavailable'));
+    mockedUseNavigation.mockReturnValue(
+      navigation as ReturnType<typeof useNavigation>,
+    );
+    mockedUseFriendAddData.mockReturnValue(
+      createFriendAddData({searchFriends}),
+    );
+    const alertSpy = jest.spyOn(Alert, 'alert');
+
+    const view = render(<FriendAddScreen />);
+    fireEvent.changeText(view.getByLabelText('친구 닉네임 검색'), '가람');
+
+    await act(async () => {
+      jest.advanceTimersByTime(300);
+      await Promise.resolve();
+    });
+
+    expect(alertSpy).not.toHaveBeenCalled();
   });
 
   it('대기 중인 친구 요청을 보낸 뒤 요청 목록으로 이동할 수 있다', async () => {

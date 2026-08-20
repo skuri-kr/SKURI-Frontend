@@ -91,11 +91,13 @@ const friend = {
 
 const createDeferred = <T,>() => {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>(resolvePromise => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
 
-  return {promise, resolve};
+  return {promise, reject, resolve};
 };
 
 describe('useFriendHubData', () => {
@@ -291,6 +293,36 @@ describe('useFriendHubData', () => {
     });
 
     expect(result.current.friends).toEqual([{...friend, favorite: true}]);
+  });
+
+  it('즐겨찾기를 즉시 반영하고 저장 실패 시 원복한다', async () => {
+    const repository = createRepository();
+    const favoriteUpdate = createDeferred<void>();
+    repository.getFriends.mockResolvedValue([friend]);
+    repository.updateFavorite.mockReturnValue(favoriteUpdate.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await waitFor(() => {
+      expect(result.current.friends).toEqual([friend]);
+    });
+
+    let updatePromise!: Promise<void>;
+    await act(async () => {
+      updatePromise = result.current.updateFavorite(friend);
+    });
+
+    expect(result.current.friends).toEqual([{...friend, favorite: true}]);
+
+    await act(async () => {
+      favoriteUpdate.reject(new Error('network unavailable'));
+      await expect(updatePromise).rejects.toThrow('network unavailable');
+    });
+
+    expect(result.current.friends).toEqual([friend]);
   });
 
   it('즐겨찾기 변경 중에도 진행 중인 요청 다음 페이지를 이어 붙인다', async () => {
@@ -611,4 +643,98 @@ describe('useFriendHubData', () => {
 
     expect(result.current.updatingFavoriteIds).toEqual(new Set());
   });
+  it('받은 요청과 보낸 요청의 독립 재시도가 서로의 성공 결과를 버리지 않는다', async () => {
+    const repository = createRepository();
+    const receivedRetry = createDeferred<{
+      hasNext: boolean;
+      items: Array<{
+        createdAt: string;
+        department: string | null;
+        expiresAt: string;
+        friend: {department: string | null; id: string; nickname: string; photoUrl: string | null};
+        id: string;
+      }>;
+      nextCursor: string | null;
+    }>();
+    const sentRetry = createDeferred<{
+      hasNext: boolean;
+      items: Array<{
+        createdAt: string;
+        department: string | null;
+        expiresAt: string;
+        friend: {department: string | null; id: string; nickname: string; photoUrl: string | null};
+        id: string;
+      }>;
+      nextCursor: string | null;
+    }>();
+    let receivedCalls = 0;
+    let sentCalls = 0;
+    repository.getFriendRequests.mockImplementation(({direction}) => {
+      if (direction === 'RECEIVED') {
+        receivedCalls += 1;
+        return receivedCalls === 1
+          ? Promise.reject(new Error('received unavailable'))
+          : receivedRetry.promise;
+      }
+
+      sentCalls += 1;
+      return sentCalls === 1
+        ? Promise.reject(new Error('sent unavailable'))
+        : sentRetry.promise;
+    });
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await waitFor(() => {
+      expect(result.current.receivedRequestsError).toBe('received unavailable');
+      expect(result.current.sentRequestsError).toBe('sent unavailable');
+    });
+
+    let receivedReload!: Promise<void>;
+    let sentReload!: Promise<void>;
+    await act(async () => {
+      receivedReload = result.current.reloadRequestDirection('RECEIVED');
+      sentReload = result.current.reloadRequestDirection('SENT');
+    });
+
+    await act(async () => {
+      receivedRetry.resolve({
+        hasNext: false,
+        items: [
+          {
+            createdAt: '2026-08-18T11:00:00',
+            department: null,
+            expiresAt: '2026-09-17T11:00:00',
+            friend: {department: null, id: 'friend-1', nickname: '가람', photoUrl: null},
+            id: 'request-1',
+          },
+        ],
+        nextCursor: null,
+      });
+      sentRetry.resolve({
+        hasNext: false,
+        items: [
+          {
+            createdAt: '2026-08-18T11:00:00',
+            department: null,
+            expiresAt: '2026-09-17T11:00:00',
+            friend: {department: null, id: 'friend-2', nickname: '나래', photoUrl: null},
+            id: 'request-2',
+          },
+        ],
+        nextCursor: null,
+      });
+      await Promise.all([receivedReload, sentReload]);
+    });
+
+    expect(result.current.receivedRequests.map(request => request.id)).toEqual(['request-1']);
+    expect(result.current.sentRequests.map(request => request.id)).toEqual(['request-2']);
+    expect(result.current.receivedRequestsError).toBeUndefined();
+    expect(result.current.sentRequestsError).toBeUndefined();
+  });
+
+
 });

@@ -26,5 +26,27 @@ describe('FriendRequestCard', () => {
     );
 
     expect(view.getByText('09.17 11:30까지 응답할 수 있어요.')).toBeTruthy();
+  });  it('동일 프로필 요청을 구분해야 할 때만 공개 식별 코드 일부를 표시한다', () => {
+    const request = {
+      createdAt: '2026-08-18T11:00:00+09:00',
+      department: '컴퓨터공학과',
+      expiresAt: '2026-09-17T11:30:00+09:00',
+      friend: {
+        department: '컴퓨터공학과',
+        id: 'friend-public-abc123',
+        nickname: '가람',
+        photoUrl: null,
+      },
+      id: 'request-1',
+    };
+    const identifiedView = render(
+      <FriendRequestCard mode="received" request={request} showIdentifier />,
+    );
+    const ordinaryView = render(
+      <FriendRequestCard mode="received" request={request} />,
+    );
+
+    expect(identifiedView.getByText('식별 코드 · ABC123')).toBeTruthy();
+    expect(ordinaryView.queryByText('식별 코드 · ABC123')).toBeNull();
   });
 });
