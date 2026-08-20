@@ -13,7 +13,7 @@ export const useFriendDetailData = (friendId: string) => {
   const [error, setError] = React.useState<string>();
   const [loading, setLoading] = React.useState(true);
   const [mutating, setMutating] = React.useState(false);
-  const favoriteMutationInFlightRef = React.useRef(false);
+  const mutationInFlightRef = React.useRef(false);
 
   const reload = React.useCallback(async () => {
     try {
@@ -32,29 +32,57 @@ export const useFriendDetailData = (friendId: string) => {
   }, [reload]);
 
   const updateFavorite = React.useCallback(async () => {
-    if (!friend || favoriteMutationInFlightRef.current) {
+    if (!friend || mutationInFlightRef.current) {
       return;
     }
 
+    const previousFriend = friend;
     try {
-      favoriteMutationInFlightRef.current = true;
+      mutationInFlightRef.current = true;
       setMutating(true);
-      await friendRepository.updateFavorite(friend.id, !friend.favorite);
+      setFriend({...previousFriend, favorite: !previousFriend.favorite});
+      await friendRepository.updateFavorite(previousFriend.id, !previousFriend.favorite);
+    } catch (favoriteError) {
       setFriend(current =>
-        current ? {...current, favorite: !current.favorite} : current,
+        current?.id === previousFriend.id
+          ? {...current, favorite: previousFriend.favorite}
+          : current,
       );
+      throw favoriteError;
     } finally {
-      favoriteMutationInFlightRef.current = false;
+      mutationInFlightRef.current = false;
       setMutating(false);
     }
   }, [friend, friendRepository]);
 
   const removeFriend = React.useCallback(async () => {
-    await friendRepository.removeFriend(friendId);
+    if (mutationInFlightRef.current) {
+      return;
+    }
+
+    try {
+      mutationInFlightRef.current = true;
+      setMutating(true);
+      await friendRepository.removeFriend(friendId);
+    } finally {
+      mutationInFlightRef.current = false;
+      setMutating(false);
+    }
   }, [friendId, friendRepository]);
 
   const blockFriend = React.useCallback(async () => {
-    await friendRepository.blockMember(friendId);
+    if (mutationInFlightRef.current) {
+      return;
+    }
+
+    try {
+      mutationInFlightRef.current = true;
+      setMutating(true);
+      await friendRepository.blockMember(friendId);
+    } finally {
+      mutationInFlightRef.current = false;
+      setMutating(false);
+    }
   }, [friendId, friendRepository]);
 
   return {

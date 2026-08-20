@@ -28,7 +28,28 @@ import type {FriendSearchResult} from '../model/friend';
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
 
-const formatCode = (value: string) => value.trim().toUpperCase();
+const NICKNAME_SEARCH_DEBOUNCE_MS = 300;
+
+const formatCode = (value: string) => {
+  const compactCode = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 11);
+  return [compactCode.slice(0, 3), compactCode.slice(3, 7), compactCode.slice(7, 11)]
+    .filter(Boolean)
+    .join('-');
+};
+
+const getDuplicateResultIds = (results: FriendSearchResult[]) => {
+  const counts = new Map<string, number>();
+  results.forEach(result => {
+    const key = JSON.stringify([result.nickname, result.department]);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  });
+
+  return new Set(
+    results
+      .filter(result => counts.get(JSON.stringify([result.nickname, result.department]))! > 1)
+      .map(result => result.id),
+  );
+};
 
 export const FriendAddScreen = () => {
   useScreenView();
@@ -36,6 +57,7 @@ export const FriendAddScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
   const [friendCode, setFriendCode] = React.useState('');
   const [nicknameQuery, setNicknameQuery] = React.useState('');
+  const nicknameSearchTimerRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const {
     loadingMyCode,
     completedSearchQuery,
@@ -66,13 +88,53 @@ export const FriendAddScreen = () => {
     }
   }, [friendCode, previewFriendCode]);
 
+  const clearNicknameSearchDebounce = React.useCallback(() => {
+    if (nicknameSearchTimerRef.current) {
+      clearTimeout(nicknameSearchTimerRef.current);
+      nicknameSearchTimerRef.current = undefined;
+    }
+  }, []);
+
   const handleSearch = React.useCallback(async () => {
+    clearNicknameSearchDebounce();
     try {
       await searchFriends(nicknameQuery);
     } catch (searchError) {
       Alert.alert('친구 검색', getErrorMessage(searchError, '친구를 검색하지 못했습니다.'));
     }
+  }, [clearNicknameSearchDebounce, nicknameQuery, searchFriends]);
+
+  React.useEffect(() => {
+    const query = nicknameQuery.trim();
+    if (query.length < 2) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      nicknameSearchTimerRef.current = undefined;
+      searchFriends(query).catch(() => undefined);
+    }, NICKNAME_SEARCH_DEBOUNCE_MS);
+    nicknameSearchTimerRef.current = timer;
+
+    return () => {
+      clearTimeout(timer);
+      if (nicknameSearchTimerRef.current === timer) {
+        nicknameSearchTimerRef.current = undefined;
+      }
+    };
   }, [nicknameQuery, searchFriends]);
+
+  const duplicateResultIds = React.useMemo(
+    () => getDuplicateResultIds(searchResults),
+    [searchResults],
+  );
+  const hasDuplicateNickname = React.useMemo(() => {
+    const nicknameCounts = new Map<string, number>();
+    searchResults.forEach(result => {
+      nicknameCounts.set(result.nickname, (nicknameCounts.get(result.nickname) ?? 0) + 1);
+    });
+    return [...nicknameCounts.values()].some(count => count > 1);
+  }, [searchResults]);
 
   const handleSendRequest = React.useCallback(
     async (result: FriendSearchResult) => {
@@ -90,7 +152,13 @@ export const FriendAddScreen = () => {
           ]);
           return;
         }
-        Alert.alert('친구 요청을 보냈어요', `${result.nickname}님의 수락을 기다려주세요.`);
+        Alert.alert('친구 요청을 보냈어요', `${result.nickname}님의 수락을 기다려주세요.`, [
+          {text: '나중에', style: 'cancel'},
+          {
+            text: '요청 목록 보기',
+            onPress: () => navigation.navigate('FriendHub', {initialTab: 'requests'}),
+          },
+        ]);
       } catch (requestError) {
         Alert.alert('오류', getErrorMessage(requestError, '친구 요청을 보내지 못했습니다.'));
       }
@@ -222,6 +290,7 @@ export const FriendAddScreen = () => {
               accessibilityLabel="친구 닉네임 검색"
               autoCorrect={false}
               onChangeText={value => {
+                clearNicknameSearchDebounce();
                 setNicknameQuery(value);
                 resetSearch();
               }}
@@ -236,7 +305,8 @@ export const FriendAddScreen = () => {
               {searching ? <ActivityIndicator color={COLORS.text.inverse} size="small" /> : <Icon color={COLORS.text.inverse} name="search" size={18} />}
             </TouchableOpacity>
           </View>
-          {searchResults.map(result => <SearchResultRow key={result.id} result={result} loading={sendingFriendIds.has(result.id)} onSend={() => { handleSendRequest(result).catch(() => undefined); }} />)}
+          {hasDuplicateNickname ? <Text style={styles.duplicateNicknameHint}>동일한 닉네임의 사용자가 있을 수 있어요. 학과와 식별 코드를 확인해주세요.</Text> : null}
+          {searchResults.map(result => <SearchResultRow discriminator={duplicateResultIds.has(result.id) ? result.id.slice(-6).toUpperCase() : undefined} key={result.id} result={result} loading={sendingFriendIds.has(result.id)} onSend={() => { handleSendRequest(result).catch(() => undefined); }} />)}
           {searchNextCursor ? <TouchableOpacity accessibilityRole="button" activeOpacity={0.82} disabled={searching} onPress={() => { loadMoreSearchResults(nicknameQuery).catch(searchError => Alert.alert('친구 검색', getErrorMessage(searchError, '검색 결과를 더 불러오지 못했습니다.'))); }} style={styles.loadMoreButton}>{searching ? <ActivityIndicator color={COLORS.brand.primary} size="small" /> : <Text style={styles.loadMoreText}>더 보기</Text>}</TouchableOpacity> : null}
           {!searching && completedSearchQuery === nicknameQuery.trim() && searchResults.length === 0 ? <Text style={styles.emptySearch}>검색 결과가 없어요.</Text> : null}
         </View>
@@ -250,12 +320,13 @@ export const FriendAddScreen = () => {
   );
 };
 
-const SearchResultRow = ({loading, onSend, result}: {loading: boolean; onSend: () => void; result: FriendSearchResult}) => (
+const SearchResultRow = ({discriminator, loading, onSend, result}: {discriminator?: string; loading: boolean; onSend: () => void; result: FriendSearchResult}) => (
   <View style={styles.resultRow}>
     <FriendAvatar photoUrl={result.photoUrl} />
     <View style={styles.resultContent}>
       <Text style={styles.resultName}>{result.nickname}</Text>
       <Text style={styles.resultDepartment}>{result.department || '학과 정보 없음'}</Text>
+      {discriminator ? <Text style={styles.resultDiscriminator}>식별 코드 · {discriminator}</Text> : null}
     </View>
     <TouchableOpacity
       accessibilityRole="button"
@@ -294,6 +365,8 @@ const styles = StyleSheet.create({
   resultContent: {flex: 1, marginLeft: SPACING.md},
   resultName: {color: COLORS.text.primary, fontSize: 15, fontWeight: '700', lineHeight: 22},
   resultDepartment: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: 2},
+  resultDiscriminator: {color: COLORS.text.placeholder, fontSize: 11, lineHeight: 16, marginTop: 1},
+  duplicateNicknameHint: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, paddingBottom: SPACING.sm, paddingHorizontal: SPACING.md},
   requestButton: {alignItems: 'center', backgroundColor: COLORS.brand.primaryTint, borderRadius: RADIUS.md, height: 34, justifyContent: 'center', minWidth: 58, paddingHorizontal: SPACING.sm},
   disabledRequestButton: {backgroundColor: COLORS.background.subtle},
   requestButtonText: {color: COLORS.brand.primaryStrong, fontSize: 13, fontWeight: '700'},

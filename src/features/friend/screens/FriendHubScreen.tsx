@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import {useFocusEffect, useNavigation} from '@react-navigation/native';
+import {useFocusEffect, useNavigation, useRoute, type RouteProp} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -32,8 +32,11 @@ export const FriendHubScreen = () => {
   useScreenView();
 
   const navigation = useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
+  const route = useRoute<RouteProp<CampusStackParamList, 'FriendHub'>>();
   const hasReceivedInitialFocus = React.useRef(false);
-  const [selectedTab, setSelectedTab] = React.useState<FriendHubTab>('friends');
+  const [selectedTab, setSelectedTab] = React.useState<FriendHubTab>(
+    route.params?.initialTab ?? 'friends',
+  );
   const {
     acceptRequest,
     cancelRequest,
@@ -54,6 +57,16 @@ export const FriendHubScreen = () => {
     updateFavorite,
     updatingFavoriteIds,
   } = useFriendHubData();
+
+  React.useEffect(() => {
+    const initialTab = route.params?.initialTab;
+    if (!initialTab) {
+      return;
+    }
+
+    setSelectedTab(initialTab);
+    navigation.setParams({initialTab: undefined});
+  }, [navigation, route.params?.initialTab]);
 
   useFocusEffect(
     React.useCallback(() => {

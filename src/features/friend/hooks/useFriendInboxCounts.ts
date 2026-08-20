@@ -13,7 +13,7 @@ export const useFriendInboxCounts = () => {
       setCounts(await friendRepository.getInboxCounts());
     } catch {
       // 마이페이지의 보조 배지는 불러오지 못해도 기본 메뉴를 막지 않는다.
-      setCounts(undefined);
+      // 이미 확인한 요청 수는 일시적인 새로고침 실패로 지우지 않는다.
     }
   }, [friendRepository]);
 
