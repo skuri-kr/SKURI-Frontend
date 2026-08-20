@@ -24,6 +24,18 @@ export const FriendDetailScreen = () => {
   const {friendId} = route.params as CampusStackParamList['FriendDetail'];
   const {blockFriend, error, friend, loading, mutating, reload, removeFriend, updateFavorite} = useFriendDetailData(friendId);
 
+  const handleFavorite = React.useCallback(() => {
+    updateFavorite()
+      .then(() => {
+        invalidateData(FRIEND_HUB_INVALIDATION_KEY);
+      })
+      .catch(actionError => {
+        if (navigation.isFocused()) {
+          Alert.alert('오류', getErrorMessage(actionError, '즐겨찾기를 변경하지 못했습니다.'));
+        }
+      });
+  }, [navigation, updateFavorite]);
+
   const handleRemove = React.useCallback(() => {
     Alert.alert('친구 끊기', `${friend?.nickname || '이 친구'}님과 친구 관계를 끊을까요?`, [
       {text: '취소', style: 'cancel'},
@@ -56,7 +68,7 @@ export const FriendDetailScreen = () => {
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
       <StackHeader
         onPressBack={() => navigation.goBack()}
-        rightAccessory={friend ? <TouchableOpacity accessibilityLabel={`즐겨찾기 ${friend.favorite ? '해제' : '추가'}`} accessibilityRole="button" activeOpacity={0.82} disabled={mutating} onPress={() => { updateFavorite().catch(actionError => Alert.alert('오류', getErrorMessage(actionError, '즐겨찾기를 변경하지 못했습니다.'))); }} style={styles.favoriteButton}><Icon color={friend.favorite ? COLORS.accent.yellow : COLORS.text.muted} name={friend.favorite ? 'star' : 'star-outline'} size={23} /></TouchableOpacity> : undefined}
+        rightAccessory={friend ? <TouchableOpacity accessibilityLabel={`즐겨찾기 ${friend.favorite ? '해제' : '추가'}`} accessibilityRole="button" activeOpacity={0.82} disabled={mutating} onPress={handleFavorite} style={styles.favoriteButton}><Icon color={friend.favorite ? COLORS.accent.yellow : COLORS.text.muted} name={friend.favorite ? 'star' : 'star-outline'} size={23} /></TouchableOpacity> : undefined}
         title="친구 정보"
       />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -69,7 +81,7 @@ export const FriendDetailScreen = () => {
             <Text style={styles.department}>{friend.department || '학과 정보가 없어요'}</Text>
           </View>
           <SettingsSection style={styles.section} title="친구 관리">
-            <SettingsRow accessoryType="chevron" disabled={mutating} iconBackgroundColor={COLORS.accent.yellowSoft} iconColor={COLORS.accent.yellowStrong} iconName="star-outline" onPress={() => { updateFavorite().catch(actionError => Alert.alert('오류', getErrorMessage(actionError, '즐겨찾기를 변경하지 못했습니다.'))); }} showDivider title={friend.favorite ? '즐겨찾기 해제' : '즐겨찾기에 추가'} />
+            <SettingsRow accessoryType="chevron" disabled={mutating} iconBackgroundColor={COLORS.accent.yellowSoft} iconColor={COLORS.accent.yellowStrong} iconName="star-outline" onPress={handleFavorite} showDivider title={friend.favorite ? '즐겨찾기 해제' : '즐겨찾기에 추가'} />
             <SettingsRow accessoryType="chevron" disabled={mutating} iconBackgroundColor={COLORS.accent.orangeSoft} iconColor={COLORS.accent.orange} iconName="person-remove-outline" onPress={handleRemove} showDivider title="친구 끊기" />
             <SettingsRow accessoryType="chevron" disabled={mutating} iconBackgroundColor={COLORS.accent.pinkSoft} iconColor={COLORS.status.danger} iconName="ban-outline" onPress={handleBlock} title="차단하기" />
           </SettingsSection>
