@@ -12,6 +12,7 @@ interface FriendRowProps {
   friend: FriendSummary;
   onPress: () => void;
   onPressFavorite: () => void;
+  showIdentifier?: boolean;
 }
 
 export const FriendRow = ({
@@ -19,6 +20,7 @@ export const FriendRow = ({
   friend,
   onPress,
   onPressFavorite,
+  showIdentifier = false,
 }: FriendRowProps) => (
   <View style={styles.row}>
     <TouchableOpacity
@@ -33,6 +35,11 @@ export const FriendRow = ({
         <Text numberOfLines={1} style={styles.department}>
           {friend.department || '학과 정보 없음'}
         </Text>
+        {showIdentifier ? (
+          <Text style={styles.identifier}>
+            식별 코드 · {friend.id.slice(-6).toUpperCase()}
+          </Text>
+        ) : null}
       </View>
     </TouchableOpacity>
     <TouchableOpacity
@@ -62,5 +69,6 @@ const styles = StyleSheet.create({
   content: {flex: 1, marginLeft: SPACING.md},
   name: {color: COLORS.text.primary, fontSize: 15, fontWeight: '700', lineHeight: 22},
   department: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: 2},
+  identifier: {color: COLORS.text.tertiary, fontSize: 11, lineHeight: 16, marginTop: 2},
   favoriteButton: {alignItems: 'center', height: 44, justifyContent: 'center', width: 44},
 });

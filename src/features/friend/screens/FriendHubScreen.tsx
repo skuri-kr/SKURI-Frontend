@@ -60,6 +60,29 @@ const getDuplicateRequestFriendIds = (
   );
 };
 
+const getDuplicateFriendIds = (
+  friends: ReadonlyArray<{
+    department: string | null;
+    id: string;
+    nickname: string;
+  }>,
+) => {
+  const counts = new Map<string, number>();
+  friends.forEach(friend => {
+    const key = JSON.stringify([friend.nickname, friend.department]);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  });
+
+  return new Set(
+    friends
+      .filter(friend => {
+        const key = JSON.stringify([friend.nickname, friend.department]);
+        return counts.get(key)! > 1;
+      })
+      .map(friend => friend.id),
+  );
+};
+
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
 
@@ -125,6 +148,10 @@ export const FriendHubScreen = () => {
   const duplicateRequestFriendIds = React.useMemo(
     () => getDuplicateRequestFriendIds([...receivedRequests, ...sentRequests]),
     [receivedRequests, sentRequests],
+  );
+  const duplicateFriendIds = React.useMemo(
+    () => getDuplicateFriendIds(friends),
+    [friends],
   );
 
   React.useEffect(() => {
@@ -285,6 +312,7 @@ export const FriendHubScreen = () => {
                         friend={friend}
                         onPress={() => navigation.navigate('FriendDetail', {friendId: friend.id})}
                         onPressFavorite={() => { handleFavorite(friend).catch(() => undefined); }}
+                        showIdentifier={duplicateFriendIds.has(friend.id)}
                       />
                     </View>
                   ))}
