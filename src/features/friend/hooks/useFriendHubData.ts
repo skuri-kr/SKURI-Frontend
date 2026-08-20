@@ -358,7 +358,11 @@ export const useFriendHubData = () => {
   }, []);
 
   const completeRequest = React.useCallback(
-    (requestId: string, completion: FriendRequestCompletion) => {
+    (
+      requestId: string,
+      completion: FriendRequestCompletion,
+      direction: FriendRequestDirection,
+    ) => {
       setCompletedRequestActions(current => {
         const next = new Map(current);
         next.set(requestId, completion);
@@ -378,16 +382,20 @@ export const useFriendHubData = () => {
             next.delete(requestId);
             return next;
           });
-          setReceivedRequests(current =>
-            current.filter(request => request.id !== requestId),
-          );
-          setSentRequests(current =>
-            current.filter(request => request.id !== requestId),
-          );
+          if (direction === 'RECEIVED') {
+            setReceivedRequests(current =>
+              current.filter(request => request.id !== requestId),
+            );
+          } else {
+            setSentRequests(current =>
+              current.filter(request => request.id !== requestId),
+            );
+          }
+          reloadRequestDirection(direction).catch(() => undefined);
         }, REQUEST_COMPLETION_DURATION_MS),
       );
     },
-    [],
+    [reloadRequestDirection],
   );
 
   const updateFavorite = React.useCallback(
@@ -456,7 +464,7 @@ export const useFriendHubData = () => {
           receivedRequests: false,
           sentRequests: false,
         }).catch(() => undefined);
-        completeRequest(requestId, 'ACCEPTED');
+        completeRequest(requestId, 'ACCEPTED', 'RECEIVED');
       } finally {
         endRequestMutation(requestId);
       }
@@ -477,7 +485,7 @@ export const useFriendHubData = () => {
         setIncomingRequestCount(current =>
           current === undefined ? current : Math.max(0, current - 1),
         );
-        completeRequest(requestId, 'DECLINED');
+        completeRequest(requestId, 'DECLINED', 'RECEIVED');
       } finally {
         endRequestMutation(requestId);
       }
@@ -495,7 +503,7 @@ export const useFriendHubData = () => {
         await friendRepository.cancelFriendRequest(requestId);
         sectionStateVersionsRef.current.SENT += 1;
         requestListVersionsRef.current.SENT += 1;
-        completeRequest(requestId, 'CANCELED');
+        completeRequest(requestId, 'CANCELED', 'SENT');
       } finally {
         endRequestMutation(requestId);
       }
