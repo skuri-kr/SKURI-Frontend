@@ -21,18 +21,39 @@ export const useFriendSettingsData = () => {
     () => new Set(),
   );
   const unblockingIdsRef = React.useRef(new Set<string>());
+  const privacyLoadVersionRef = React.useRef(0);
+  const privacyStateVersionRef = React.useRef(0);
   const blocksLoadVersionRef = React.useRef(0);
   const blocksStateVersionRef = React.useRef(0);
 
   const loadPrivacy = React.useCallback(async () => {
+    const loadVersion = privacyLoadVersionRef.current + 1;
+    privacyLoadVersionRef.current = loadVersion;
+    const privacyStateVersion = privacyStateVersionRef.current;
+
     try {
       setLoadingPrivacy(true);
       setPrivacyError(undefined);
-      setPrivacy(await friendRepository.getMyPrivacy());
+      const nextPrivacy = await friendRepository.getMyPrivacy();
+      if (
+        loadVersion !== privacyLoadVersionRef.current ||
+        privacyStateVersion !== privacyStateVersionRef.current
+      ) {
+        return;
+      }
+      setPrivacy(nextPrivacy);
     } catch (loadError) {
+      if (
+        loadVersion !== privacyLoadVersionRef.current ||
+        privacyStateVersion !== privacyStateVersionRef.current
+      ) {
+        return;
+      }
       setPrivacyError(getErrorMessage(loadError, '검색 공개 설정을 불러오지 못했습니다.'));
     } finally {
-      setLoadingPrivacy(false);
+      if (loadVersion === privacyLoadVersionRef.current) {
+        setLoadingPrivacy(false);
+      }
     }
   }, [friendRepository]);
 
@@ -80,7 +101,9 @@ export const useFriendSettingsData = () => {
     async (nicknameSearchable: boolean) => {
       try {
         setSavingPrivacy(true);
-        setPrivacy(await friendRepository.updateMyPrivacy(nicknameSearchable));
+        const nextPrivacy = await friendRepository.updateMyPrivacy(nicknameSearchable);
+        privacyStateVersionRef.current += 1;
+        setPrivacy(nextPrivacy);
       } finally {
         setSavingPrivacy(false);
       }
