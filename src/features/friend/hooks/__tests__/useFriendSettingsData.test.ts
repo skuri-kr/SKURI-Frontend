@@ -150,4 +150,46 @@ describe('useFriendSettingsData', () => {
 
     expect(result.current.unblockingIds).toEqual(new Set());
   });
+
+  it('차단 해제보다 먼저 시작한 목록 재조회가 해제한 사용자를 되돌리지 않는다', async () => {
+    const repository = createRepository();
+    const staleBlocks = createDeferred<Array<{
+      blockedAt: string;
+      department: string | null;
+      id: string;
+      nickname: string;
+      photoUrl: string | null;
+    }>>();
+    const blockedMember = {
+      blockedAt: '2026-08-18T10:00:00',
+      department: null,
+      id: 'blocked-1',
+      nickname: '가람',
+      photoUrl: null,
+    };
+    repository.getMyPrivacy.mockResolvedValue({nicknameSearchable: true});
+    repository.getBlocks
+      .mockResolvedValueOnce([blockedMember])
+      .mockReturnValueOnce(staleBlocks.promise);
+    repository.unblockMember.mockResolvedValue(undefined);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendSettingsData());
+
+    await waitFor(() => {
+      expect(result.current.blocks).toEqual([blockedMember]);
+    });
+
+    let reloadPromise!: Promise<void>;
+    await act(async () => {
+      reloadPromise = result.current.reloadBlocks();
+      await result.current.unblockMember('blocked-1');
+      staleBlocks.resolve([blockedMember]);
+      await reloadPromise;
+    });
+
+    expect(result.current.blocks).toEqual([]);
+  });
 });

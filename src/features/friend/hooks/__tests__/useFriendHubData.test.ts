@@ -251,13 +251,13 @@ describe('useFriendHubData', () => {
       await result.current.acceptRequest('request-1');
     });
 
-    expect(result.current.receivedRequests).toEqual([]);
+    expect(result.current.completedRequestActions.get('request-1')).toBe('ACCEPTED');
     expect(result.current.friends).toEqual([friend]);
 
     await waitFor(() => {
       expect(result.current.error).toBe('network unavailable');
     });
-    expect(result.current.receivedRequests).toEqual([]);
+    expect(result.current.completedRequestActions.get('request-1')).toBe('ACCEPTED');
     expect(result.current.friends).toEqual([friend]);
   });
 
@@ -323,6 +323,75 @@ describe('useFriendHubData', () => {
     });
 
     expect(result.current.friends).toEqual([friend]);
+  });
+
+  it('즐겨찾기 저장 중 시작한 새로고침이 저장된 상태를 되돌리지 않는다', async () => {
+    const repository = createRepository();
+    const favoriteUpdate = createDeferred<void>();
+    const refreshFriends = createDeferred<Array<typeof friend>>();
+    repository.getFriends
+      .mockResolvedValueOnce([friend])
+      .mockReturnValueOnce(refreshFriends.promise);
+    repository.updateFavorite.mockReturnValue(favoriteUpdate.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await waitFor(() => {
+      expect(result.current.friends).toEqual([friend]);
+    });
+
+    let favoritePromise!: Promise<void>;
+    let reloadPromise!: Promise<void>;
+    await act(async () => {
+      favoritePromise = result.current.updateFavorite(friend);
+      reloadPromise = result.current.reloadFriends();
+    });
+
+    await act(async () => {
+      favoriteUpdate.resolve(undefined);
+      await favoritePromise;
+      refreshFriends.resolve([friend]);
+      await reloadPromise;
+    });
+
+    expect(result.current.friends).toEqual([{...friend, favorite: true}]);
+  });
+
+  it('요청 처리 결과를 1.2초간 표시한 뒤 요청 카드를 제거한다', async () => {
+    jest.useFakeTimers();
+    const repository = createRepository();
+    repository.acceptFriendRequest.mockResolvedValue({
+      friend,
+      requestId: 'request-1',
+      status: 'ACCEPTED',
+    });
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await waitFor(() => {
+      expect(result.current.receivedRequests).toHaveLength(1);
+    });
+
+    await act(async () => {
+      await result.current.acceptRequest('request-1');
+    });
+
+    expect(result.current.receivedRequests).toHaveLength(1);
+    expect(result.current.completedRequestActions.get('request-1')).toBe('ACCEPTED');
+
+    await act(async () => {
+      jest.advanceTimersByTime(1200);
+    });
+
+    expect(result.current.receivedRequests).toEqual([]);
+    expect(result.current.completedRequestActions.get('request-1')).toBeUndefined();
+    jest.useRealTimers();
   });
 
   it('즐겨찾기 변경 중에도 진행 중인 요청 다음 페이지를 이어 붙인다', async () => {

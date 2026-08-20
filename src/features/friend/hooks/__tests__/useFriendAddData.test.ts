@@ -260,4 +260,63 @@ describe('useFriendAddData', () => {
       await firstPromise;
     });
   });
+
+  it('요청 성공 뒤 늦게 도착한 검색 결과가 요청 버튼을 다시 활성화하지 않는다', async () => {
+    const repository = createRepository();
+    const search = createDeferred<{
+      hasNext: boolean;
+      items: Array<{
+        canSendFriendRequest: boolean;
+        department: string | null;
+        id: string;
+        nickname: string;
+        photoUrl: string | null;
+      }>;
+      nextCursor: string | null;
+    }>();
+    repository.searchFriends.mockReturnValue(search.promise);
+    repository.createFriendRequest.mockResolvedValue({
+      friend: null,
+      requestId: 'request-1',
+      status: 'PENDING',
+    });
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendAddData());
+
+    let searchPromise!: Promise<void>;
+    await act(async () => {
+      searchPromise = result.current.searchFriends('가람');
+      await result.current.sendFriendRequest('friend-1');
+    });
+
+    await act(async () => {
+      search.resolve({
+        hasNext: false,
+        items: [
+          {
+            canSendFriendRequest: true,
+            department: null,
+            id: 'friend-1',
+            nickname: '가람',
+            photoUrl: null,
+          },
+        ],
+        nextCursor: null,
+      });
+      await searchPromise;
+    });
+
+    expect(result.current.searchResults).toEqual([
+      {
+        canSendFriendRequest: false,
+        department: null,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      },
+    ]);
+  });
 });
