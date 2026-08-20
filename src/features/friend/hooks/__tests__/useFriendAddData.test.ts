@@ -2,6 +2,7 @@ import {act, renderHook, waitFor} from '@testing-library/react-native';
 
 import {useFriendRepository} from '@/di';
 
+import type {FriendSearchResult} from '../../model/friend';
 import {useFriendAddData} from '../useFriendAddData';
 
 jest.mock('@/di', () => ({
@@ -318,5 +319,69 @@ describe('useFriendAddData', () => {
         photoUrl: null,
       },
     ]);
+  });
+
+  it('이전 검색의 더 보기 요청은 새 검색의 더 보기를 막지 않는다', async () => {
+    const repository = createRepository();
+    const staleLoadMore = createDeferred<{
+      hasNext: boolean;
+      items: FriendSearchResult[];
+      nextCursor: string | null;
+    }>();
+    repository.searchFriends
+      .mockResolvedValueOnce({
+        hasNext: true,
+        items: [{canSendFriendRequest: true, department: null, id: 'friend-a', nickname: '가람', photoUrl: null}],
+        nextCursor: 'cursor-a',
+      })
+      .mockReturnValueOnce(staleLoadMore.promise)
+      .mockResolvedValueOnce({
+        hasNext: true,
+        items: [{canSendFriendRequest: true, department: null, id: 'friend-b', nickname: '나래', photoUrl: null}],
+        nextCursor: 'cursor-b',
+      })
+      .mockResolvedValueOnce({
+        hasNext: false,
+        items: [{canSendFriendRequest: true, department: null, id: 'friend-b2', nickname: '나래', photoUrl: null}],
+        nextCursor: null,
+      });
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendAddData());
+
+    await act(async () => {
+      await result.current.searchFriends('가람');
+    });
+
+    let staleLoadMorePromise!: Promise<void>;
+    act(() => {
+      staleLoadMorePromise = result.current.loadMoreSearchResults('가람');
+      result.current.resetSearch();
+    });
+
+    await act(async () => {
+      await result.current.searchFriends('나래');
+    });
+
+    await act(async () => {
+      await result.current.loadMoreSearchResults('나래');
+    });
+
+    expect(repository.searchFriends).toHaveBeenLastCalledWith({
+      cursor: 'cursor-b',
+      query: '나래',
+      size: 20,
+    });
+    expect(result.current.searchResults.map(item => item.id)).toEqual([
+      'friend-b',
+      'friend-b2',
+    ]);
+
+    await act(async () => {
+      staleLoadMore.resolve({hasNext: false, items: [], nextCursor: null});
+      await staleLoadMorePromise;
+    });
   });
 });

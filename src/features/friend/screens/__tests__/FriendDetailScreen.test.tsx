@@ -4,6 +4,9 @@ import {fireEvent, render, waitFor} from '@testing-library/react-native';
 
 import {useNavigation, useRoute} from '@react-navigation/native';
 
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
+
 import {useFriendDetailData} from '../../hooks/useFriendDetailData';
 import {FriendDetailScreen} from '../FriendDetailScreen';
 
@@ -35,6 +38,10 @@ jest.mock('@/shared/design-system/components', () => ({
 
 jest.mock('@/shared/hooks/useScreenView', () => ({useScreenView: jest.fn()}));
 
+jest.mock('@/app/data-freshness/dataInvalidation', () => ({
+  invalidateData: jest.fn(),
+}));
+
 jest.mock('../../components/FriendAvatar', () => ({FriendAvatar: () => null}));
 
 jest.mock('../../hooks/useFriendDetailData', () => ({
@@ -44,6 +51,7 @@ jest.mock('../../hooks/useFriendDetailData', () => ({
 const mockedUseNavigation = jest.mocked(useNavigation);
 const mockedUseRoute = jest.mocked(useRoute);
 const mockedUseFriendDetailData = jest.mocked(useFriendDetailData);
+const mockedInvalidateData = jest.mocked(invalidateData);
 
 describe('FriendDetailScreen', () => {
   beforeEach(() => {
@@ -89,6 +97,9 @@ describe('FriendDetailScreen', () => {
 
     expect(navigation.goBack).not.toHaveBeenCalled();
     expect(navigation.isFocused).toHaveBeenCalledTimes(2);
+    expect(mockedInvalidateData).toHaveBeenCalledTimes(2);
+    expect(mockedInvalidateData).toHaveBeenNthCalledWith(1, FRIEND_HUB_INVALIDATION_KEY);
+    expect(mockedInvalidateData).toHaveBeenNthCalledWith(2, FRIEND_HUB_INVALIDATION_KEY);
   });
 
   it('친구 관리 요청이 진행 중이면 모든 친구 관리 액션을 비활성화한다', () => {

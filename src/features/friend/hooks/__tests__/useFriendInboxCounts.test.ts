@@ -14,6 +14,15 @@ const createRepository = () => ({
   getInboxCounts: jest.fn(),
 });
 
+const createDeferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(resolvePromise => {
+    resolve = resolvePromise;
+  });
+
+  return {promise, resolve};
+};
+
 describe('useFriendInboxCounts', () => {
   beforeEach(() => {
     jest.resetAllMocks();
@@ -44,5 +53,56 @@ describe('useFriendInboxCounts', () => {
     });
 
     expect(result.current.counts?.incomingRequestCount).toBe(3);
+  });
+
+  it('늦게 도착한 이전 조회 결과로 최신 요청 수를 덮어쓰지 않는다', async () => {
+    const repository = createRepository();
+    const initialLoad = createDeferred<{
+      chatRoomInvitationCount: number;
+      incomingRequestCount: number;
+      partyInvitationCount: number;
+      totalActionCount: number;
+    }>();
+    const refreshLoad = createDeferred<{
+      chatRoomInvitationCount: number;
+      incomingRequestCount: number;
+      partyInvitationCount: number;
+      totalActionCount: number;
+    }>();
+    repository.getInboxCounts
+      .mockReturnValueOnce(initialLoad.promise)
+      .mockReturnValueOnce(refreshLoad.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendInboxCounts());
+
+    let refreshPromise!: Promise<void>;
+    act(() => {
+      refreshPromise = result.current.reload();
+    });
+
+    await act(async () => {
+      refreshLoad.resolve({
+        chatRoomInvitationCount: 0,
+        incomingRequestCount: 5,
+        partyInvitationCount: 0,
+        totalActionCount: 5,
+      });
+      await refreshPromise;
+    });
+
+    await act(async () => {
+      initialLoad.resolve({
+        chatRoomInvitationCount: 0,
+        incomingRequestCount: 2,
+        partyInvitationCount: 0,
+        totalActionCount: 2,
+      });
+      await Promise.resolve();
+    });
+
+    expect(result.current.counts?.incomingRequestCount).toBe(5);
   });
 });

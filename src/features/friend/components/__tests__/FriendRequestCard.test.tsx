@@ -76,4 +76,29 @@ describe('FriendRequestCard', () => {
     expect(view.queryByText('수락')).toBeNull();
     expect(view.queryByText('거절')).toBeNull();
   });
+
+  it('선택한 요청 액션에만 진행 상태를 표시한다', () => {
+    const view = render(
+      <FriendRequestCard
+        loading
+        mode="received"
+        pendingAction="DECLINE"
+        request={{
+          createdAt: '2026-08-18T11:00:00+09:00',
+          department: null,
+          expiresAt: '2026-09-17T11:30:00+09:00',
+          friend: {
+            department: null,
+            id: 'friend-1',
+            nickname: '가람',
+            photoUrl: null,
+          },
+          id: 'request-1',
+        }}
+      />,
+    );
+
+    expect(view.getByText('수락')).toBeTruthy();
+    expect(view.queryByText('거절')).toBeNull();
+  });
 });

@@ -648,6 +648,12 @@ describe('useFriendHubData', () => {
     });
 
     expect(result.current.mutatingRequestIds).toEqual(new Set(['request-1', 'request-2']));
+    expect(result.current.mutatingRequestActions).toEqual(
+      new Map([
+        ['request-1', 'ACCEPT'],
+        ['request-2', 'CANCEL'],
+      ]),
+    );
 
     await act(async () => {
       cancelRequest.resolve(undefined);
@@ -655,6 +661,9 @@ describe('useFriendHubData', () => {
     });
 
     expect(result.current.mutatingRequestIds).toEqual(new Set(['request-1']));
+    expect(result.current.mutatingRequestActions).toEqual(
+      new Map([['request-1', 'ACCEPT']]),
+    );
 
     await act(async () => {
       acceptRequest.resolve({friend, requestId: 'request-1', status: 'ACCEPTED'});
@@ -662,6 +671,7 @@ describe('useFriendHubData', () => {
     });
 
     expect(result.current.mutatingRequestIds).toEqual(new Set());
+    expect(result.current.mutatingRequestActions).toEqual(new Map());
   });
 
   it('서로 다른 친구의 즐겨찾기 저장 상태를 독립적으로 유지한다', async () => {
