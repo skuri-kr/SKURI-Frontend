@@ -112,7 +112,9 @@ export const FriendAddScreen = () => {
 
     const timer = setTimeout(() => {
       nicknameSearchTimerRef.current = undefined;
-      searchFriends(query).catch(() => undefined);
+      searchFriends(query).catch(searchError => {
+        Alert.alert('친구 검색', getErrorMessage(searchError, '친구를 검색하지 못했습니다.'));
+      });
     }, NICKNAME_SEARCH_DEBOUNCE_MS);
     nicknameSearchTimerRef.current = timer;
 
@@ -156,7 +158,7 @@ export const FriendAddScreen = () => {
           {text: '나중에', style: 'cancel'},
           {
             text: '요청 목록 보기',
-            onPress: () => navigation.navigate('FriendHub', {initialTab: 'requests'}),
+            onPress: () => navigation.popTo('FriendHub', {initialTab: 'requests'}),
           },
         ]);
       } catch (requestError) {

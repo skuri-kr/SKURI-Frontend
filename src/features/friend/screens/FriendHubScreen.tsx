@@ -41,9 +41,12 @@ export const FriendHubScreen = () => {
     acceptRequest,
     cancelRequest,
     declineRequest,
-    error,
+    friendError,
     friends,
+    hasLoadedFriends,
     hasLoadedOnce,
+    hasLoadedReceivedRequests,
+    hasLoadedSentRequests,
     incomingRequestCount,
     loading,
     loadingMoreDirections,
@@ -51,9 +54,13 @@ export const FriendHubScreen = () => {
     mutatingRequestIds,
     receivedRequests,
     receivedNextCursor,
+    receivedRequestsError,
     reload,
+    reloadFriends,
+    reloadRequestDirection,
     sentRequests,
     sentNextCursor,
+    sentRequestsError,
     updateFavorite,
     updatingFavoriteIds,
   } = useFriendHubData();
@@ -187,69 +194,68 @@ export const FriendHubScreen = () => {
           />
         ) : null}
 
-        {error && !loading && !hasLoadedOnce ? (
-          <StateCard
-            actionLabel="다시 시도"
-            description={error}
-            icon={<Icon color={COLORS.accent.orange} name="alert-circle-outline" size={28} />}
-            onPressAction={() => { reload().catch(() => undefined); }}
-            title="친구 정보를 불러오지 못했습니다"
-          />
-        ) : null}
-
-        {error && !loading && hasLoadedOnce ? (
-          <View style={styles.errorBanner}>
-            <Icon
-              color={COLORS.accent.orange}
-              name="alert-circle-outline"
-              size={18}
-            />
-            <Text numberOfLines={2} style={styles.errorBannerText}>
-              {error}
-            </Text>
-            <TouchableOpacity
-              accessibilityRole="button"
-              activeOpacity={0.82}
-              onPress={() => {
-                reload().catch(() => undefined);
-              }}
-              style={styles.errorRetryButton}>
-              <Text style={styles.errorRetryText}>재시도</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        {hasLoadedOnce && selectedTab === 'friends' ? (
-          friends.length > 0 ? (
-            <View style={styles.listCard}>
-              {friends.map((friend, index) => (
-                <View key={friend.id} style={index < friends.length - 1 ? styles.rowDivider : undefined}>
-                  <FriendRow
-                    disabled={updatingFavoriteIds.has(friend.id)}
-                    friend={friend}
-                    onPress={() => navigation.navigate('FriendDetail', {friendId: friend.id})}
-                    onPressFavorite={() => { handleFavorite(friend).catch(() => undefined); }}
-                  />
-                </View>
-              ))}
-            </View>
+        {selectedTab === 'friends' && (!loading || hasLoadedOnce) ? (
+          !hasLoadedFriends ? (
+            friendError ? (
+              <StateCard
+                actionLabel="다시 시도"
+                description={friendError}
+                icon={<Icon color={COLORS.accent.orange} name="alert-circle-outline" size={28} />}
+                onPressAction={() => { reloadFriends().catch(() => undefined); }}
+                title="친구 목록을 불러오지 못했습니다"
+              />
+            ) : (
+              <StateCard
+                description="친구 목록을 준비하고 있습니다."
+                icon={<ActivityIndicator color={COLORS.brand.primary} />}
+                title="친구를 불러오는 중"
+              />
+            )
           ) : (
-            <StateCard
-              actionLabel="친구 추가"
-              description="친구 코드를 입력하거나 닉네임으로 찾아보세요."
-              icon={<Icon color={COLORS.brand.primary} name="people-outline" size={28} />}
-              onPressAction={() => navigation.navigate('FriendAdd')}
-              title="아직 친구가 없어요"
-            />
+            <>
+              {friendError ? <ErrorBanner error={friendError} onRetry={reloadFriends} /> : null}
+              {friends.length > 0 ? (
+                <View style={styles.listCard}>
+                  {friends.map((friend, index) => (
+                    <View key={friend.id} style={index < friends.length - 1 ? styles.rowDivider : undefined}>
+                      <FriendRow
+                        disabled={updatingFavoriteIds.has(friend.id)}
+                        friend={friend}
+                        onPress={() => navigation.navigate('FriendDetail', {friendId: friend.id})}
+                        onPressFavorite={() => { handleFavorite(friend).catch(() => undefined); }}
+                      />
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <StateCard
+                  actionLabel="친구 추가"
+                  description="친구 코드를 입력하거나 닉네임으로 찾아보세요."
+                  icon={<Icon color={COLORS.brand.primary} name="people-outline" size={28} />}
+                  onPressAction={() => navigation.navigate('FriendAdd')}
+                  title="아직 친구가 없어요"
+                />
+              )}
+            </>
           )
         ) : null}
 
-        {hasLoadedOnce && selectedTab === 'requests' ? (
+        {selectedTab === 'requests' && (!loading || hasLoadedOnce) ? (
           <View style={styles.requestContent}>
-            {receivedRequests.length > 0 ? (
+            {!hasLoadedReceivedRequests && receivedRequestsError ? (
+              <StateCard
+                actionLabel="다시 시도"
+                description={receivedRequestsError}
+                icon={<Icon color={COLORS.accent.orange} name="alert-circle-outline" size={28} />}
+                onPressAction={() => { reloadRequestDirection('RECEIVED').catch(() => undefined); }}
+                title="받은 친구 요청을 불러오지 못했습니다"
+              />
+            ) : null}
+            {hasLoadedReceivedRequests ? (
               <>
+                {receivedRequestsError ? <ErrorBanner error={receivedRequestsError} onRetry={() => reloadRequestDirection('RECEIVED')} /> : null}
                 <Text style={styles.sectionTitle}>받은 요청</Text>
-                {receivedRequests.map(request => (
+                {receivedRequests.length > 0 ? receivedRequests.map(request => (
                   <FriendRequestCard
                     key={request.id}
                     loading={mutatingRequestIds.has(request.id)}
@@ -258,7 +264,7 @@ export const FriendHubScreen = () => {
                     onDecline={() => handleDecline(request.id)}
                     request={request}
                   />
-                ))}
+                )) : sentRequests.length > 0 || !hasLoadedSentRequests || sentRequestsError ? <Text style={styles.emptySectionText}>받은 요청이 없어요.</Text> : null}
                 {receivedNextCursor ? (
                   <LoadMoreButton
                     loading={loadingMoreDirections.has('RECEIVED')}
@@ -271,10 +277,20 @@ export const FriendHubScreen = () => {
                 ) : null}
               </>
             ) : null}
-            {sentRequests.length > 0 ? (
+            {!hasLoadedSentRequests && sentRequestsError ? (
+              <StateCard
+                actionLabel="다시 시도"
+                description={sentRequestsError}
+                icon={<Icon color={COLORS.accent.orange} name="alert-circle-outline" size={28} />}
+                onPressAction={() => { reloadRequestDirection('SENT').catch(() => undefined); }}
+                title="보낸 친구 요청을 불러오지 못했습니다"
+              />
+            ) : null}
+            {hasLoadedSentRequests ? (
               <>
+                {sentRequestsError ? <ErrorBanner error={sentRequestsError} onRetry={() => reloadRequestDirection('SENT')} /> : null}
                 <Text style={styles.sectionTitle}>보낸 요청</Text>
-                {sentRequests.map(request => (
+                {sentRequests.length > 0 ? sentRequests.map(request => (
                   <FriendRequestCard
                     key={request.id}
                     loading={mutatingRequestIds.has(request.id)}
@@ -282,7 +298,7 @@ export const FriendHubScreen = () => {
                     onCancel={() => handleCancel(request.id)}
                     request={request}
                   />
-                ))}
+                )) : receivedRequests.length > 0 || !hasLoadedReceivedRequests || receivedRequestsError ? <Text style={styles.emptySectionText}>보낸 요청이 없어요.</Text> : null}
                 {sentNextCursor ? (
                   <LoadMoreButton
                     loading={loadingMoreDirections.has('SENT')}
@@ -295,7 +311,7 @@ export const FriendHubScreen = () => {
                 ) : null}
               </>
             ) : null}
-            {receivedRequests.length === 0 && sentRequests.length === 0 ? (
+            {hasLoadedReceivedRequests && hasLoadedSentRequests && receivedRequests.length === 0 && sentRequests.length === 0 ? (
               <StateCard
                 description="새로운 친구 요청이 오면 이곳에서 확인할 수 있어요."
                 icon={<Icon color={COLORS.accent.blue} name="mail-outline" size={28} />}
@@ -320,6 +336,16 @@ const LoadMoreButton = ({loading, onPress}: {loading: boolean; onPress: () => vo
   </TouchableOpacity>
 );
 
+const ErrorBanner = ({error, onRetry}: {error: string; onRetry: () => Promise<void>}) => (
+  <View style={styles.errorBanner}>
+    <Icon color={COLORS.accent.orange} name="alert-circle-outline" size={18} />
+    <Text numberOfLines={2} style={styles.errorBannerText}>{error}</Text>
+    <TouchableOpacity accessibilityRole="button" activeOpacity={0.82} onPress={() => { onRetry().catch(() => undefined); }} style={styles.errorRetryButton}>
+      <Text style={styles.errorRetryText}>재시도</Text>
+    </TouchableOpacity>
+  </View>
+);
+
 const styles = StyleSheet.create({
   safeArea: {backgroundColor: COLORS.background.page, flex: 1},
   content: {padding: SPACING.lg, paddingBottom: 40},
@@ -334,6 +360,7 @@ const styles = StyleSheet.create({
   errorRetryButton: {paddingHorizontal: SPACING.xs, paddingVertical: SPACING.xs},
   errorRetryText: {color: COLORS.accent.orange, fontSize: 12, fontWeight: '700'},
   sectionTitle: {color: COLORS.text.primary, fontSize: 14, fontWeight: '700', lineHeight: 20, marginTop: SPACING.sm, paddingHorizontal: 4},
+  emptySectionText: {color: COLORS.text.muted, fontSize: 13, lineHeight: 20, paddingHorizontal: SPACING.md},
   loadMoreButton: {alignItems: 'center', backgroundColor: COLORS.background.subtle, borderRadius: RADIUS.md, height: 40, justifyContent: 'center', marginTop: SPACING.sm},
   loadMoreText: {color: COLORS.brand.primaryStrong, fontSize: 13, fontWeight: '700'},
 });

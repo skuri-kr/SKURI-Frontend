@@ -5,6 +5,12 @@ import {useFriendRepository} from '@/di';
 import type {FriendRequestItem, FriendSummary} from '../model/friend';
 
 type FriendRequestDirection = 'RECEIVED' | 'SENT';
+type FriendHubReloadScope = Partial<{
+  friends: boolean;
+  receivedRequests: boolean;
+  sentRequests: boolean;
+}>;
+type AsyncResult<T> = {error: unknown; ok: false} | {ok: true; value: T};
 
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -18,6 +24,12 @@ const sortFriends = (friends: FriendSummary[]) =>
     return nicknameComparison || left.id.localeCompare(right.id);
   });
 
+const settle = <T,>(operation: () => Promise<T>): Promise<AsyncResult<T>> =>
+  Promise.resolve()
+    .then(operation)
+    .then(value => ({ok: true, value} as const))
+    .catch(error => ({error, ok: false} as const));
+
 export const useFriendHubData = () => {
   const friendRepository = useFriendRepository();
   const [friends, setFriends] = React.useState<FriendSummary[]>([]);
@@ -30,11 +42,15 @@ export const useFriendHubData = () => {
   const [receivedNextCursor, setReceivedNextCursor] = React.useState<string | null>(null);
   const [sentNextCursor, setSentNextCursor] = React.useState<string | null>(null);
   const [incomingRequestCount, setIncomingRequestCount] = React.useState<number>();
-  const [hasLoadedOnce, setHasLoadedOnce] = React.useState(false);
+  const [hasLoadedFriends, setHasLoadedFriends] = React.useState(false);
+  const [hasLoadedReceivedRequests, setHasLoadedReceivedRequests] = React.useState(false);
+  const [hasLoadedSentRequests, setHasLoadedSentRequests] = React.useState(false);
   const [loadingMoreDirections, setLoadingMoreDirections] = React.useState<
     Set<FriendRequestDirection>
   >(() => new Set());
-  const [error, setError] = React.useState<string>();
+  const [friendError, setFriendError] = React.useState<string>();
+  const [receivedRequestsError, setReceivedRequestsError] = React.useState<string>();
+  const [sentRequestsError, setSentRequestsError] = React.useState<string>();
   const [loading, setLoading] = React.useState(true);
   const [mutatingRequestIds, setMutatingRequestIds] = React.useState<Set<string>>(
     () => new Set(),
@@ -43,7 +59,10 @@ export const useFriendHubData = () => {
     () => new Set(),
   );
   const stateVersionRef = React.useRef(0);
-  const requestListVersionRef = React.useRef(0);
+  const requestListVersionsRef = React.useRef<Record<FriendRequestDirection, number>>({
+    RECEIVED: 0,
+    SENT: 0,
+  });
   const reloadRequestVersionRef = React.useRef(0);
   const loadMoreRequestVersionRef = React.useRef<Record<FriendRequestDirection, number>>({
     RECEIVED: 0,
@@ -53,19 +72,34 @@ export const useFriendHubData = () => {
   const mutatingRequestIdsRef = React.useRef(new Set<string>());
   const updatingFavoriteIdsRef = React.useRef(new Set<string>());
 
-  const reload = React.useCallback(async () => {
+  const reload = React.useCallback(async (scope?: FriendHubReloadScope) => {
+    const shouldLoadFriends = scope?.friends ?? true;
+    const shouldLoadReceivedRequests = scope?.receivedRequests ?? true;
+    const shouldLoadSentRequests = scope?.sentRequests ?? true;
     const reloadRequestVersion = reloadRequestVersionRef.current + 1;
     reloadRequestVersionRef.current = reloadRequestVersion;
     const stateVersion = stateVersionRef.current;
 
     try {
       setLoading(true);
-      setError(undefined);
-      const [nextFriends, receivedPage, sentPage, inboxCounts] = await Promise.all([
-        friendRepository.getFriends(),
-        friendRepository.getFriendRequests({direction: 'RECEIVED', size: 20}),
-        friendRepository.getFriendRequests({direction: 'SENT', size: 20}),
-        Promise.resolve(friendRepository.getInboxCounts()).catch(() => undefined),
+      if (shouldLoadFriends) {
+        setFriendError(undefined);
+      }
+      if (shouldLoadReceivedRequests) {
+        setReceivedRequestsError(undefined);
+      }
+      if (shouldLoadSentRequests) {
+        setSentRequestsError(undefined);
+      }
+      const [friendsResult, receivedRequestsResult, sentRequestsResult, inboxCountsResult] = await Promise.all([
+        shouldLoadFriends ? settle(() => friendRepository.getFriends()) : undefined,
+        shouldLoadReceivedRequests
+          ? settle(() => friendRepository.getFriendRequests({direction: 'RECEIVED', size: 20}))
+          : undefined,
+        shouldLoadSentRequests
+          ? settle(() => friendRepository.getFriendRequests({direction: 'SENT', size: 20}))
+          : undefined,
+        shouldLoadReceivedRequests ? settle(() => friendRepository.getInboxCounts()) : undefined,
       ]);
       if (
         reloadRequestVersion !== reloadRequestVersionRef.current ||
@@ -74,31 +108,73 @@ export const useFriendHubData = () => {
         return;
       }
 
-      stateVersionRef.current += 1;
-      requestListVersionRef.current += 1;
-      setFriends(sortFriends(nextFriends));
-      setReceivedRequests(receivedPage.items);
-      setSentRequests(sentPage.items);
-      setReceivedNextCursor(receivedPage.nextCursor);
-      setSentNextCursor(sentPage.nextCursor);
-      setIncomingRequestCount(
-        inboxCounts?.incomingRequestCount ?? receivedPage.items.length,
-      );
-      setHasLoadedOnce(true);
-    } catch (loadError) {
-      if (
-        reloadRequestVersion !== reloadRequestVersionRef.current ||
-        stateVersion !== stateVersionRef.current
-      ) {
-        return;
+      let hasUpdatedState = false;
+      const updatedRequestDirections = new Set<FriendRequestDirection>();
+      if (friendsResult?.ok) {
+        setFriends(sortFriends(friendsResult.value));
+        setHasLoadedFriends(true);
+        hasUpdatedState = true;
+      } else if (friendsResult) {
+        setFriendError(getErrorMessage(friendsResult.error, '친구 목록을 불러오지 못했습니다.'));
       }
-      setError(getErrorMessage(loadError, '친구 목록을 불러오지 못했습니다.'));
+
+      if (receivedRequestsResult?.ok) {
+        setReceivedRequests(receivedRequestsResult.value.items);
+        setReceivedNextCursor(receivedRequestsResult.value.nextCursor);
+        setHasLoadedReceivedRequests(true);
+        hasUpdatedState = true;
+        updatedRequestDirections.add('RECEIVED');
+      } else if (receivedRequestsResult) {
+        setReceivedRequestsError(
+          getErrorMessage(receivedRequestsResult.error, '받은 친구 요청을 불러오지 못했습니다.'),
+        );
+      }
+
+      if (sentRequestsResult?.ok) {
+        setSentRequests(sentRequestsResult.value.items);
+        setSentNextCursor(sentRequestsResult.value.nextCursor);
+        setHasLoadedSentRequests(true);
+        hasUpdatedState = true;
+        updatedRequestDirections.add('SENT');
+      } else if (sentRequestsResult) {
+        setSentRequestsError(
+          getErrorMessage(sentRequestsResult.error, '보낸 친구 요청을 불러오지 못했습니다.'),
+        );
+      }
+
+      if (inboxCountsResult?.ok) {
+        setIncomingRequestCount(inboxCountsResult.value.incomingRequestCount);
+      } else if (receivedRequestsResult?.ok) {
+        setIncomingRequestCount(current => current ?? receivedRequestsResult.value.items.length);
+      }
+
+      if (hasUpdatedState) {
+        stateVersionRef.current += 1;
+      }
+      updatedRequestDirections.forEach(direction => {
+        requestListVersionsRef.current[direction] += 1;
+      });
     } finally {
       if (reloadRequestVersion === reloadRequestVersionRef.current) {
         setLoading(false);
       }
     }
   }, [friendRepository]);
+
+  const reloadFriends = React.useCallback(
+    () => reload({friends: true, receivedRequests: false, sentRequests: false}),
+    [reload],
+  );
+
+  const reloadRequestDirection = React.useCallback(
+    (direction: FriendRequestDirection) =>
+      reload({
+        friends: false,
+        receivedRequests: direction === 'RECEIVED',
+        sentRequests: direction === 'SENT',
+      }),
+    [reload],
+  );
 
   const loadMoreRequests = React.useCallback(
     async (direction: FriendRequestDirection) => {
@@ -108,7 +184,7 @@ export const useFriendHubData = () => {
         return;
       }
 
-      const requestListVersion = requestListVersionRef.current;
+      const requestListVersion = requestListVersionsRef.current[direction];
       const loadMoreRequestVersion = loadMoreRequestVersionRef.current[direction] + 1;
       loadMoreRequestVersionRef.current[direction] = loadMoreRequestVersion;
       loadingMoreDirectionsRef.current.add(direction);
@@ -121,7 +197,7 @@ export const useFriendHubData = () => {
           size: 20,
         });
         if (
-          requestListVersion !== requestListVersionRef.current ||
+          requestListVersion !== requestListVersionsRef.current[direction] ||
           loadMoreRequestVersion !== loadMoreRequestVersionRef.current[direction]
         ) {
           return;
@@ -210,7 +286,7 @@ export const useFriendHubData = () => {
       try {
         const mutation = await friendRepository.acceptFriendRequest(requestId);
         stateVersionRef.current += 1;
-        requestListVersionRef.current += 1;
+        requestListVersionsRef.current.RECEIVED += 1;
         setReceivedRequests(current =>
           current.filter(request => request.id !== requestId),
         );
@@ -226,7 +302,7 @@ export const useFriendHubData = () => {
             ]),
           );
         }
-        reload().catch(() => undefined);
+        reload({friends: true, receivedRequests: false, sentRequests: false}).catch(() => undefined);
       } finally {
         endRequestMutation(requestId);
       }
@@ -243,7 +319,7 @@ export const useFriendHubData = () => {
       try {
         await friendRepository.declineFriendRequest(requestId);
         stateVersionRef.current += 1;
-        requestListVersionRef.current += 1;
+        requestListVersionsRef.current.RECEIVED += 1;
         setReceivedRequests(current =>
           current.filter(request => request.id !== requestId),
         );
@@ -266,7 +342,7 @@ export const useFriendHubData = () => {
       try {
         await friendRepository.cancelFriendRequest(requestId);
         stateVersionRef.current += 1;
-        requestListVersionRef.current += 1;
+        requestListVersionsRef.current.SENT += 1;
         setSentRequests(current =>
           current.filter(request => request.id !== requestId),
         );
@@ -277,13 +353,20 @@ export const useFriendHubData = () => {
     [beginRequestMutation, endRequestMutation, friendRepository],
   );
 
+  const hasLoadedOnce = hasLoadedFriends || hasLoadedReceivedRequests || hasLoadedSentRequests;
+  const error = friendError ?? receivedRequestsError ?? sentRequestsError;
+
   return {
     acceptRequest,
     cancelRequest,
     declineRequest,
     error,
+    friendError,
     friends,
+    hasLoadedFriends,
     hasLoadedOnce,
+    hasLoadedReceivedRequests,
+    hasLoadedSentRequests,
     incomingRequestCount,
     loading,
     loadingMoreDirections,
@@ -291,9 +374,13 @@ export const useFriendHubData = () => {
     mutatingRequestIds,
     receivedRequests,
     receivedNextCursor,
+    receivedRequestsError,
     reload,
+    reloadFriends,
+    reloadRequestDirection,
     sentRequests,
     sentNextCursor,
+    sentRequestsError,
     updateFavorite,
     updatingFavoriteIds,
   };
