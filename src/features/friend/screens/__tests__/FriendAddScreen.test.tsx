@@ -160,11 +160,30 @@ describe('FriendAddScreen', () => {
     expect(searchFriends).toHaveBeenCalledWith('가람');
   });
 
+  it('자동 닉네임 검색이 실패하면 오류를 안내한다', async () => {
+    jest.useFakeTimers();
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true)};
+    const searchFriends = jest.fn().mockRejectedValue(new Error('network unavailable'));
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseFriendAddData.mockReturnValue(createFriendAddData({searchFriends}));
+    const alertSpy = jest.spyOn(Alert, 'alert');
+
+    const view = render(<FriendAddScreen />);
+    fireEvent.changeText(view.getByLabelText('친구 닉네임 검색'), '가람');
+
+    await act(async () => {
+      jest.advanceTimersByTime(300);
+      await Promise.resolve();
+    });
+
+    expect(alertSpy).toHaveBeenCalledWith('친구 검색', 'network unavailable');
+  });
+
   it('대기 중인 친구 요청을 보낸 뒤 요청 목록으로 이동할 수 있다', async () => {
     const navigation = {
       goBack: jest.fn(),
       isFocused: jest.fn().mockReturnValue(true),
-      navigate: jest.fn(),
+      popTo: jest.fn(),
     };
     mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
     mockedUseFriendAddData.mockReturnValue(createFriendAddData({
@@ -196,7 +215,7 @@ describe('FriendAddScreen', () => {
     const actions = alertSpy.mock.calls.find(([title]) => title === '친구 요청을 보냈어요')?.[2];
     actions?.find(action => action.text === '요청 목록 보기')?.onPress?.();
 
-    expect(navigation.navigate).toHaveBeenCalledWith('FriendHub', {initialTab: 'requests'});
+    expect(navigation.popTo).toHaveBeenCalledWith('FriendHub', {initialTab: 'requests'});
   });
 
   it('하이픈 없는 친구 코드를 정규화하고 구분이 필요한 동명이인에 식별 코드를 표시한다', () => {

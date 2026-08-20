@@ -13,7 +13,7 @@ describe('FriendRequestCard', () => {
         request={{
           createdAt: '2026-08-18T11:00:00+09:00',
           department: '컴퓨터공학과',
-          expiresAt: '2026-09-17T11:30:00+09:00',
+          expiresAt: new Date(new Date().getFullYear(), 8, 17, 11, 30).toISOString(),
           friend: {
             department: '컴퓨터공학과',
             id: 'friend-1',
