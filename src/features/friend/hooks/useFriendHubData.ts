@@ -7,6 +7,7 @@ import type {FriendRequestItem, FriendSummary} from '../model/friend';
 type FriendRequestDirection = 'RECEIVED' | 'SENT';
 type FriendHubReloadTarget = 'friends' | FriendRequestDirection;
 type FriendRequestCompletion = 'ACCEPTED' | 'CANCELED' | 'DECLINED';
+type FriendRequestMutationAction = 'ACCEPT' | 'CANCEL' | 'DECLINE';
 type FriendHubReloadScope = Partial<{
   friends: boolean;
   receivedRequests: boolean;
@@ -59,6 +60,9 @@ export const useFriendHubData = () => {
   const [mutatingRequestIds, setMutatingRequestIds] = React.useState<Set<string>>(
     () => new Set(),
   );
+  const [mutatingRequestActions, setMutatingRequestActions] = React.useState<
+    Map<string, FriendRequestMutationAction>
+  >(() => new Map());
   const [updatingFavoriteIds, setUpdatingFavoriteIds] = React.useState<Set<string>>(
     () => new Set(),
   );
@@ -98,6 +102,9 @@ export const useFriendHubData = () => {
     new Set<FriendRequestDirection>(),
   );
   const mutatingRequestIdsRef = React.useRef(new Set<string>());
+  const mutatingRequestActionsRef = React.useRef(
+    new Map<string, FriendRequestMutationAction>(),
+  );
   const updatingFavoriteIdsRef = React.useRef(new Set<string>());
   const requestCompletionTimersRef = React.useRef(
     new Map<string, ReturnType<typeof setTimeout>>(),
@@ -313,19 +320,26 @@ export const useFriendHubData = () => {
     [],
   );
 
-  const beginRequestMutation = React.useCallback((requestId: string) => {
+  const beginRequestMutation = React.useCallback((
+    requestId: string,
+    action: FriendRequestMutationAction,
+  ) => {
     if (mutatingRequestIdsRef.current.has(requestId)) {
       return false;
     }
 
     mutatingRequestIdsRef.current.add(requestId);
+    mutatingRequestActionsRef.current.set(requestId, action);
     setMutatingRequestIds(new Set(mutatingRequestIdsRef.current));
+    setMutatingRequestActions(new Map(mutatingRequestActionsRef.current));
     return true;
   }, []);
 
   const endRequestMutation = React.useCallback((requestId: string) => {
     mutatingRequestIdsRef.current.delete(requestId);
+    mutatingRequestActionsRef.current.delete(requestId);
     setMutatingRequestIds(new Set(mutatingRequestIdsRef.current));
+    setMutatingRequestActions(new Map(mutatingRequestActionsRef.current));
   }, []);
 
   const beginFavoriteUpdate = React.useCallback((friendId: string) => {
@@ -416,7 +430,7 @@ export const useFriendHubData = () => {
 
   const acceptRequest = React.useCallback(
     async (requestId: string) => {
-      if (!beginRequestMutation(requestId)) {
+      if (!beginRequestMutation(requestId, 'ACCEPT')) {
         return;
       }
 
@@ -452,7 +466,7 @@ export const useFriendHubData = () => {
 
   const declineRequest = React.useCallback(
     async (requestId: string) => {
-      if (!beginRequestMutation(requestId)) {
+      if (!beginRequestMutation(requestId, 'DECLINE')) {
         return;
       }
 
@@ -473,7 +487,7 @@ export const useFriendHubData = () => {
 
   const cancelRequest = React.useCallback(
     async (requestId: string) => {
-      if (!beginRequestMutation(requestId)) {
+      if (!beginRequestMutation(requestId, 'CANCEL')) {
         return;
       }
 
@@ -508,6 +522,7 @@ export const useFriendHubData = () => {
     loading,
     loadingMoreDirections,
     loadMoreRequests,
+    mutatingRequestActions,
     mutatingRequestIds,
     receivedRequests,
     receivedNextCursor,

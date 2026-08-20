@@ -12,6 +12,7 @@ interface FriendRequestCardProps {
   completedAction?: 'ACCEPTED' | 'CANCELED' | 'DECLINED';
   loading?: boolean;
   mode: 'received' | 'sent';
+  pendingAction?: 'ACCEPT' | 'CANCEL' | 'DECLINE';
   onAccept?: () => void;
   onCancel?: () => void;
   onDecline?: () => void;
@@ -23,6 +24,7 @@ export const FriendRequestCard = ({
   completedAction,
   loading = false,
   mode,
+  pendingAction,
   onAccept,
   onCancel,
   onDecline,
@@ -68,7 +70,7 @@ export const FriendRequestCard = ({
           disabled={loading}
           onPress={onDecline}
           style={[styles.button, styles.secondaryButton]}>
-          <Text style={styles.secondaryText}>거절</Text>
+          {pendingAction === 'DECLINE' ? <ActivityIndicator color={COLORS.text.secondary} /> : <Text style={styles.secondaryText}>거절</Text>}
         </TouchableOpacity>
         <TouchableOpacity
           accessibilityRole="button"
@@ -76,7 +78,7 @@ export const FriendRequestCard = ({
           disabled={loading}
           onPress={onAccept}
           style={[styles.button, styles.primaryButton]}>
-          {loading ? <ActivityIndicator color={COLORS.text.inverse} /> : <Text style={styles.primaryText}>수락</Text>}
+          {pendingAction === 'ACCEPT' ? <ActivityIndicator color={COLORS.text.inverse} /> : <Text style={styles.primaryText}>수락</Text>}
         </TouchableOpacity>
       </View>
     ) : (
@@ -86,7 +88,7 @@ export const FriendRequestCard = ({
         disabled={loading}
         onPress={onCancel}
         style={[styles.cancelButton, loading ? styles.loadingButton : null]}>
-        {loading ? <ActivityIndicator color={COLORS.text.secondary} /> : <Text style={styles.cancelText}>요청 취소</Text>}
+        {pendingAction === 'CANCEL' ? <ActivityIndicator color={COLORS.text.secondary} /> : <Text style={styles.cancelText}>요청 취소</Text>}
       </TouchableOpacity>
     )}
   </View>

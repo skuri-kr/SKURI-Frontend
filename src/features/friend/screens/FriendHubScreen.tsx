@@ -92,6 +92,7 @@ export const FriendHubScreen = () => {
     loading,
     loadingMoreDirections,
     loadMoreRequests,
+    mutatingRequestActions,
     mutatingRequestIds,
     receivedRequests,
     receivedNextCursor,
@@ -322,6 +323,7 @@ export const FriendHubScreen = () => {
                     completedAction={completedRequestActions.get(request.id)}
                     loading={mutatingRequestIds.has(request.id)}
                     mode="received"
+                    pendingAction={mutatingRequestActions.get(request.id)}
                     onAccept={() => { handleAccept(request.id).catch(() => undefined); }}
                     onDecline={() => handleDecline(request.id)}
                     request={request}
@@ -359,6 +361,7 @@ export const FriendHubScreen = () => {
                     completedAction={completedRequestActions.get(request.id)}
                     loading={mutatingRequestIds.has(request.id)}
                     mode="sent"
+                    pendingAction={mutatingRequestActions.get(request.id)}
                     onCancel={() => handleCancel(request.id)}
                     request={request}
                     showIdentifier={duplicateRequestFriendIds.has(request.friend.id)}
