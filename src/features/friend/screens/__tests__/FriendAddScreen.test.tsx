@@ -153,6 +153,62 @@ describe('FriendAddScreen', () => {
     );
   });
 
+  it('화면을 떠난 뒤 친구 코드 재발급 성공 알림을 표시하지 않는다', async () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(false)};
+    const regenerateMyCode = jest.fn().mockResolvedValue(undefined);
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseFriendAddData.mockReturnValue(createFriendAddData({
+      myCode: {
+        canRegenerate: true,
+        code: 'SKR-7K4M-9Q2D',
+        nextRegenerationAt: null,
+      },
+      regenerateMyCode,
+    }));
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((...args) => {
+      const action = args[2]?.find(button => button.text === '재발급');
+      action?.onPress?.();
+    });
+
+    const view = render(<FriendAddScreen />);
+    fireEvent.press(view.getByText('친구 코드 재발급'));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(regenerateMyCode).toHaveBeenCalled();
+    expect(alertSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('화면을 떠난 뒤 친구 코드 재발급 실패 알림을 표시하지 않는다', async () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(false)};
+    const regenerateMyCode = jest.fn().mockRejectedValue(new Error('network unavailable'));
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseFriendAddData.mockReturnValue(createFriendAddData({
+      myCode: {
+        canRegenerate: true,
+        code: 'SKR-7K4M-9Q2D',
+        nextRegenerationAt: null,
+      },
+      regenerateMyCode,
+    }));
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((...args) => {
+      const action = args[2]?.find(button => button.text === '재발급');
+      action?.onPress?.();
+    });
+
+    const view = render(<FriendAddScreen />);
+    fireEvent.press(view.getByText('친구 코드 재발급'));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(regenerateMyCode).toHaveBeenCalled();
+    expect(alertSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('두 글자 이상 닉네임을 입력하면 300ms 뒤 자동으로 검색한다', () => {
     jest.useFakeTimers();
     const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true)};
