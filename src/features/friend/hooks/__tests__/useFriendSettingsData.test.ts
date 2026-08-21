@@ -12,11 +12,13 @@ const mockedUseFriendRepository = jest.mocked(useFriendRepository);
 
 const createDeferred = <T,>() => {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>(resolvePromise => {
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
 
-  return {promise, resolve};
+  return {promise, reject, resolve};
 };
 
 const createRepository = () => ({
@@ -220,5 +222,38 @@ describe('useFriendSettingsData', () => {
     });
 
     expect(result.current.privacy).toEqual({nicknameSearchable: false});
+  });
+
+  it('검색 공개 설정을 즉시 반영하고 저장 실패 시 이전 값으로 되돌린다', async () => {
+    const repository = createRepository();
+    const updatePrivacy = createDeferred<{nicknameSearchable: boolean}>();
+    repository.getMyPrivacy.mockResolvedValue({nicknameSearchable: true});
+    repository.getBlocks.mockResolvedValue([]);
+    repository.updateMyPrivacy.mockReturnValue(updatePrivacy.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendSettingsData());
+
+    await waitFor(() => {
+      expect(result.current.privacy).toEqual({nicknameSearchable: true});
+    });
+
+    let updatePromise!: Promise<void>;
+    act(() => {
+      updatePromise = result.current.updateNicknameSearchable(false);
+    });
+
+    expect(result.current.privacy).toEqual({nicknameSearchable: false});
+    expect(result.current.savingPrivacy).toBe(true);
+
+    await act(async () => {
+      updatePrivacy.reject(new Error('save failed'));
+      await expect(updatePromise).rejects.toThrow('save failed');
+    });
+
+    expect(result.current.privacy).toEqual({nicknameSearchable: true});
+    expect(result.current.savingPrivacy).toBe(false);
   });
 });

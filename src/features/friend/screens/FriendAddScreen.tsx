@@ -2,6 +2,9 @@ import React from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   Share,
   ScrollView,
   StyleSheet,
@@ -15,6 +18,7 @@ import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
+import Animated from 'react-native-reanimated';
 
 import {type CampusStackParamList} from '@/app/navigation/types';
 import {invalidateData} from '@/app/data-freshness/dataInvalidation';
@@ -24,6 +28,11 @@ import {
 } from '@/app/data-freshness/invalidationKeys';
 import {StateCard, StackHeader} from '@/shared/design-system/components';
 import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
+import {
+  enteringTransitions,
+  exitingTransitions,
+  layoutTransitions,
+} from '@/shared/design-system/motion';
 import {useScreenView} from '@/shared/hooks/useScreenView';
 
 import {FriendAvatar} from '../components/FriendAvatar';
@@ -32,8 +41,6 @@ import type {FriendSearchResult} from '../model/friend';
 
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
-
-const NICKNAME_SEARCH_DEBOUNCE_MS = 300;
 
 const formatCode = (value: string) => {
   const compactCode = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 11);
@@ -62,7 +69,7 @@ export const FriendAddScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
   const [friendCode, setFriendCode] = React.useState('');
   const [nicknameQuery, setNicknameQuery] = React.useState('');
-  const nicknameSearchTimerRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const friendCodeInputRef = React.useRef<TextInput>(null);
   const {
     loadingMyCode,
     completedSearchQuery,
@@ -87,51 +94,23 @@ export const FriendAddScreen = () => {
 
   const handlePreview = React.useCallback(async () => {
     try {
-      await previewFriendCode(friendCode);
+      const result = await previewFriendCode(friendCode);
+      if (result) {
+        friendCodeInputRef.current?.blur();
+        Keyboard.dismiss();
+      }
     } catch (previewError) {
       Alert.alert('친구 코드 확인', getErrorMessage(previewError, '친구 코드를 확인하지 못했습니다.'));
     }
   }, [friendCode, previewFriendCode]);
 
-  const clearNicknameSearchDebounce = React.useCallback(() => {
-    if (nicknameSearchTimerRef.current) {
-      clearTimeout(nicknameSearchTimerRef.current);
-      nicknameSearchTimerRef.current = undefined;
-    }
-  }, []);
-
   const handleSearch = React.useCallback(async () => {
-    clearNicknameSearchDebounce();
     try {
       await searchFriends(nicknameQuery);
     } catch (searchError) {
       Alert.alert('친구 검색', getErrorMessage(searchError, '친구를 검색하지 못했습니다.'));
     }
-  }, [clearNicknameSearchDebounce, nicknameQuery, searchFriends]);
-
-  React.useEffect(() => {
-    const query = nicknameQuery.trim();
-    if (query.length < 2) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      nicknameSearchTimerRef.current = undefined;
-      searchFriends(query).catch(searchError => {
-        if (navigation.isFocused()) {
-          Alert.alert('친구 검색', getErrorMessage(searchError, '친구를 검색하지 못했습니다.'));
-        }
-      });
-    }, NICKNAME_SEARCH_DEBOUNCE_MS);
-    nicknameSearchTimerRef.current = timer;
-
-    return () => {
-      clearTimeout(timer);
-      if (nicknameSearchTimerRef.current === timer) {
-        nicknameSearchTimerRef.current = undefined;
-      }
-    };
-  }, [navigation, nicknameQuery, searchFriends]);
+  }, [nicknameQuery, searchFriends]);
 
   const duplicateResultIds = React.useMemo(
     () => getDuplicateResultIds(searchResults),
@@ -166,10 +145,11 @@ export const FriendAddScreen = () => {
           return;
         }
         Alert.alert('친구 요청을 보냈어요', `${result.nickname}님의 수락을 기다려주세요.`, [
-          {text: '나중에', style: 'cancel'},
+          {text: '확인', style: 'cancel'},
           {
             text: '요청 목록 보기',
             onPress: () => navigation.popTo('FriendHub', {initialTab: 'requests'}),
+            style: 'default'
           },
         ]);
       } catch (requestError) {
@@ -229,10 +209,14 @@ export const FriendAddScreen = () => {
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
       <StackHeader onPressBack={() => navigation.goBack()} title="친구 추가" />
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoidingView}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionTitle}>내 친구 코드</Text>
         <View style={styles.codeCard}>
           {loadingMyCode ? <ActivityIndicator color={COLORS.brand.primary} /> : null}
@@ -282,7 +266,7 @@ export const FriendAddScreen = () => {
         </View>
 
         <Text style={styles.sectionTitle}>친구 코드로 추가</Text>
-        <View style={styles.inputCard}>
+        <Animated.View layout={layoutTransitions.cardExpand()} style={styles.inputCard}>
           <View style={styles.inputRow}>
             <TextInput
               accessibilityLabel="친구 코드"
@@ -294,6 +278,7 @@ export const FriendAddScreen = () => {
               }}
               placeholder="예: SKR-7K4M-9Q2D"
               placeholderTextColor={COLORS.text.placeholder}
+              ref={friendCodeInputRef}
               style={styles.textInput}
               value={friendCode}
             />
@@ -301,48 +286,77 @@ export const FriendAddScreen = () => {
               {previewing ? <ActivityIndicator color={COLORS.text.inverse} size="small" /> : <Text style={styles.searchButtonText}>확인</Text>}
             </TouchableOpacity>
           </View>
-          {preview ? <SearchResultRow result={preview} loading={sendingFriendIds.has(preview.id)} onSend={() => { handleSendRequest(preview).catch(() => undefined); }} /> : null}
-        </View>
+          {preview ? (
+            <Animated.View
+              entering={enteringTransitions.fadeInDown()}
+              exiting={exitingTransitions.fadeOutUp()}>
+              <SearchResultRow result={preview} loading={sendingFriendIds.has(preview.id)} onSend={() => { handleSendRequest(preview).catch(() => undefined); }} />
+            </Animated.View>
+          ) : null}
+        </Animated.View>
 
         <Text style={styles.sectionTitle}>닉네임으로 찾기</Text>
-        <View style={styles.inputCard}>
+        <Animated.View layout={layoutTransitions.cardExpand()} style={styles.inputCard}>
           <View style={styles.inputRow}>
             <TextInput
               accessibilityLabel="친구 닉네임 검색"
               autoCorrect={false}
               onChangeText={value => {
-                clearNicknameSearchDebounce();
                 setNicknameQuery(value);
                 resetSearch();
               }}
-              onSubmitEditing={() => { handleSearch().catch(() => undefined); }}
-              placeholder="두 글자 이상 입력해주세요"
+              placeholder="닉네임을 입력해주세요"
               placeholderTextColor={COLORS.text.placeholder}
-              returnKeyType="search"
+              returnKeyType="done"
               style={styles.textInput}
               value={nicknameQuery}
             />
-            <TouchableOpacity accessibilityRole="button" activeOpacity={0.82} disabled={searching} onPress={() => { handleSearch().catch(() => undefined); }} style={styles.searchButton}>
+            <TouchableOpacity accessibilityLabel="검색" accessibilityRole="button" activeOpacity={0.82} disabled={searching} onPress={() => { handleSearch().catch(() => undefined); }} style={styles.searchButton}>
               {searching ? <ActivityIndicator color={COLORS.text.inverse} size="small" /> : <Icon color={COLORS.text.inverse} name="search" size={18} />}
             </TouchableOpacity>
           </View>
           {hasDuplicateNickname ? <Text style={styles.duplicateNicknameHint}>동일한 닉네임의 사용자가 있을 수 있어요. 학과와 식별 코드를 확인해주세요.</Text> : null}
-          {searchResults.map(result => <SearchResultRow discriminator={duplicateResultIds.has(result.id) ? result.id.slice(-6).toUpperCase() : undefined} key={result.id} result={result} loading={sendingFriendIds.has(result.id)} onSend={() => { handleSendRequest(result).catch(() => undefined); }} />)}
+          {searchResults.map(result => (
+            <Animated.View
+              entering={enteringTransitions.fadeInDown()}
+              exiting={exitingTransitions.fadeOutUp()}
+              key={result.id}
+              layout={layoutTransitions.gentleExpand()}>
+              <SearchResultRow discriminator={duplicateResultIds.has(result.id) ? result.id.slice(-6).toUpperCase() : undefined} result={result} loading={sendingFriendIds.has(result.id)} onSend={() => { handleSendRequest(result).catch(() => undefined); }} />
+            </Animated.View>
+          ))}
           {searchNextCursor ? <TouchableOpacity accessibilityRole="button" activeOpacity={0.82} disabled={searching} onPress={() => { loadMoreSearchResults(nicknameQuery).catch(searchError => Alert.alert('친구 검색', getErrorMessage(searchError, '검색 결과를 더 불러오지 못했습니다.'))); }} style={styles.loadMoreButton}>{searching ? <ActivityIndicator color={COLORS.brand.primary} size="small" /> : <Text style={styles.loadMoreText}>더 보기</Text>}</TouchableOpacity> : null}
           {!searching && completedSearchQuery === nicknameQuery.trim() && searchResults.length === 0 ? <Text style={styles.emptySearch}>검색 결과가 없어요.</Text> : null}
-        </View>
+        </Animated.View>
         <StateCard
           description="카메라 권한과 QR 인식 기능은 후속 버전에서 제공할 예정이에요."
           icon={<Icon color={COLORS.accent.blue} name="qr-code-outline" size={28} />}
           title="QR 추가는 준비 중이에요"
+          style={{marginTop: SPACING.lg}}
         />
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
-const SearchResultRow = ({discriminator, loading, onSend, result}: {discriminator?: string; loading: boolean; onSend: () => void; result: FriendSearchResult}) => (
-  <View style={styles.resultRow}>
+const getRelationshipAction = (result: FriendSearchResult) => {
+  switch (result.relationshipState) {
+    case 'REQUESTABLE':
+      return {enabled: true, label: '요청'};
+    case 'INCOMING_PENDING':
+      return {enabled: true, label: '수락'};
+    case 'OUTGOING_PENDING':
+      return {enabled: false, label: '요청 보냄'};
+    case 'ALREADY_FRIEND':
+      return {enabled: false, label: '이미 친구'};
+  }
+};
+
+const SearchResultRow = ({discriminator, loading, onSend, result}: {discriminator?: string; loading: boolean; onSend: () => void; result: FriendSearchResult}) => {
+  const action = getRelationshipAction(result);
+
+  return <View style={styles.resultRow}>
     <FriendAvatar photoUrl={result.photoUrl} />
     <View style={styles.resultContent}>
       <Text style={styles.resultName}>{result.nickname}</Text>
@@ -352,16 +366,17 @@ const SearchResultRow = ({discriminator, loading, onSend, result}: {discriminato
     <TouchableOpacity
       accessibilityRole="button"
       activeOpacity={0.82}
-      disabled={loading || !result.canSendFriendRequest}
+      disabled={loading || !action.enabled}
       onPress={onSend}
-      style={[styles.requestButton, !result.canSendFriendRequest ? styles.disabledRequestButton : null]}>
-      {loading ? <ActivityIndicator color={COLORS.brand.primary} size="small" /> : <Text style={[styles.requestButtonText, !result.canSendFriendRequest ? styles.disabledText : null]}>{result.canSendFriendRequest ? '요청' : '요청 불가'}</Text>}
+      style={[styles.requestButton, !action.enabled ? styles.disabledRequestButton : null]}>
+      {loading ? <ActivityIndicator color={COLORS.brand.primary} size="small" /> : <Text style={[styles.requestButtonText, !action.enabled ? styles.disabledText : null]}>{action.label}</Text>}
     </TouchableOpacity>
   </View>
-);
+};
 
 const styles = StyleSheet.create({
   safeArea: {backgroundColor: COLORS.background.page, flex: 1},
+  keyboardAvoidingView: {flex: 1},
   content: {padding: SPACING.lg, paddingBottom: 40},
   sectionTitle: {color: COLORS.text.primary, fontSize: 14, fontWeight: '700', lineHeight: 20, marginBottom: SPACING.sm, marginTop: SPACING.lg, paddingHorizontal: 4},
   codeCard: {alignItems: 'center', backgroundColor: COLORS.background.surface, borderRadius: RADIUS.lg, minHeight: 158, padding: SPACING.xl, ...SHADOWS.card},
@@ -377,7 +392,7 @@ const styles = StyleSheet.create({
   codeErrorText: {color: COLORS.text.secondary, fontSize: 13, lineHeight: 20, textAlign: 'center'},
   retryCodeButton: {alignItems: 'center', backgroundColor: COLORS.background.subtle, borderRadius: RADIUS.md, height: 36, justifyContent: 'center', paddingHorizontal: SPACING.lg},
   retryCodeButtonText: {color: COLORS.brand.primaryStrong, fontSize: 13, fontWeight: '700'},
-  inputCard: {backgroundColor: COLORS.background.surface, borderRadius: RADIUS.lg, overflow: 'hidden', ...SHADOWS.card},
+  inputCard: {backgroundColor: COLORS.background.surface, borderRadius: RADIUS.lg, ...SHADOWS.card},
   inputRow: {alignItems: 'center', flexDirection: 'row', padding: SPACING.md},
   textInput: {backgroundColor: COLORS.background.subtle, borderRadius: RADIUS.md, color: COLORS.text.primary, flex: 1, fontSize: 14, height: 44, paddingHorizontal: SPACING.md},
   searchButton: {alignItems: 'center', backgroundColor: COLORS.brand.primary, borderRadius: RADIUS.md, height: 44, justifyContent: 'center', marginLeft: SPACING.sm, minWidth: 50, paddingHorizontal: SPACING.md},

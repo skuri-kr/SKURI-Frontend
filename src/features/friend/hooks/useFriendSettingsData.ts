@@ -20,6 +20,7 @@ export const useFriendSettingsData = () => {
   const [unblockingIds, setUnblockingIds] = React.useState<Set<string>>(
     () => new Set(),
   );
+  const savingPrivacyRef = React.useRef(false);
   const unblockingIdsRef = React.useRef(new Set<string>());
   const privacyLoadVersionRef = React.useRef(0);
   const privacyStateVersionRef = React.useRef(0);
@@ -99,16 +100,30 @@ export const useFriendSettingsData = () => {
 
   const updateNicknameSearchable = React.useCallback(
     async (nicknameSearchable: boolean) => {
+      if (!privacy || savingPrivacyRef.current) {
+        return;
+      }
+
+      const previousPrivacy = privacy;
       try {
+        savingPrivacyRef.current = true;
         setSavingPrivacy(true);
+        setPrivacyError(undefined);
+        privacyStateVersionRef.current += 1;
+        setPrivacy({nicknameSearchable});
         const nextPrivacy = await friendRepository.updateMyPrivacy(nicknameSearchable);
         privacyStateVersionRef.current += 1;
         setPrivacy(nextPrivacy);
+      } catch (updateError) {
+        privacyStateVersionRef.current += 1;
+        setPrivacy(previousPrivacy);
+        throw updateError;
       } finally {
+        savingPrivacyRef.current = false;
         setSavingPrivacy(false);
       }
     },
-    [friendRepository],
+    [friendRepository, privacy],
   );
 
   const unblockMember = React.useCallback(

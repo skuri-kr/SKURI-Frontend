@@ -19,12 +19,18 @@ import {
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
+import Animated from 'react-native-reanimated';
 
 import {type CampusStackParamList} from '@/app/navigation/types';
 import {useInvalidationVersion} from '@/app/data-freshness/dataInvalidation';
 import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {SegmentedControl, StackHeader, StateCard} from '@/shared/design-system/components';
 import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
+import {
+  enteringTransitions,
+  exitingTransitions,
+  layoutTransitions,
+} from '@/shared/design-system/motion';
 import {useScreenView} from '@/shared/hooks/useScreenView';
 
 import {FriendRequestCard} from '../components/FriendRequestCard';
@@ -158,6 +164,11 @@ export const FriendHubScreen = () => {
       : hasLoadedReceivedRequests
         ? `요청 ${receivedRequests.length}${receivedNextCursor ? '+' : ''}`
         : '요청';
+  const hasAnyPendingRequests =
+    receivedRequests.length > 0 || sentRequests.length > 0;
+  const hasInitialRequestLoadPending =
+    (!hasLoadedReceivedRequests && !receivedRequestsError) ||
+    (!hasLoadedSentRequests && !sentRequestsError);
 
   React.useEffect(() => {
     const initialTab = route.params?.initialTab;
@@ -298,6 +309,11 @@ export const FriendHubScreen = () => {
           variant="surface"
         />
 
+        <Animated.View
+          entering={enteringTransitions.fadeInDown()}
+          exiting={exitingTransitions.fadeOutUp()}
+          key={selectedTab}
+          layout={layoutTransitions.gentleExpand()}>
         {selectedTab === 'friends' ? (
           !hasLoadedFriends ? (
             friendError ? (
@@ -346,17 +362,14 @@ export const FriendHubScreen = () => {
         ) : null}
 
         {selectedTab === 'requests' ? (
-          !hasLoadedReceivedRequests &&
-          !hasLoadedSentRequests &&
-          !receivedRequestsError &&
-          !sentRequestsError ? (
-            <StateCard
-              description="친구 요청을 준비하고 있습니다."
-              icon={<ActivityIndicator color={COLORS.brand.primary} />}
-              title="친구 요청을 불러오는 중"
-            />
-          ) : (
           <View style={styles.requestContent}>
+            {hasInitialRequestLoadPending && !hasAnyPendingRequests ? (
+              <StateCard
+                description="친구 요청을 준비하고 있습니다."
+                icon={<ActivityIndicator color={COLORS.brand.primary} />}
+                title="친구 요청을 불러오는 중"
+              />
+            ) : null}
             {!hasLoadedReceivedRequests && receivedRequestsError ? (
               <StateCard
                 actionLabel="다시 시도"
@@ -369,29 +382,33 @@ export const FriendHubScreen = () => {
             {hasLoadedReceivedRequests ? (
               <>
                 {receivedRequestsError ? <ErrorBanner error={receivedRequestsError} onRetry={() => reloadRequestDirection('RECEIVED')} /> : null}
-                <Text style={styles.sectionTitle}>받은 요청</Text>
-                {receivedRequests.length > 0 ? receivedRequests.map(request => (
-                  <FriendRequestCard
-                    key={request.id}
-                    completedAction={completedRequestActions.get(request.id)}
-                    loading={mutatingRequestIds.has(request.id)}
-                    mode="received"
-                    pendingAction={mutatingRequestActions.get(request.id)}
-                    onAccept={() => { handleAccept(request.id).catch(() => undefined); }}
-                    onDecline={() => handleDecline(request.id)}
-                    request={request}
-                    showIdentifier={duplicateRequestFriendIds.has(request.friend.id)}
-                  />
-                )) : sentRequests.length > 0 || !hasLoadedSentRequests || sentRequestsError ? <Text style={styles.emptySectionText}>받은 요청이 없어요.</Text> : null}
-                {receivedNextCursor ? (
-                  <LoadMoreButton
-                    loading={loadingMoreDirections.has('RECEIVED')}
-                    onPress={() => {
-                      loadMoreRequests('RECEIVED').catch(loadError => {
-                        showErrorAlert(loadError, '친구 요청을 더 불러오지 못했습니다.');
-                      });
-                    }}
-                  />
+                {hasAnyPendingRequests ? (
+                  <>
+                    <Text style={styles.sectionTitle}>받은 요청</Text>
+                    {receivedRequests.length > 0 ? receivedRequests.map(request => (
+                      <FriendRequestCard
+                        key={request.id}
+                        completedAction={completedRequestActions.get(request.id)}
+                        loading={mutatingRequestIds.has(request.id)}
+                        mode="received"
+                        pendingAction={mutatingRequestActions.get(request.id)}
+                        onAccept={() => { handleAccept(request.id).catch(() => undefined); }}
+                        onDecline={() => handleDecline(request.id)}
+                        request={request}
+                        showIdentifier={duplicateRequestFriendIds.has(request.friend.id)}
+                      />
+                    )) : <Text style={styles.emptySectionText}>받은 요청이 없어요.</Text>}
+                    {receivedNextCursor ? (
+                      <LoadMoreButton
+                        loading={loadingMoreDirections.has('RECEIVED')}
+                        onPress={() => {
+                          loadMoreRequests('RECEIVED').catch(loadError => {
+                            showErrorAlert(loadError, '친구 요청을 더 불러오지 못했습니다.');
+                          });
+                        }}
+                      />
+                    ) : null}
+                  </>
                 ) : null}
               </>
             ) : null}
@@ -407,28 +424,32 @@ export const FriendHubScreen = () => {
             {hasLoadedSentRequests ? (
               <>
                 {sentRequestsError ? <ErrorBanner error={sentRequestsError} onRetry={() => reloadRequestDirection('SENT')} /> : null}
-                <Text style={styles.sectionTitle}>보낸 요청</Text>
-                {sentRequests.length > 0 ? sentRequests.map(request => (
-                  <FriendRequestCard
-                    key={request.id}
-                    completedAction={completedRequestActions.get(request.id)}
-                    loading={mutatingRequestIds.has(request.id)}
-                    mode="sent"
-                    pendingAction={mutatingRequestActions.get(request.id)}
-                    onCancel={() => handleCancel(request.id)}
-                    request={request}
-                    showIdentifier={duplicateRequestFriendIds.has(request.friend.id)}
-                  />
-                )) : receivedRequests.length > 0 || !hasLoadedReceivedRequests || receivedRequestsError ? <Text style={styles.emptySectionText}>보낸 요청이 없어요.</Text> : null}
-                {sentNextCursor ? (
-                  <LoadMoreButton
-                    loading={loadingMoreDirections.has('SENT')}
-                    onPress={() => {
-                      loadMoreRequests('SENT').catch(loadError => {
-                        showErrorAlert(loadError, '친구 요청을 더 불러오지 못했습니다.');
-                      });
-                    }}
-                  />
+                {hasAnyPendingRequests ? (
+                  <>
+                    <Text style={styles.sectionTitle}>보낸 요청</Text>
+                    {sentRequests.length > 0 ? sentRequests.map(request => (
+                      <FriendRequestCard
+                        key={request.id}
+                        completedAction={completedRequestActions.get(request.id)}
+                        loading={mutatingRequestIds.has(request.id)}
+                        mode="sent"
+                        pendingAction={mutatingRequestActions.get(request.id)}
+                        onCancel={() => handleCancel(request.id)}
+                        request={request}
+                        showIdentifier={duplicateRequestFriendIds.has(request.friend.id)}
+                      />
+                    )) : <Text style={styles.emptySectionText}>보낸 요청이 없어요.</Text>}
+                    {sentNextCursor ? (
+                      <LoadMoreButton
+                        loading={loadingMoreDirections.has('SENT')}
+                        onPress={() => {
+                          loadMoreRequests('SENT').catch(loadError => {
+                            showErrorAlert(loadError, '친구 요청을 더 불러오지 못했습니다.');
+                          });
+                        }}
+                      />
+                    ) : null}
+                  </>
                 ) : null}
               </>
             ) : null}
@@ -439,9 +460,15 @@ export const FriendHubScreen = () => {
                 title="대기 중인 요청이 없어요"
               />
             ) : null}
+            {hasInitialRequestLoadPending && hasAnyPendingRequests ? (
+              <View style={styles.inlineLoading}>
+                <ActivityIndicator color={COLORS.brand.primary} size="small" />
+                <Text style={styles.inlineLoadingText}>나머지 친구 요청을 불러오는 중</Text>
+              </View>
+            ) : null}
           </View>
-          )
         ) : null}
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -477,6 +504,8 @@ const styles = StyleSheet.create({
   listCard: {backgroundColor: COLORS.background.surface, borderRadius: RADIUS.lg, overflow: 'hidden', ...SHADOWS.card},
   rowDivider: {borderBottomColor: COLORS.border.subtle, borderBottomWidth: 1},
   requestContent: {gap: SPACING.sm},
+  inlineLoading: {alignItems: 'center', flexDirection: 'row', gap: SPACING.xs, justifyContent: 'center', paddingVertical: SPACING.sm},
+  inlineLoadingText: {color: COLORS.text.secondary, fontSize: 12},
   errorBanner: {alignItems: 'center', backgroundColor: COLORS.accent.orangeSoft, borderRadius: RADIUS.md, flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.lg, minHeight: 44, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm},
   errorBannerText: {color: COLORS.text.secondary, flex: 1, fontSize: 12, lineHeight: 18},
   errorRetryButton: {paddingHorizontal: SPACING.xs, paddingVertical: SPACING.xs},

@@ -18,6 +18,24 @@ jest.mock('@react-navigation/native', () => ({
 
 jest.mock('react-native-vector-icons/Ionicons', () => 'Icon');
 
+jest.mock('react-native-reanimated', () => {
+  const {View} = require('react-native');
+  const transition = {
+    damping: () => transition,
+    duration: () => transition,
+    mass: () => transition,
+    springify: () => transition,
+    stiffness: () => transition,
+  };
+  return {
+    __esModule: true,
+    default: {View},
+    FadeInDown: transition,
+    FadeOutUp: transition,
+    LinearTransition: transition,
+  };
+});
+
 jest.mock('@/app/data-freshness/dataInvalidation', () => ({
   useInvalidationVersion: jest.fn(),
 }));
@@ -168,5 +186,35 @@ describe('FriendHubScreen', () => {
     await waitFor(() => {
       expect(alertSpy).not.toHaveBeenCalled();
     });
+  });
+
+  it('받은 요청과 보낸 요청이 모두 없으면 통합 빈 상태만 표시한다', () => {
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'requests'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+
+    const view = render(<FriendHubScreen />);
+
+    expect(view.getByText('대기 중인 요청이 없어요')).toBeTruthy();
+    expect(view.queryByText('받은 요청')).toBeNull();
+    expect(view.queryByText('보낸 요청')).toBeNull();
+  });
+
+  it('한 방향의 초기 요청 조회가 아직 끝나지 않았으면 빈 화면 대신 로딩 상태를 표시한다', () => {
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'requests'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(
+      createFriendHubData({
+        hasLoadedReceivedRequests: true,
+        hasLoadedSentRequests: false,
+      }),
+    );
+
+    const view = render(<FriendHubScreen />);
+
+    expect(view.getByText('친구 요청을 불러오는 중')).toBeTruthy();
+    expect(view.queryByText('대기 중인 요청이 없어요')).toBeNull();
   });
 });

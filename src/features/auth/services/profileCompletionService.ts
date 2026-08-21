@@ -1,4 +1,8 @@
 import {type IMemberRepository} from '@/features/member';
+import {
+  containsReservedNicknameKeyword,
+  RESERVED_NICKNAME_MESSAGE,
+} from '@/features/member/services/memberNicknamePolicy';
 import {setUserProperties} from '@/shared/lib/analytics';
 import type {User} from '@/shared/types/user';
 
@@ -21,6 +25,10 @@ export const validateCompleteProfileForm = (
 
   if (values.displayName.trim().length > 7) {
     return '닉네임은 7자 이하로 입력해주세요.';
+  }
+
+  if (containsReservedNicknameKeyword(values.displayName)) {
+    return RESERVED_NICKNAME_MESSAGE;
   }
 
   return null;

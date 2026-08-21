@@ -58,11 +58,11 @@ describe('useFriendAddData', () => {
   it('친구 코드가 바뀐 뒤에는 이전 미리보기 응답을 표시하지 않는다', async () => {
     const repository = createRepository();
     const previewDeferred = createDeferred<{
-      canSendFriendRequest: boolean;
       department: string | null;
       id: string;
       nickname: string;
       photoUrl: string | null;
+      relationshipState: FriendSearchResult['relationshipState'];
     }>();
     repository.previewFriendCode.mockReturnValue(previewDeferred.promise);
     mockedUseFriendRepository.mockReturnValue(
@@ -79,11 +79,11 @@ describe('useFriendAddData', () => {
       const previewPromise = result.current.previewFriendCode('SKR-OLD-CODE');
       result.current.invalidateFriendCodePreview();
       previewDeferred.resolve({
-        canSendFriendRequest: true,
         department: null,
         id: 'old-friend',
         nickname: '이전 친구',
         photoUrl: null,
+        relationshipState: 'REQUESTABLE',
       });
       await previewPromise;
     });
@@ -97,11 +97,11 @@ describe('useFriendAddData', () => {
     const searchDeferred = createDeferred<{
       hasNext: boolean;
       items: Array<{
-        canSendFriendRequest: boolean;
         department: string | null;
         id: string;
         nickname: string;
         photoUrl: string | null;
+        relationshipState: FriendSearchResult['relationshipState'];
       }>;
       nextCursor: string | null;
     }>();
@@ -119,11 +119,11 @@ describe('useFriendAddData', () => {
         hasNext: true,
         items: [
           {
-            canSendFriendRequest: true,
             department: null,
             id: 'old-result',
             nickname: '가람',
             photoUrl: null,
+            relationshipState: 'REQUESTABLE',
           },
         ],
         nextCursor: 'old-cursor',
@@ -185,6 +185,29 @@ describe('useFriendAddData', () => {
     });
 
     expect(result.current.completedSearchQuery).toBeUndefined();
+  });
+
+  it('한 글자 닉네임도 검색할 수 있다', async () => {
+    const repository = createRepository();
+    repository.searchFriends.mockResolvedValue({
+      hasNext: false,
+      items: [],
+      nextCursor: null,
+    });
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendAddData());
+
+    await act(async () => {
+      await result.current.searchFriends('김');
+    });
+
+    expect(repository.searchFriends).toHaveBeenCalledWith({
+      query: '김',
+      size: 20,
+    });
   });
 
   it('서로 다른 친구 요청은 각각 완료될 때까지 전송 상태를 유지한다', async () => {
@@ -262,16 +285,16 @@ describe('useFriendAddData', () => {
     });
   });
 
-  it('요청 성공 뒤 늦게 도착한 검색 결과가 요청 버튼을 다시 활성화하지 않는다', async () => {
+  it('요청 성공 전에 시작한 검색 결과가 늦게 도착해도 적용하지 않는다', async () => {
     const repository = createRepository();
     const search = createDeferred<{
       hasNext: boolean;
       items: Array<{
-        canSendFriendRequest: boolean;
         department: string | null;
         id: string;
         nickname: string;
         photoUrl: string | null;
+        relationshipState: FriendSearchResult['relationshipState'];
       }>;
       nextCursor: string | null;
     }>();
@@ -298,11 +321,11 @@ describe('useFriendAddData', () => {
         hasNext: false,
         items: [
           {
-            canSendFriendRequest: true,
             department: null,
             id: 'friend-1',
             nickname: '가람',
             photoUrl: null,
+            relationshipState: 'REQUESTABLE',
           },
         ],
         nextCursor: null,
@@ -310,15 +333,142 @@ describe('useFriendAddData', () => {
       await searchPromise;
     });
 
-    expect(result.current.searchResults).toEqual([
-      {
-        canSendFriendRequest: false,
+    expect(result.current.searchResults).toEqual([]);
+  });
+
+  it('요청 중 새로 시작한 닉네임 검색 결과는 요청 완료 뒤에도 유지한다', async () => {
+    const repository = createRepository();
+    const mutation = createDeferred<{
+      friend: null;
+      requestId: string;
+      status: 'PENDING';
+    }>();
+    const search = createDeferred<{
+      hasNext: boolean;
+      items: FriendSearchResult[];
+      nextCursor: string | null;
+    }>();
+    repository.createFriendRequest.mockReturnValue(mutation.promise);
+    repository.searchFriends.mockReturnValue(search.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendAddData());
+
+    let mutationPromise!: Promise<unknown>;
+    let searchPromise!: Promise<void>;
+    act(() => {
+      mutationPromise = result.current.sendFriendRequest('friend-1');
+      searchPromise = result.current.searchFriends('나래');
+    });
+
+    await act(async () => {
+      mutation.resolve({friend: null, requestId: 'request-1', status: 'PENDING'});
+      await mutationPromise;
+    });
+
+    expect(result.current.searching).toBe(true);
+
+    await act(async () => {
+      search.resolve({
+        hasNext: false,
+        items: [{department: null, id: 'friend-2', nickname: '나래', photoUrl: null, relationshipState: 'REQUESTABLE'}],
+        nextCursor: null,
+      });
+      await searchPromise;
+    });
+
+    expect(result.current.searchResults.map(item => item.id)).toEqual(['friend-2']);
+  });
+
+  it('요청 중 새로 시작한 친구 코드 확인 결과는 요청 완료 뒤에도 유지한다', async () => {
+    const repository = createRepository();
+    const mutation = createDeferred<{
+      friend: null;
+      requestId: string;
+      status: 'PENDING';
+    }>();
+    const preview = createDeferred<FriendSearchResult>();
+    repository.createFriendRequest.mockReturnValue(mutation.promise);
+    repository.previewFriendCode.mockReturnValue(preview.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendAddData());
+
+    let mutationPromise!: Promise<unknown>;
+    let previewPromise!: Promise<FriendSearchResult | undefined>;
+    act(() => {
+      mutationPromise = result.current.sendFriendRequest('friend-1');
+      previewPromise = result.current.previewFriendCode('SKR-NEW-CODE');
+    });
+
+    await act(async () => {
+      mutation.resolve({friend: null, requestId: 'request-1', status: 'PENDING'});
+      await mutationPromise;
+    });
+
+    expect(result.current.previewing).toBe(true);
+
+    await act(async () => {
+      preview.resolve({
         department: null,
-        id: 'friend-1',
-        nickname: '가람',
+        id: 'friend-2',
+        nickname: '나래',
         photoUrl: null,
-      },
-    ]);
+        relationshipState: 'REQUESTABLE',
+      });
+      await previewPromise;
+    });
+
+    expect(result.current.preview?.id).toBe('friend-2');
+  });
+
+  it('상대가 요청을 거절한 뒤 다시 검색하면 서버의 요청 가능 상태를 반영한다', async () => {
+    const repository = createRepository();
+    repository.searchFriends
+      .mockResolvedValueOnce({
+        hasNext: false,
+        items: [
+          {
+            department: null,
+            id: 'friend-1',
+            nickname: '가람',
+            photoUrl: null,
+            relationshipState: 'OUTGOING_PENDING',
+          },
+        ],
+        nextCursor: null,
+      })
+      .mockResolvedValueOnce({
+        hasNext: false,
+        items: [
+          {
+            department: null,
+            id: 'friend-1',
+            nickname: '가람',
+            photoUrl: null,
+            relationshipState: 'REQUESTABLE',
+          },
+        ],
+        nextCursor: null,
+      });
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendAddData());
+
+    await act(async () => {
+      await result.current.searchFriends('가람');
+      await result.current.searchFriends('가람');
+    });
+
+    expect(result.current.searchResults[0]?.relationshipState).toBe(
+      'REQUESTABLE',
+    );
   });
 
   it('이전 검색의 더 보기 요청은 새 검색의 더 보기를 막지 않는다', async () => {
@@ -331,18 +481,18 @@ describe('useFriendAddData', () => {
     repository.searchFriends
       .mockResolvedValueOnce({
         hasNext: true,
-        items: [{canSendFriendRequest: true, department: null, id: 'friend-a', nickname: '가람', photoUrl: null}],
+        items: [{department: null, id: 'friend-a', nickname: '가람', photoUrl: null, relationshipState: 'REQUESTABLE'}],
         nextCursor: 'cursor-a',
       })
       .mockReturnValueOnce(staleLoadMore.promise)
       .mockResolvedValueOnce({
         hasNext: true,
-        items: [{canSendFriendRequest: true, department: null, id: 'friend-b', nickname: '나래', photoUrl: null}],
+        items: [{department: null, id: 'friend-b', nickname: '나래', photoUrl: null, relationshipState: 'REQUESTABLE'}],
         nextCursor: 'cursor-b',
       })
       .mockResolvedValueOnce({
         hasNext: false,
-        items: [{canSendFriendRequest: true, department: null, id: 'friend-b2', nickname: '나래', photoUrl: null}],
+        items: [{department: null, id: 'friend-b2', nickname: '나래', photoUrl: null, relationshipState: 'REQUESTABLE'}],
         nextCursor: null,
       });
     mockedUseFriendRepository.mockReturnValue(

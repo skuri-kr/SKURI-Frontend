@@ -31,6 +31,10 @@ import {
   SPACING,
 } from '@/shared/design-system/tokens';
 import {useScreenView} from '@/shared/hooks/useScreenView';
+import {
+  containsReservedNicknameKeyword,
+  RESERVED_NICKNAME_MESSAGE,
+} from '@/features/member/services/memberNicknamePolicy';
 import {pickImageAsset} from '@/shared/lib/media/pickImageAsset';
 
 import {useProfileEditScreenData} from '../hooks/useProfileEditScreenData';
@@ -220,6 +224,11 @@ export const ProfileEditScreen = () => {
 
     if (trimmedDisplayName.length > 7) {
       Alert.alert('입력 확인', '닉네임은 최대 7글자까지 가능합니다.');
+      return;
+    }
+
+    if (containsReservedNicknameKeyword(trimmedDisplayName)) {
+      Alert.alert('입력 확인', RESERVED_NICKNAME_MESSAGE);
       return;
     }
 
