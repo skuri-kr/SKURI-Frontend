@@ -193,24 +193,17 @@ export const useFriendHubData = () => {
       }
 
       if (shouldLoadReceivedRequests) {
-        let receivedRequestItems: FriendRequestItem[] | undefined;
-        let inboxCountsFailed = false;
-
         const applyReceivedRequestResult = (receivedRequestsResult: AsyncResult<{
           hasNext: boolean;
           items: FriendRequestItem[];
           nextCursor: string | null;
         }>) => {
           if (receivedRequestsResult.ok && isCurrent('RECEIVED')) {
-            receivedRequestItems = receivedRequestsResult.value.items;
-            setReceivedRequests(receivedRequestItems);
+            setReceivedRequests(receivedRequestsResult.value.items);
             setReceivedNextCursor(receivedRequestsResult.value.nextCursor);
             setHasLoadedReceivedRequests(true);
             requestListVersionsRef.current.RECEIVED += 1;
             invalidateLoadMoreDirection('RECEIVED');
-            if (inboxCountsFailed) {
-              setIncomingRequestCount(current => current ?? receivedRequestItems!.length);
-            }
             return;
           }
 
@@ -234,14 +227,6 @@ export const useFriendHubData = () => {
           inboxCountsResult => {
             if (inboxCountsResult.ok && isCurrent('RECEIVED')) {
               setIncomingRequestCount(inboxCountsResult.value.incomingRequestCount);
-              return;
-            }
-
-            if (!inboxCountsResult.ok && isCurrent('RECEIVED')) {
-              inboxCountsFailed = true;
-              if (receivedRequestItems) {
-                setIncomingRequestCount(current => current ?? receivedRequestItems!.length);
-              }
             }
           },
         );

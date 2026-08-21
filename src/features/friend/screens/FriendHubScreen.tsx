@@ -152,6 +152,12 @@ export const FriendHubScreen = () => {
     () => getDuplicateFriendIds(friends),
     [friends],
   );
+  const requestTabLabel =
+    incomingRequestCount !== undefined
+      ? `요청 ${incomingRequestCount}`
+      : hasLoadedReceivedRequests
+        ? `요청 ${receivedRequests.length}${receivedNextCursor ? '+' : ''}`
+        : '요청';
 
   React.useEffect(() => {
     const initialTab = route.params?.initialTab;
@@ -283,7 +289,7 @@ export const FriendHubScreen = () => {
             {id: 'friends', label: `친구 ${friends.length}`},
             {
               id: 'requests',
-              label: `요청 ${incomingRequestCount ?? receivedRequests.length}`,
+              label: requestTabLabel,
             },
           ]}
           onSelect={setSelectedTab}
