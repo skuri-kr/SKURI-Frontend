@@ -29,6 +29,29 @@ import {useFriendSettingsData} from '../hooks/useFriendSettingsData';
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
 
+const getDuplicateBlockIds = (
+  blocks: ReadonlyArray<{
+    department: string | null;
+    id: string;
+    nickname: string;
+  }>,
+) => {
+  const counts = new Map<string, number>();
+  blocks.forEach(block => {
+    const key = JSON.stringify([block.nickname, block.department]);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  });
+
+  return new Set(
+    blocks
+      .filter(block => {
+        const key = JSON.stringify([block.nickname, block.department]);
+        return counts.get(key)! > 1;
+      })
+      .map(block => block.id),
+  );
+};
+
 interface ErrorBannerProps {
   error: string;
   onRetry: () => void;
@@ -69,6 +92,10 @@ export const FriendSettingsScreen = () => {
     unblockingIds,
     updateNicknameSearchable,
   } = useFriendSettingsData();
+  const duplicateBlockIds = React.useMemo(
+    () => getDuplicateBlockIds(blocks),
+    [blocks],
+  );
 
   const handleUnblock = React.useCallback(
     (friendId: string, nickname: string) => {
@@ -188,6 +215,11 @@ export const FriendSettingsScreen = () => {
                       <Text style={styles.blockDepartment}>
                         {block.department || '학과 정보 없음'}
                       </Text>
+                      {duplicateBlockIds.has(block.id) ? (
+                        <Text style={styles.blockIdentifier}>
+                          식별 코드 · {block.id.slice(-6).toUpperCase()}
+                        </Text>
+                      ) : null}
                     </View>
                     <TouchableOpacity
                       accessibilityRole="button"
@@ -260,6 +292,7 @@ const styles = StyleSheet.create({
   blockContent: {flex: 1, marginLeft: SPACING.md},
   blockName: {color: COLORS.text.primary, fontSize: 15, fontWeight: '700', lineHeight: 22},
   blockDepartment: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: 2},
+  blockIdentifier: {color: COLORS.text.tertiary, fontSize: 11, lineHeight: 16, marginTop: 2},
   unblockButton: {
     alignItems: 'center',
     backgroundColor: COLORS.background.subtle,
