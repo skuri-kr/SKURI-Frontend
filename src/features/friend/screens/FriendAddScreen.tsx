@@ -18,7 +18,10 @@ import Icon from 'react-native-vector-icons/Ionicons';
 
 import {type CampusStackParamList} from '@/app/navigation/types';
 import {invalidateData} from '@/app/data-freshness/dataInvalidation';
-import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
+import {
+  FRIEND_HUB_INVALIDATION_KEY,
+  FRIEND_INBOX_COUNTS_INVALIDATION_KEY,
+} from '@/app/data-freshness/invalidationKeys';
 import {StateCard, StackHeader} from '@/shared/design-system/components';
 import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
 import {useScreenView} from '@/shared/hooks/useScreenView';
@@ -150,6 +153,9 @@ export const FriendAddScreen = () => {
           return;
         }
         invalidateData(FRIEND_HUB_INVALIDATION_KEY);
+        if (mutation.status === 'ACCEPTED') {
+          invalidateData(FRIEND_INBOX_COUNTS_INVALIDATION_KEY);
+        }
         if (!navigation.isFocused()) {
           return;
         }
