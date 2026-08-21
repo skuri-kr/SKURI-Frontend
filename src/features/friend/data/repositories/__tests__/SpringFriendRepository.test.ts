@@ -103,11 +103,11 @@ describe('SpringFriendRepository', () => {
     });
     apiClient.previewFriendCode.mockResolvedValue({
       data: {
-        canSendFriendRequest: true,
         department: null,
         friendPublicId: 'friend-1',
         nickname: '스쿠리',
         photoUrl: null,
+        relationshipState: 'REQUESTABLE',
       },
       success: true,
     });

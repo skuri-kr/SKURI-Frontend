@@ -1,5 +1,5 @@
 import React from 'react';
-import {Alert} from 'react-native';
+import {Alert, Keyboard} from 'react-native';
 import {act, fireEvent, render, waitFor} from '@testing-library/react-native';
 
 import {useNavigation} from '@react-navigation/native';
@@ -32,6 +32,24 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 
 jest.mock('react-native-vector-icons/Ionicons', () => 'Icon');
+
+jest.mock('react-native-reanimated', () => {
+  const {View} = require('react-native');
+  const transition = {
+    damping: () => transition,
+    duration: () => transition,
+    mass: () => transition,
+    springify: () => transition,
+    stiffness: () => transition,
+  };
+  return {
+    __esModule: true,
+    default: {View},
+    FadeInDown: transition,
+    FadeOutUp: transition,
+    LinearTransition: transition,
+  };
+});
 
 jest.mock('@/shared/design-system/components', () => ({
   StackHeader: () => null,
@@ -114,11 +132,11 @@ describe('FriendAddScreen', () => {
       searchNextCursor: null,
       searchResults: [
         {
-          canSendFriendRequest: true,
           department: null,
           id: 'friend-1',
           nickname: '가람',
           photoUrl: null,
+          relationshipState: 'REQUESTABLE',
         },
       ],
       searching: false,
@@ -209,8 +227,7 @@ describe('FriendAddScreen', () => {
     expect(alertSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('두 글자 이상 닉네임을 입력하면 300ms 뒤 자동으로 검색한다', () => {
-    jest.useFakeTimers();
+  it('닉네임 입력만으로 검색하지 않고 검색 버튼을 눌렀을 때 한 글자도 검색한다', () => {
     const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true)};
     const searchFriends = jest.fn().mockResolvedValue(undefined);
     mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
@@ -218,21 +235,15 @@ describe('FriendAddScreen', () => {
 
     const view = render(<FriendAddScreen />);
 
-    fireEvent.changeText(view.getByLabelText('친구 닉네임 검색'), '가람');
-
-    act(() => {
-      jest.advanceTimersByTime(299);
-    });
+    fireEvent.changeText(view.getByLabelText('친구 닉네임 검색'), '김');
     expect(searchFriends).not.toHaveBeenCalled();
 
-    act(() => {
-      jest.advanceTimersByTime(1);
-    });
-    expect(searchFriends).toHaveBeenCalledWith('가람');
+    fireEvent.press(view.getByRole('button', {name: '검색'}));
+
+    expect(searchFriends).toHaveBeenCalledWith('김');
   });
 
-  it('자동 닉네임 검색이 실패하면 오류를 안내한다', async () => {
-    jest.useFakeTimers();
+  it('검색 버튼으로 실행한 닉네임 검색이 실패하면 오류를 안내한다', async () => {
     const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true)};
     const searchFriends = jest.fn().mockRejectedValue(new Error('network unavailable'));
     mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
@@ -241,41 +252,11 @@ describe('FriendAddScreen', () => {
 
     const view = render(<FriendAddScreen />);
     fireEvent.changeText(view.getByLabelText('친구 닉네임 검색'), '가람');
+    fireEvent.press(view.getByRole('button', {name: '검색'}));
 
-    await act(async () => {
-      jest.advanceTimersByTime(300);
-      await Promise.resolve();
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith('친구 검색', 'network unavailable');
     });
-
-    expect(alertSpy).toHaveBeenCalledWith('친구 검색', 'network unavailable');
-  });
-
-  it('화면을 떠난 뒤 실패한 자동 닉네임 검색은 오류를 표시하지 않는다', async () => {
-    jest.useFakeTimers();
-    const navigation = {
-      goBack: jest.fn(),
-      isFocused: jest.fn().mockReturnValue(false),
-    };
-    const searchFriends = jest
-      .fn()
-      .mockRejectedValue(new Error('network unavailable'));
-    mockedUseNavigation.mockReturnValue(
-      navigation as ReturnType<typeof useNavigation>,
-    );
-    mockedUseFriendAddData.mockReturnValue(
-      createFriendAddData({searchFriends}),
-    );
-    const alertSpy = jest.spyOn(Alert, 'alert');
-
-    const view = render(<FriendAddScreen />);
-    fireEvent.changeText(view.getByLabelText('친구 닉네임 검색'), '가람');
-
-    await act(async () => {
-      jest.advanceTimersByTime(300);
-      await Promise.resolve();
-    });
-
-    expect(alertSpy).not.toHaveBeenCalled();
   });
 
   it('대기 중인 친구 요청을 보낸 뒤 요청 목록으로 이동할 수 있다', async () => {
@@ -287,11 +268,11 @@ describe('FriendAddScreen', () => {
     mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
     mockedUseFriendAddData.mockReturnValue(createFriendAddData({
       searchResults: [{
-        canSendFriendRequest: true,
         department: null,
         id: 'friend-1',
         nickname: '가람',
         photoUrl: null,
+        relationshipState: 'REQUESTABLE',
       }],
       sendFriendRequest: jest.fn().mockResolvedValue({
         friend: null,
@@ -327,18 +308,18 @@ describe('FriendAddScreen', () => {
     mockedUseFriendAddData.mockReturnValue(createFriendAddData({
       searchResults: [
         {
-          canSendFriendRequest: true,
           department: '컴퓨터공학과',
           id: 'friend-public-abc123',
           nickname: '가람',
           photoUrl: null,
+          relationshipState: 'REQUESTABLE',
         },
         {
-          canSendFriendRequest: true,
           department: '컴퓨터공학과',
           id: 'friend-public-def456',
           nickname: '가람',
           photoUrl: null,
+          relationshipState: 'REQUESTABLE',
         },
       ],
     }));
@@ -350,5 +331,46 @@ describe('FriendAddScreen', () => {
     expect(view.getByText('동일한 닉네임의 사용자가 있을 수 있어요. 학과와 식별 코드를 확인해주세요.')).toBeTruthy();
     expect(view.getByText('식별 코드 · ABC123')).toBeTruthy();
     expect(view.getByText('식별 코드 · DEF456')).toBeTruthy();
+  });
+
+  it('친구 관계 상태에 맞는 행동 문구를 표시한다', () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true)};
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseFriendAddData.mockReturnValue(createFriendAddData({
+      searchResults: [
+        {department: null, id: 'friend-incoming', nickname: '가람', photoUrl: null, relationshipState: 'INCOMING_PENDING'},
+        {department: null, id: 'friend-outgoing', nickname: '나래', photoUrl: null, relationshipState: 'OUTGOING_PENDING'},
+        {department: null, id: 'friend-existing', nickname: '다은', photoUrl: null, relationshipState: 'ALREADY_FRIEND'},
+      ],
+    }));
+
+    const view = render(<FriendAddScreen />);
+
+    expect(view.getByText('수락')).toBeTruthy();
+    expect(view.getByText('요청 보냄')).toBeTruthy();
+    expect(view.getByText('이미 친구')).toBeTruthy();
+  });
+
+  it('유효한 친구 코드 미리보기가 열리면 키보드를 내린다', async () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true)};
+    const previewFriendCode = jest.fn().mockResolvedValue({
+      department: null,
+      id: 'friend-1',
+      nickname: '가람',
+      photoUrl: null,
+      relationshipState: 'REQUESTABLE',
+    });
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseFriendAddData.mockReturnValue(createFriendAddData({previewFriendCode}));
+    const dismissSpy = jest.spyOn(Keyboard, 'dismiss');
+
+    const view = render(<FriendAddScreen />);
+    fireEvent.changeText(view.getByLabelText('친구 코드'), 'SKR7K4M9Q2D');
+    fireEvent.press(view.getByText('확인'));
+
+    await waitFor(() => {
+      expect(previewFriendCode).toHaveBeenCalledWith('SKR-7K4M-9Q2D');
+      expect(dismissSpy).toHaveBeenCalled();
+    });
   });
 });

@@ -6,6 +6,7 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 
 import {invalidateData} from '@/app/data-freshness/dataInvalidation';
 import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
+import {RepositoryError, RepositoryErrorCode} from '@/shared/lib/errors';
 
 import {useFriendDetailData} from '../../hooks/useFriendDetailData';
 import {FriendDetailScreen} from '../FriendDetailScreen';
@@ -250,5 +251,49 @@ describe('FriendDetailScreen', () => {
       expect(updateFavorite).toHaveBeenCalled();
       expect(mockedInvalidateData).toHaveBeenCalledWith(FRIEND_HUB_INVALIDATION_KEY);
     });
+  });
+
+  it('친구 관계가 이미 사라졌으면 오류 확인 후 상세 화면을 나간다', async () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true)};
+    const relationshipError = new RepositoryError(
+      RepositoryErrorCode.NOT_FOUND,
+      '친구 관계를 찾을 수 없습니다.',
+      {context: {apiErrorCode: 'FRIENDSHIP_NOT_FOUND'}},
+    );
+    const updateFavorite = jest.fn().mockRejectedValue(relationshipError);
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseRoute.mockReturnValue({params: {friendId: 'friend-1'}} as ReturnType<typeof useRoute>);
+    mockedUseFriendDetailData.mockReturnValue({
+      blockFriend: jest.fn(),
+      error: undefined,
+      friend: {
+        department: null,
+        favorite: false,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      },
+      loading: false,
+      mutating: false,
+      reload: jest.fn(),
+      removeFriend: jest.fn(),
+      updateFavorite,
+    } as ReturnType<typeof useFriendDetailData>);
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((...args) => {
+      args[2]?.find(button => button.text === '확인')?.onPress?.();
+    });
+
+    const view = render(<FriendDetailScreen />);
+    fireEvent.press(view.getByText('즐겨찾기에 추가'));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith(
+        '오류',
+        '친구 관계를 찾을 수 없습니다.',
+        expect.any(Array),
+      );
+      expect(navigation.goBack).toHaveBeenCalled();
+    });
+    expect(mockedInvalidateData).toHaveBeenCalledWith(FRIEND_HUB_INVALIDATION_KEY);
   });
 });
