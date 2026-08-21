@@ -104,14 +104,16 @@ export const FriendSettingsScreen = () => {
         {
           text: '차단 해제',
           onPress: () => {
-            unblockMember(friendId).catch(actionError =>
-              Alert.alert('오류', getErrorMessage(actionError, '차단을 해제하지 못했습니다.')),
-            );
+            unblockMember(friendId).catch(actionError => {
+              if (navigation.isFocused()) {
+                Alert.alert('오류', getErrorMessage(actionError, '차단을 해제하지 못했습니다.'));
+              }
+            });
           },
         },
       ]);
     },
-    [unblockMember],
+    [navigation, unblockMember],
   );
 
   return (
