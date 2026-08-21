@@ -1,5 +1,5 @@
 import React from 'react';
-import {render} from '@testing-library/react-native';
+import {fireEvent, render} from '@testing-library/react-native';
 
 import {FriendRow} from '../FriendRow';
 
@@ -34,5 +34,21 @@ describe('FriendRow', () => {
 
     expect(identifiedView.getByText('식별 코드 · ABC123')).toBeTruthy();
     expect(ordinaryView.queryByText('식별 코드 · ABC123')).toBeNull();
+  });
+
+  it('즐겨찾기 저장 중에는 친구 상세 화면으로 이동하지 않는다', () => {
+    const onPress = jest.fn();
+    const view = render(
+      <FriendRow
+        disabled
+        friend={friend}
+        onPress={onPress}
+        onPressFavorite={jest.fn()}
+      />,
+    );
+
+    fireEvent.press(view.getByLabelText('가람 친구 상세 보기'));
+
+    expect(onPress).not.toHaveBeenCalled();
   });
 });
