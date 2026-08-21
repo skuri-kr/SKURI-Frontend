@@ -109,11 +109,9 @@ export const FriendHubScreen = () => {
     friendError,
     friends,
     hasLoadedFriends,
-    hasLoadedOnce,
     hasLoadedReceivedRequests,
     hasLoadedSentRequests,
     incomingRequestCount,
-    loading,
     loadingMoreDirections,
     loadMoreRequests,
     mutatingRequestActions,
@@ -176,15 +174,24 @@ export const FriendHubScreen = () => {
     }, [reload]),
   );
 
+  const showErrorAlert = React.useCallback(
+    (error: unknown, fallback: string) => {
+      if (navigation.isFocused()) {
+        Alert.alert('오류', getErrorMessage(error, fallback));
+      }
+    },
+    [navigation],
+  );
+
   const handleFavorite = React.useCallback(
     async (friend: (typeof friends)[number]) => {
       try {
         await updateFavorite(friend);
       } catch (updateError) {
-        Alert.alert('오류', getErrorMessage(updateError, '즐겨찾기를 변경하지 못했습니다.'));
+        showErrorAlert(updateError, '즐겨찾기를 변경하지 못했습니다.');
       }
     },
-    [updateFavorite],
+    [showErrorAlert, updateFavorite],
   );
 
   const handleAccept = React.useCallback(
@@ -192,17 +199,17 @@ export const FriendHubScreen = () => {
       try {
         await acceptRequest(requestId);
       } catch (acceptError) {
-        Alert.alert('오류', getErrorMessage(acceptError, '친구 요청을 수락하지 못했습니다.'));
+        showErrorAlert(acceptError, '친구 요청을 수락하지 못했습니다.');
       }
     },
-    [acceptRequest],
+    [acceptRequest, showErrorAlert],
   );
 
   const handleDecline = React.useCallback((requestId: string) => {
     declineRequest(requestId).catch(declineError => {
-      Alert.alert('오류', getErrorMessage(declineError, '친구 요청을 거절하지 못했습니다.'));
+      showErrorAlert(declineError, '친구 요청을 거절하지 못했습니다.');
     });
-  }, [declineRequest]);
+  }, [declineRequest, showErrorAlert]);
 
   const handleCancel = React.useCallback(
     (requestId: string) => {
@@ -213,13 +220,13 @@ export const FriendHubScreen = () => {
           style: 'destructive',
           onPress: () => {
             cancelRequest(requestId).catch(cancelError => {
-              Alert.alert('오류', getErrorMessage(cancelError, '친구 요청을 취소하지 못했습니다.'));
+              showErrorAlert(cancelError, '친구 요청을 취소하지 못했습니다.');
             });
           },
         },
       ]);
     },
-    [cancelRequest],
+    [cancelRequest, showErrorAlert],
   );
 
   const handleRefresh = React.useCallback(async () => {
@@ -285,15 +292,7 @@ export const FriendHubScreen = () => {
           variant="surface"
         />
 
-        {loading && !hasLoadedOnce ? (
-          <StateCard
-            description="친구 정보를 준비하고 있습니다."
-            icon={<ActivityIndicator color={COLORS.brand.primary} />}
-            title="친구를 불러오는 중"
-          />
-        ) : null}
-
-        {selectedTab === 'friends' && (!loading || hasLoadedOnce) ? (
+        {selectedTab === 'friends' ? (
           !hasLoadedFriends ? (
             friendError ? (
               <StateCard
@@ -340,7 +339,17 @@ export const FriendHubScreen = () => {
           )
         ) : null}
 
-        {selectedTab === 'requests' && (!loading || hasLoadedOnce) ? (
+        {selectedTab === 'requests' ? (
+          !hasLoadedReceivedRequests &&
+          !hasLoadedSentRequests &&
+          !receivedRequestsError &&
+          !sentRequestsError ? (
+            <StateCard
+              description="친구 요청을 준비하고 있습니다."
+              icon={<ActivityIndicator color={COLORS.brand.primary} />}
+              title="친구 요청을 불러오는 중"
+            />
+          ) : (
           <View style={styles.requestContent}>
             {!hasLoadedReceivedRequests && receivedRequestsError ? (
               <StateCard
@@ -373,7 +382,7 @@ export const FriendHubScreen = () => {
                     loading={loadingMoreDirections.has('RECEIVED')}
                     onPress={() => {
                       loadMoreRequests('RECEIVED').catch(loadError => {
-                        Alert.alert('오류', getErrorMessage(loadError, '친구 요청을 더 불러오지 못했습니다.'));
+                        showErrorAlert(loadError, '친구 요청을 더 불러오지 못했습니다.');
                       });
                     }}
                   />
@@ -410,7 +419,7 @@ export const FriendHubScreen = () => {
                     loading={loadingMoreDirections.has('SENT')}
                     onPress={() => {
                       loadMoreRequests('SENT').catch(loadError => {
-                        Alert.alert('오류', getErrorMessage(loadError, '친구 요청을 더 불러오지 못했습니다.'));
+                        showErrorAlert(loadError, '친구 요청을 더 불러오지 못했습니다.');
                       });
                     }}
                   />
@@ -425,6 +434,7 @@ export const FriendHubScreen = () => {
               />
             ) : null}
           </View>
+          )
         ) : null}
       </ScrollView>
     </SafeAreaView>
