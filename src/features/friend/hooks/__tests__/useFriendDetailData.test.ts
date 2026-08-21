@@ -94,7 +94,7 @@ describe('useFriendDetailData', () => {
       expect(result.current.friend?.id).toBe('friend-1');
     });
 
-    let favoriteMutation!: Promise<void>;
+    let favoriteMutation!: Promise<boolean>;
     act(() => {
       favoriteMutation = result.current.updateFavorite();
     });
@@ -125,7 +125,7 @@ describe('useFriendDetailData', () => {
       expect(result.current.friend?.id).toBe('friend-1');
     });
 
-    let removalMutation!: Promise<void>;
+    let removalMutation!: Promise<boolean>;
     await act(async () => {
       removalMutation = result.current.removeFriend();
       await result.current.blockFriend();
@@ -143,5 +143,39 @@ describe('useFriendDetailData', () => {
     });
 
     expect(result.current.mutating).toBe(false);
+  });
+
+  it('진행 중인 작업 때문에 건너뛴 상세 작업을 성공으로 반환하지 않는다', async () => {
+    const repository = createRepository();
+    const favoriteDeferred = createDeferred<void>();
+    repository.updateFavorite.mockReturnValue(favoriteDeferred.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendDetailData('friend-1'));
+
+    await waitFor(() => {
+      expect(result.current.friend?.id).toBe('friend-1');
+    });
+
+    let favoriteMutation!: Promise<boolean>;
+    let removalMutation!: Promise<boolean>;
+    let blockMutation!: Promise<boolean>;
+    act(() => {
+      favoriteMutation = result.current.updateFavorite();
+      removalMutation = result.current.removeFriend();
+      blockMutation = result.current.blockFriend();
+    });
+
+    await expect(removalMutation).resolves.toBe(false);
+    await expect(blockMutation).resolves.toBe(false);
+    expect(repository.removeFriend).not.toHaveBeenCalled();
+    expect(repository.blockMember).not.toHaveBeenCalled();
+
+    await act(async () => {
+      favoriteDeferred.resolve(undefined);
+      await expect(favoriteMutation).resolves.toBe(true);
+    });
   });
 });
