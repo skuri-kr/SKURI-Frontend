@@ -38,11 +38,11 @@ export const mapFriendSummaryDto = (
 export const mapFriendSearchResultDto = (
   dto: FriendSearchResultResponseDto | FriendCodePreviewResponseDto,
 ): FriendSearchResult => ({
-  canSendFriendRequest: dto.canSendFriendRequest,
   department: dto.department,
   id: dto.friendPublicId,
   nickname: dto.nickname,
   photoUrl: dto.photoUrl,
+  relationshipState: dto.relationshipState,
 });
 
 export const mapFriendRequestItemDto = (

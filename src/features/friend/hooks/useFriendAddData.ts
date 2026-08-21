@@ -11,14 +11,6 @@ import type {
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
 
-const reconcileFriendRequestability = <T extends FriendSearchResult>(
-  result: T,
-  requestedFriendIds: ReadonlySet<string>,
-): T =>
-  requestedFriendIds.has(result.id)
-    ? {...result, canSendFriendRequest: false}
-    : result;
-
 export const useFriendAddData = () => {
   const friendRepository = useFriendRepository();
   const [myCode, setMyCode] = React.useState<FriendCode>();
@@ -40,7 +32,6 @@ export const useFriendAddData = () => {
   const searchRequestVersionRef = React.useRef(0);
   const loadingMoreSearchVersionRef = React.useRef<number | undefined>(undefined);
   const sendingFriendIdsRef = React.useRef(new Set<string>());
-  const requestedFriendIdsRef = React.useRef(new Set<string>());
 
   const loadMyCode = React.useCallback(async () => {
     try {
@@ -82,12 +73,8 @@ export const useFriendAddData = () => {
           return undefined;
         }
 
-        const reconciledResult = reconcileFriendRequestability(
-          result,
-          requestedFriendIdsRef.current,
-        );
-        setPreview(reconciledResult);
-        return reconciledResult;
+        setPreview(result);
+        return result;
       } catch (error) {
         if (requestVersion !== previewRequestVersionRef.current) {
           return undefined;
@@ -115,8 +102,8 @@ export const useFriendAddData = () => {
   const searchFriends = React.useCallback(
     async (query: string) => {
       const normalizedQuery = query.trim();
-      if (normalizedQuery.length < 2) {
-        throw new Error('닉네임을 두 글자 이상 입력해주세요.');
+      if (normalizedQuery.length < 1) {
+        throw new Error('닉네임을 입력해주세요.');
       }
 
       const requestVersion = searchRequestVersionRef.current + 1;
@@ -135,14 +122,7 @@ export const useFriendAddData = () => {
           return;
         }
 
-        setSearchResults(
-          page.items.map(result =>
-            reconcileFriendRequestability(
-              result,
-              requestedFriendIdsRef.current,
-            ),
-          ),
-        );
+        setSearchResults(page.items);
         setSearchNextCursor(page.nextCursor);
         setCompletedSearchQuery(normalizedQuery);
       } catch (error) {
@@ -186,15 +166,7 @@ export const useFriendAddData = () => {
           return;
         }
 
-        setSearchResults(current => [
-          ...current,
-          ...page.items.map(result =>
-            reconcileFriendRequestability(
-              result,
-              requestedFriendIdsRef.current,
-            ),
-          ),
-        ]);
+        setSearchResults(current => [...current, ...page.items]);
         setSearchNextCursor(page.nextCursor);
       } finally {
         if (loadingMoreSearchVersionRef.current === requestVersion) {
@@ -218,16 +190,24 @@ export const useFriendAddData = () => {
       setSendingFriendIds(new Set(sendingFriendIdsRef.current));
       try {
         const mutation = await friendRepository.createFriendRequest(friendId);
-        requestedFriendIdsRef.current.add(friendId);
+        previewRequestVersionRef.current += 1;
+        searchRequestVersionRef.current += 1;
+        loadingMoreSearchVersionRef.current = undefined;
+        setPreviewing(false);
+        setSearching(false);
+        const relationshipState =
+          mutation.status === 'ACCEPTED'
+            ? ('ALREADY_FRIEND' as const)
+            : ('OUTGOING_PENDING' as const);
         setPreview(current =>
           current?.id === friendId
-            ? {...current, canSendFriendRequest: false}
+            ? {...current, relationshipState}
             : current,
         );
         setSearchResults(current =>
           current.map(result =>
             result.id === friendId
-              ? {...result, canSendFriendRequest: false}
+              ? {...result, relationshipState}
               : result,
           ),
         );

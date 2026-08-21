@@ -7,11 +7,15 @@ export interface FriendSummaryResponseDto {
 }
 
 export interface FriendSearchResultResponseDto {
-  canSendFriendRequest: boolean;
   department: string | null;
   friendPublicId: string;
   nickname: string;
   photoUrl: string | null;
+  relationshipState:
+    | 'REQUESTABLE'
+    | 'INCOMING_PENDING'
+    | 'OUTGOING_PENDING'
+    | 'ALREADY_FRIEND';
 }
 
 export interface FriendSearchPageResponseDto {
@@ -57,11 +61,15 @@ export interface FriendCodeResponseDto {
 }
 
 export interface FriendCodePreviewResponseDto {
-  canSendFriendRequest: boolean;
   department: string | null;
   friendPublicId: string;
   nickname: string;
   photoUrl: string | null;
+  relationshipState:
+    | 'REQUESTABLE'
+    | 'INCOMING_PENDING'
+    | 'OUTGOING_PENDING'
+    | 'ALREADY_FRIEND';
 }
 
 export interface FriendPrivacyResponseDto {

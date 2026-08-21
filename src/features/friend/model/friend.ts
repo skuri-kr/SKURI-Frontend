@@ -6,19 +6,25 @@ export interface FriendSummary {
   photoUrl: string | null;
 }
 
+export type FriendRelationshipState =
+  | 'REQUESTABLE'
+  | 'INCOMING_PENDING'
+  | 'OUTGOING_PENDING'
+  | 'ALREADY_FRIEND';
+
 export interface FriendSearchResult {
-  canSendFriendRequest: boolean;
   department: string | null;
   id: string;
   nickname: string;
   photoUrl: string | null;
+  relationshipState: FriendRelationshipState;
 }
 
 export interface FriendRequestItem {
   createdAt: string;
   department: string | null;
   expiresAt: string;
-  friend: Omit<FriendSearchResult, 'canSendFriendRequest'>;
+  friend: Omit<FriendSearchResult, 'relationshipState'>;
   id: string;
 }
 
