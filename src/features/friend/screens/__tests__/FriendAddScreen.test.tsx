@@ -3,6 +3,7 @@ import {Alert, Keyboard} from 'react-native';
 import {act, fireEvent, render, waitFor} from '@testing-library/react-native';
 
 import {useNavigation} from '@react-navigation/native';
+import {DataScanner} from 'react-native-data-scanner';
 
 import {invalidateData} from '@/app/data-freshness/dataInvalidation';
 import {
@@ -32,6 +33,10 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 
 jest.mock('react-native-vector-icons/Ionicons', () => 'Icon');
+jest.mock('react-native-qrcode-svg', () => 'QRCode');
+jest.mock('react-native-data-scanner', () => ({
+  DataScanner: {scanBarcode: jest.fn()},
+}));
 
 jest.mock('react-native-reanimated', () => {
   const {View} = require('react-native');
@@ -75,6 +80,7 @@ jest.mock('../../hooks/useFriendAddData', () => ({
 const mockedUseNavigation = jest.mocked(useNavigation);
 const mockedUseFriendAddData = jest.mocked(useFriendAddData);
 const mockedInvalidateData = jest.mocked(invalidateData);
+const mockedDataScanner = jest.mocked(DataScanner);
 
 const createFriendAddData = (overrides: Partial<ReturnType<typeof useFriendAddData>> = {}) => ({
   completedSearchQuery: undefined,
@@ -256,6 +262,34 @@ describe('FriendAddScreen', () => {
 
     await waitFor(() => {
       expect(alertSpy).toHaveBeenCalledWith('친구 검색', 'network unavailable');
+    });
+  });
+
+  it('유효한 친구 QR을 스캔하면 요청 생성 없이 친구 코드 preview를 보여준다', async () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true)};
+    const previewFriendCode = jest.fn().mockResolvedValue({
+      department: '컴퓨터공학과',
+      id: 'friend-1',
+      nickname: '가람',
+      photoUrl: null,
+      relationshipState: 'REQUESTABLE',
+    });
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseFriendAddData.mockReturnValue(createFriendAddData({previewFriendCode}));
+    mockedDataScanner.scanBarcode.mockResolvedValue({
+      format: 'qr',
+      value: 'skuri-friend:v1:SKR-7K4M-9Q2D',
+    });
+
+    const view = render(<FriendAddScreen />);
+    fireEvent.press(view.getByLabelText('친구 QR 코드 스캔'));
+
+    await waitFor(() => {
+      expect(previewFriendCode).toHaveBeenCalledWith('SKR-7K4M-9Q2D');
+    });
+    expect(mockedDataScanner.scanBarcode).toHaveBeenCalledWith({
+      enableAutoZoom: true,
+      targetFormats: ['qr'],
     });
   });
 

@@ -35,6 +35,7 @@ const createRepository = () => ({
     nickname: '가람',
     photoUrl: null,
   }),
+  getFriendMinecraftAccounts: jest.fn().mockResolvedValue({selfAccounts: []}),
   getFriendRequests: jest.fn(),
   getFriends: jest.fn(),
   getInboxCounts: jest.fn(),

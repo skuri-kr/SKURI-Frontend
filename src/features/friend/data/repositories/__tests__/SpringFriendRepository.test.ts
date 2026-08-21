@@ -11,6 +11,7 @@ describe('SpringFriendRepository', () => {
       declineFriendRequest: jest.fn(),
       getBlocks: jest.fn(),
       getFriend: jest.fn(),
+      getFriendMinecraftAccounts: jest.fn(),
       getFriendRequests: jest.fn(),
       getFriends: jest.fn(),
       getInboxCounts: jest.fn(),
@@ -68,29 +69,37 @@ describe('SpringFriendRepository', () => {
         department: null,
         favorite: true,
         id: 'friend-0',
+        minecraftAccountCount: 0,
         nickname: '가람',
         photoUrl: null,
+        primaryMinecraftGameName: null,
       },
       {
         department: null,
         favorite: true,
         id: 'friend-2',
+        minecraftAccountCount: 0,
         nickname: '가람',
         photoUrl: null,
+        primaryMinecraftGameName: null,
       },
       {
         department: '컴퓨터공학과',
         favorite: true,
         id: 'friend-1',
+        minecraftAccountCount: 0,
         nickname: '다은',
         photoUrl: 'https://example.com/da-eun.jpg',
+        primaryMinecraftGameName: null,
       },
       {
         department: null,
         favorite: false,
         id: 'friend-3',
+        minecraftAccountCount: 0,
         nickname: '하늘',
         photoUrl: null,
+        primaryMinecraftGameName: null,
       },
     ]);
   });
@@ -120,6 +129,40 @@ describe('SpringFriendRepository', () => {
     expect(apiClient.previewFriendCode).toHaveBeenCalledWith({
       friendCode: 'SKR-7K4M-9Q2D',
     });
+  });
+
+  it('친구 마인크래프트 계정은 SELF와 FRIEND 계층을 그대로 반환한다', async () => {
+    const apiClient = createApiClient();
+    apiClient.getFriendMinecraftAccounts.mockResolvedValue({
+      data: {
+        selfAccounts: [{
+          avatarUuid: 'self-avatar',
+          edition: 'JAVA',
+          friendAccounts: [{
+            avatarUuid: 'friend-avatar',
+            edition: 'BEDROCK',
+            gameName: 'skuriBedrock',
+          }],
+          gameName: 'skuriJava',
+        }],
+      },
+      success: true,
+    });
+    const repository = new SpringFriendRepository(apiClient);
+
+    await expect(repository.getFriendMinecraftAccounts('friend-1')).resolves.toEqual({
+      selfAccounts: [{
+        avatarUuid: 'self-avatar',
+        edition: 'JAVA',
+        friendAccounts: [{
+          avatarUuid: 'friend-avatar',
+          edition: 'BEDROCK',
+          gameName: 'skuriBedrock',
+        }],
+        gameName: 'skuriJava',
+      }],
+    });
+    expect(apiClient.getFriendMinecraftAccounts).toHaveBeenCalledWith('friend-1');
   });
 
   it('수락 결과의 PENDING 응답에는 친구 값을 만들지 않는다', async () => {
