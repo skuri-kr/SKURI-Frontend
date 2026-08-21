@@ -200,4 +200,21 @@ describe('FriendHubScreen', () => {
     expect(view.queryByText('받은 요청')).toBeNull();
     expect(view.queryByText('보낸 요청')).toBeNull();
   });
+
+  it('한 방향의 초기 요청 조회가 아직 끝나지 않았으면 빈 화면 대신 로딩 상태를 표시한다', () => {
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'requests'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(
+      createFriendHubData({
+        hasLoadedReceivedRequests: true,
+        hasLoadedSentRequests: false,
+      }),
+    );
+
+    const view = render(<FriendHubScreen />);
+
+    expect(view.getByText('친구 요청을 불러오는 중')).toBeTruthy();
+    expect(view.queryByText('대기 중인 요청이 없어요')).toBeNull();
+  });
 });

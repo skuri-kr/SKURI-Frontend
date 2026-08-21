@@ -166,6 +166,9 @@ export const FriendHubScreen = () => {
         : '요청';
   const hasAnyPendingRequests =
     receivedRequests.length > 0 || sentRequests.length > 0;
+  const hasInitialRequestLoadPending =
+    (!hasLoadedReceivedRequests && !receivedRequestsError) ||
+    (!hasLoadedSentRequests && !sentRequestsError);
 
   React.useEffect(() => {
     const initialTab = route.params?.initialTab;
@@ -359,17 +362,14 @@ export const FriendHubScreen = () => {
         ) : null}
 
         {selectedTab === 'requests' ? (
-          !hasLoadedReceivedRequests &&
-          !hasLoadedSentRequests &&
-          !receivedRequestsError &&
-          !sentRequestsError ? (
-            <StateCard
-              description="친구 요청을 준비하고 있습니다."
-              icon={<ActivityIndicator color={COLORS.brand.primary} />}
-              title="친구 요청을 불러오는 중"
-            />
-          ) : (
           <View style={styles.requestContent}>
+            {hasInitialRequestLoadPending && !hasAnyPendingRequests ? (
+              <StateCard
+                description="친구 요청을 준비하고 있습니다."
+                icon={<ActivityIndicator color={COLORS.brand.primary} />}
+                title="친구 요청을 불러오는 중"
+              />
+            ) : null}
             {!hasLoadedReceivedRequests && receivedRequestsError ? (
               <StateCard
                 actionLabel="다시 시도"
@@ -460,8 +460,13 @@ export const FriendHubScreen = () => {
                 title="대기 중인 요청이 없어요"
               />
             ) : null}
+            {hasInitialRequestLoadPending && hasAnyPendingRequests ? (
+              <View style={styles.inlineLoading}>
+                <ActivityIndicator color={COLORS.brand.primary} size="small" />
+                <Text style={styles.inlineLoadingText}>나머지 친구 요청을 불러오는 중</Text>
+              </View>
+            ) : null}
           </View>
-          )
         ) : null}
         </Animated.View>
       </ScrollView>
@@ -499,6 +504,8 @@ const styles = StyleSheet.create({
   listCard: {backgroundColor: COLORS.background.surface, borderRadius: RADIUS.lg, overflow: 'hidden', ...SHADOWS.card},
   rowDivider: {borderBottomColor: COLORS.border.subtle, borderBottomWidth: 1},
   requestContent: {gap: SPACING.sm},
+  inlineLoading: {alignItems: 'center', flexDirection: 'row', gap: SPACING.xs, justifyContent: 'center', paddingVertical: SPACING.sm},
+  inlineLoadingText: {color: COLORS.text.secondary, fontSize: 12},
   errorBanner: {alignItems: 'center', backgroundColor: COLORS.accent.orangeSoft, borderRadius: RADIUS.md, flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.lg, minHeight: 44, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm},
   errorBannerText: {color: COLORS.text.secondary, flex: 1, fontSize: 12, lineHeight: 18},
   errorRetryButton: {paddingHorizontal: SPACING.xs, paddingVertical: SPACING.xs},
