@@ -1,6 +1,8 @@
 import {act, renderHook, waitFor} from '@testing-library/react-native';
 
 import {useFriendRepository} from '@/di';
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {FRIEND_INBOX_COUNTS_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 
 import {useFriendHubData} from '../useFriendHubData';
 
@@ -8,7 +10,12 @@ jest.mock('@/di', () => ({
   useFriendRepository: jest.fn(),
 }));
 
+jest.mock('@/app/data-freshness/dataInvalidation', () => ({
+  invalidateData: jest.fn(),
+}));
+
 const mockedUseFriendRepository = jest.mocked(useFriendRepository);
+const mockedInvalidateData = jest.mocked(invalidateData);
 
 const createRepository = () => ({
   acceptFriendRequest: jest.fn(),
@@ -253,12 +260,37 @@ describe('useFriendHubData', () => {
 
     expect(result.current.completedRequestActions.get('request-1')).toBe('ACCEPTED');
     expect(result.current.friends).toEqual([friend]);
+    expect(mockedInvalidateData).toHaveBeenCalledWith(
+      FRIEND_INBOX_COUNTS_INVALIDATION_KEY,
+    );
 
     await waitFor(() => {
       expect(result.current.error).toBe('network unavailable');
     });
     expect(result.current.completedRequestActions.get('request-1')).toBe('ACCEPTED');
     expect(result.current.friends).toEqual([friend]);
+  });
+
+  it('친구 요청 거절 성공 후 마이페이지 요청 수를 무효화한다', async () => {
+    const repository = createRepository();
+    repository.declineFriendRequest.mockResolvedValue(undefined);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await waitFor(() => {
+      expect(result.current.receivedRequests).toHaveLength(1);
+    });
+
+    await act(async () => {
+      await result.current.declineRequest('request-1');
+    });
+
+    expect(mockedInvalidateData).toHaveBeenCalledWith(
+      FRIEND_INBOX_COUNTS_INVALIDATION_KEY,
+    );
   });
 
   it('진행 중인 새로고침이 즐겨찾기 변경을 이전 상태로 되돌리지 않는다', async () => {

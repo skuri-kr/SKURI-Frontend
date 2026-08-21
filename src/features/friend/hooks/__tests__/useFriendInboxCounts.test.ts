@@ -1,6 +1,8 @@
 import {act, renderHook, waitFor} from '@testing-library/react-native';
 
 import {useFriendRepository} from '@/di';
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {FRIEND_INBOX_COUNTS_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 
 import {useFriendInboxCounts} from '../useFriendInboxCounts';
 
@@ -104,5 +106,39 @@ describe('useFriendInboxCounts', () => {
     });
 
     expect(result.current.counts?.incomingRequestCount).toBe(5);
+  });
+
+  it('친구 요청 수 무효화가 발생하면 최신 배지를 다시 조회한다', async () => {
+    const repository = createRepository();
+    repository.getInboxCounts
+      .mockResolvedValueOnce({
+        chatRoomInvitationCount: 0,
+        incomingRequestCount: 1,
+        partyInvitationCount: 0,
+        totalActionCount: 1,
+      })
+      .mockResolvedValueOnce({
+        chatRoomInvitationCount: 0,
+        incomingRequestCount: 0,
+        partyInvitationCount: 0,
+        totalActionCount: 0,
+      });
+    mockedUseFriendRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendInboxCounts());
+
+    await waitFor(() => {
+      expect(result.current.counts?.totalActionCount).toBe(1);
+    });
+
+    act(() => {
+      invalidateData(FRIEND_INBOX_COUNTS_INVALIDATION_KEY);
+    });
+
+    await waitFor(() => {
+      expect(result.current.counts?.totalActionCount).toBe(0);
+    });
   });
 });
