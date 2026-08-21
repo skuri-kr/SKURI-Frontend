@@ -234,6 +234,65 @@ describe('useFriendHubData', () => {
     expect(result.current.hasLoadedReceivedRequests).toBe(false);
   });
 
+  it('느린 요청 목록 조회를 기다리지 않고 완료된 친구 목록을 먼저 표시한다', async () => {
+    const repository = createRepository();
+    const friends = createDeferred<Array<typeof friend>>();
+    const receivedRequests = createDeferred<{
+      hasNext: boolean;
+      items: [];
+      nextCursor: null;
+    }>();
+    const sentRequests = createDeferred<{
+      hasNext: boolean;
+      items: [];
+      nextCursor: null;
+    }>();
+    const inboxCounts = createDeferred<{
+      chatRoomInvitationCount: number;
+      incomingRequestCount: number;
+      partyInvitationCount: number;
+      totalActionCount: number;
+    }>();
+    repository.getFriends.mockReturnValue(friends.promise);
+    repository.getFriendRequests.mockImplementation(({direction}) =>
+      direction === 'RECEIVED' ? receivedRequests.promise : sentRequests.promise,
+    );
+    repository.getInboxCounts.mockReturnValue(inboxCounts.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await act(async () => {
+      friends.resolve([friend]);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.friends).toEqual([friend]);
+      expect(result.current.hasLoadedFriends).toBe(true);
+      expect(result.current.hasLoadedOnce).toBe(true);
+    });
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      receivedRequests.resolve({hasNext: false, items: [], nextCursor: null});
+      sentRequests.resolve({hasNext: false, items: [], nextCursor: null});
+      inboxCounts.resolve({
+        chatRoomInvitationCount: 0,
+        incomingRequestCount: 0,
+        partyInvitationCount: 0,
+        totalActionCount: 0,
+      });
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+  });
+
   it('친구 요청 수락 뒤 동기화 조회가 실패해도 수락한 요청을 다시 표시하지 않는다', async () => {
     const repository = createRepository();
     repository.getFriends
