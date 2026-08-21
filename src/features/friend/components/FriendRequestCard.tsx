@@ -1,7 +1,13 @@
 import React from 'react';
 import {ActivityIndicator, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import Animated from 'react-native-reanimated';
 
+import {
+  enteringTransitions,
+  exitingTransitions,
+  layoutTransitions,
+} from '@/shared/design-system/motion';
 import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
 import {formatKoreanCompactDateTime} from '@/shared/lib/date/datetime';
 
@@ -31,7 +37,10 @@ export const FriendRequestCard = ({
   request,
   showIdentifier = false,
 }: FriendRequestCardProps) => (
-  <View style={styles.card}>
+  <Animated.View
+    exiting={exitingTransitions.fadeOutUp()}
+    layout={layoutTransitions.gentleExpand()}
+    style={styles.card}>
     <View style={styles.header}>
       <FriendAvatar photoUrl={request.friend.photoUrl} />
       <View style={styles.content}>
@@ -52,7 +61,12 @@ export const FriendRequestCard = ({
         : `${formatKoreanCompactDateTime(request.expiresAt)}까지 대기 중이에요.`}
     </Text>
     {completedAction ? (
-      <View accessibilityLiveRegion="polite" style={styles.completedAction}>
+      <Animated.View
+        accessibilityLiveRegion="polite"
+        entering={enteringTransitions.fadeInDown()}
+        exiting={exitingTransitions.fadeOutUp()}
+        key={completedAction}
+        style={styles.completedAction}>
         <Icon color={COLORS.brand.primary} name="checkmark-circle" size={18} />
         <Text style={styles.completedActionText}>
           {completedAction === 'ACCEPTED'
@@ -61,7 +75,7 @@ export const FriendRequestCard = ({
               ? '거절했어요'
               : '요청을 취소했어요'}
         </Text>
-      </View>
+      </Animated.View>
     ) : mode === 'received' ? (
       <View style={styles.actions}>
         <TouchableOpacity
@@ -91,7 +105,7 @@ export const FriendRequestCard = ({
         {pendingAction === 'CANCEL' ? <ActivityIndicator color={COLORS.text.secondary} /> : <Text style={styles.cancelText}>요청 취소</Text>}
       </TouchableOpacity>
     )}
-  </View>
+  </Animated.View>
 );
 
 const styles = StyleSheet.create({

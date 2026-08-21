@@ -11,11 +11,16 @@ import {type CampusStackParamList} from '@/app/navigation/types';
 import {SettingsRow, SettingsSection, StackHeader, StateCard} from '@/shared/design-system/components';
 import {COLORS, SPACING} from '@/shared/design-system/tokens';
 import {useScreenView} from '@/shared/hooks/useScreenView';
+import {RepositoryError} from '@/shared/lib/errors';
 
 import {FriendAvatar} from '../components/FriendAvatar';
 import {useFriendDetailData} from '../hooks/useFriendDetailData';
 
 const getErrorMessage = (error: unknown, fallback: string) => error instanceof Error && error.message.trim() ? error.message : fallback;
+const isMissingFriendRelationship = (error: unknown) =>
+  error instanceof RepositoryError &&
+  (error.context?.apiErrorCode === 'FRIENDSHIP_NOT_FOUND' ||
+    error.context?.apiErrorCode === 'FRIEND_TARGET_NOT_FOUND');
 
 export const FriendDetailScreen = () => {
   useScreenView();
@@ -24,17 +29,39 @@ export const FriendDetailScreen = () => {
   const {friendId} = route.params as CampusStackParamList['FriendDetail'];
   const {blockFriend, error, friend, loading, mutating, reload, removeFriend, updateFavorite} = useFriendDetailData(friendId);
 
+  const showMutationError = React.useCallback(
+    (actionError: unknown, fallback: string) => {
+      if (!navigation.isFocused()) {
+        return;
+      }
+
+      const shouldLeave = isMissingFriendRelationship(actionError);
+      Alert.alert('오류', getErrorMessage(actionError, fallback), [
+        {
+          text: '확인',
+          onPress: shouldLeave
+            ? () => {
+                invalidateData(FRIEND_HUB_INVALIDATION_KEY);
+                if (navigation.isFocused()) {
+                  navigation.goBack();
+                }
+              }
+            : undefined,
+        },
+      ]);
+    },
+    [navigation],
+  );
+
   const handleFavorite = React.useCallback(() => {
     updateFavorite()
       .then(() => {
         invalidateData(FRIEND_HUB_INVALIDATION_KEY);
       })
       .catch(actionError => {
-        if (navigation.isFocused()) {
-          Alert.alert('오류', getErrorMessage(actionError, '즐겨찾기를 변경하지 못했습니다.'));
-        }
+        showMutationError(actionError, '즐겨찾기를 변경하지 못했습니다.');
       });
-  }, [navigation, updateFavorite]);
+  }, [showMutationError, updateFavorite]);
 
   const handleRemove = React.useCallback(() => {
     Alert.alert('친구 끊기', `${friend?.nickname || '이 친구'}님과 친구 관계를 끊을까요?`, [
@@ -49,13 +76,11 @@ export const FriendDetailScreen = () => {
             navigation.goBack();
           }
         }).catch(removeError => {
-          if (navigation.isFocused()) {
-            Alert.alert('오류', getErrorMessage(removeError, '친구 관계를 끊지 못했습니다.'));
-          }
+          showMutationError(removeError, '친구 관계를 끊지 못했습니다.');
         });
       }},
     ]);
-  }, [friend?.nickname, navigation, removeFriend]);
+  }, [friend?.nickname, navigation, removeFriend, showMutationError]);
 
   const handleBlock = React.useCallback(() => {
     Alert.alert('친구 차단', `${friend?.nickname || '이 친구'}님을 차단할까요? 친구 관계와 대기 중인 요청도 함께 정리됩니다.\n\n공개 게시판과 공개 채팅의 기존 콘텐츠는 계속 보일 수 있습니다.`, [
@@ -70,13 +95,11 @@ export const FriendDetailScreen = () => {
             navigation.goBack();
           }
         }).catch(blockError => {
-          if (navigation.isFocused()) {
-            Alert.alert('오류', getErrorMessage(blockError, '친구를 차단하지 못했습니다.'));
-          }
+          showMutationError(blockError, '친구를 차단하지 못했습니다.');
         });
       }},
     ]);
-  }, [blockFriend, friend?.nickname, navigation]);
+  }, [blockFriend, friend?.nickname, navigation, showMutationError]);
 
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
