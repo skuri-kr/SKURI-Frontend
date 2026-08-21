@@ -45,7 +45,11 @@ export const FriendDetailScreen = () => {
           if (navigation.isFocused()) {
             navigation.goBack();
           }
-        }).catch(removeError => Alert.alert('오류', getErrorMessage(removeError, '친구 관계를 끊지 못했습니다.')));
+        }).catch(removeError => {
+          if (navigation.isFocused()) {
+            Alert.alert('오류', getErrorMessage(removeError, '친구 관계를 끊지 못했습니다.'));
+          }
+        });
       }},
     ]);
   }, [friend?.nickname, navigation, removeFriend]);
@@ -59,7 +63,11 @@ export const FriendDetailScreen = () => {
           if (navigation.isFocused()) {
             navigation.goBack();
           }
-        }).catch(blockError => Alert.alert('오류', getErrorMessage(blockError, '친구를 차단하지 못했습니다.')));
+        }).catch(blockError => {
+          if (navigation.isFocused()) {
+            Alert.alert('오류', getErrorMessage(blockError, '친구를 차단하지 못했습니다.'));
+          }
+        });
       }},
     ]);
   }, [blockFriend, friend?.nickname, navigation]);
