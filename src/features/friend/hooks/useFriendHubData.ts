@@ -111,6 +111,15 @@ export const useFriendHubData = () => {
   const requestCompletionTimersRef = React.useRef(
     new Map<string, ReturnType<typeof setTimeout>>(),
   );
+  const invalidateLoadMoreDirection = React.useCallback(
+    (direction: FriendRequestDirection) => {
+      loadMoreRequestVersionRef.current[direction] += 1;
+      if (loadingMoreDirectionsRef.current.delete(direction)) {
+        setLoadingMoreDirections(new Set(loadingMoreDirectionsRef.current));
+      }
+    },
+    [],
+  );
 
   const reload = React.useCallback(
     async (scope?: FriendHubReloadScope) => {
@@ -198,6 +207,7 @@ export const useFriendHubData = () => {
             setReceivedNextCursor(receivedRequestsResult.value.nextCursor);
             setHasLoadedReceivedRequests(true);
             requestListVersionsRef.current.RECEIVED += 1;
+            invalidateLoadMoreDirection('RECEIVED');
             if (inboxCountsFailed) {
               setIncomingRequestCount(current => current ?? receivedRequestItems!.length);
             }
@@ -257,6 +267,7 @@ export const useFriendHubData = () => {
                 setSentNextCursor(sentRequestsResult.value.nextCursor);
                 setHasLoadedSentRequests(true);
                 requestListVersionsRef.current.SENT += 1;
+                invalidateLoadMoreDirection('SENT');
               } else if (!sentRequestsResult.ok && isCurrent('SENT')) {
                 setSentRequestsError(
                   getErrorMessage(
@@ -272,7 +283,7 @@ export const useFriendHubData = () => {
 
       await Promise.all(operations);
     },
-    [friendRepository],
+    [friendRepository, invalidateLoadMoreDirection],
   );
 
   const reloadFriends = React.useCallback(
