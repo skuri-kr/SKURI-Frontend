@@ -100,6 +100,7 @@ export const FriendHubScreen = () => {
   const [selectedTab, setSelectedTab] = React.useState<FriendHubTab>(
     route.params?.initialTab ?? 'friends',
   );
+  const [refreshing, setRefreshing] = React.useState(false);
   const {
     acceptRequest,
     cancelRequest,
@@ -221,6 +222,15 @@ export const FriendHubScreen = () => {
     [cancelRequest],
   );
 
+  const handleRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await reload();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [reload]);
+
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
       <StackHeader
@@ -254,9 +264,9 @@ export const FriendHubScreen = () => {
           <RefreshControl
             colors={[COLORS.brand.primary]}
             onRefresh={() => {
-              reload().catch(() => undefined);
+              handleRefresh().catch(() => undefined);
             }}
-            refreshing={loading && hasLoadedOnce}
+            refreshing={refreshing}
             tintColor={COLORS.brand.primary}
           />
         }

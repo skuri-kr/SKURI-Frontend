@@ -141,112 +141,136 @@ export const useFriendHubData = () => {
         sectionStateVersions[target] ===
           sectionStateVersionsRef.current[target] &&
         (target !== 'friends' || updatingFavoriteIdsRef.current.size === 0);
+      const finishTarget = (target: FriendHubReloadTarget) => {
+        if (reloadVersions[target] === reloadVersionsRef.current[target]) {
+          loadingReloadTargetsRef.current.delete(target);
+          setLoading(loadingReloadTargetsRef.current.size > 0);
+        }
+      };
 
       targets.forEach(target => loadingReloadTargetsRef.current.add(target));
 
-      try {
-        setLoading(true);
-        if (shouldLoadFriends) {
-          setFriendError(undefined);
-        }
-        if (shouldLoadReceivedRequests) {
-          setReceivedRequestsError(undefined);
-        }
-        if (shouldLoadSentRequests) {
-          setSentRequestsError(undefined);
-        }
-        const [
-          friendsResult,
-          receivedRequestsResult,
-          sentRequestsResult,
-          inboxCountsResult,
-        ] = await Promise.all([
-          shouldLoadFriends
-            ? settle(() => friendRepository.getFriends())
-            : undefined,
-          shouldLoadReceivedRequests
-            ? settle(() =>
-                friendRepository.getFriendRequests({
-                  direction: 'RECEIVED',
-                  size: 20,
-                }),
-              )
-            : undefined,
-          shouldLoadSentRequests
-            ? settle(() =>
-                friendRepository.getFriendRequests({
-                  direction: 'SENT',
-                  size: 20,
-                }),
-              )
-            : undefined,
-          shouldLoadReceivedRequests
-            ? settle(() => friendRepository.getInboxCounts())
-            : undefined,
-        ]);
-        if (friendsResult?.ok && isCurrent('friends')) {
-          setFriends(sortFriends(friendsResult.value));
-          setHasLoadedFriends(true);
-        } else if (friendsResult && !friendsResult.ok && isCurrent('friends')) {
-          setFriendError(
-            getErrorMessage(
-              friendsResult.error,
-              '친구 목록을 불러오지 못했습니다.',
-            ),
-          );
-        }
-
-        if (receivedRequestsResult?.ok && isCurrent('RECEIVED')) {
-          setReceivedRequests(receivedRequestsResult.value.items);
-          setReceivedNextCursor(receivedRequestsResult.value.nextCursor);
-          setHasLoadedReceivedRequests(true);
-          requestListVersionsRef.current.RECEIVED += 1;
-        } else if (
-          receivedRequestsResult &&
-          !receivedRequestsResult.ok &&
-          isCurrent('RECEIVED')
-        ) {
-          setReceivedRequestsError(
-            getErrorMessage(
-              receivedRequestsResult.error,
-              '받은 친구 요청을 불러오지 못했습니다.',
-            ),
-          );
-        }
-
-        if (sentRequestsResult?.ok && isCurrent('SENT')) {
-          setSentRequests(sentRequestsResult.value.items);
-          setSentNextCursor(sentRequestsResult.value.nextCursor);
-          setHasLoadedSentRequests(true);
-          requestListVersionsRef.current.SENT += 1;
-        } else if (
-          sentRequestsResult &&
-          !sentRequestsResult.ok &&
-          isCurrent('SENT')
-        ) {
-          setSentRequestsError(
-            getErrorMessage(
-              sentRequestsResult.error,
-              '보낸 친구 요청을 불러오지 못했습니다.',
-            ),
-          );
-        }
-
-        if (inboxCountsResult?.ok && isCurrent('RECEIVED')) {
-          setIncomingRequestCount(inboxCountsResult.value.incomingRequestCount);
-        } else if (receivedRequestsResult?.ok && isCurrent('RECEIVED')) {
-          setIncomingRequestCount(
-            current => current ?? receivedRequestsResult.value.items.length,
-          );
-        }
-      } finally {
-        targets.forEach(target => {
-          if (reloadVersions[target] === reloadVersionsRef.current[target]) {
-            loadingReloadTargetsRef.current.delete(target);
-          }
-        });
-        setLoading(loadingReloadTargetsRef.current.size > 0);
+      setLoading(true);
+      if (shouldLoadFriends) {
+        setFriendError(undefined);
       }
+      if (shouldLoadReceivedRequests) {
+        setReceivedRequestsError(undefined);
+      }
+      if (shouldLoadSentRequests) {
+        setSentRequestsError(undefined);
+      }
+
+      const operations: Promise<unknown>[] = [];
+
+      if (shouldLoadFriends) {
+        operations.push(
+          settle(() => friendRepository.getFriends())
+            .then(friendsResult => {
+              if (friendsResult.ok && isCurrent('friends')) {
+                setFriends(sortFriends(friendsResult.value));
+                setHasLoadedFriends(true);
+              } else if (!friendsResult.ok && isCurrent('friends')) {
+                setFriendError(
+                  getErrorMessage(
+                    friendsResult.error,
+                    '친구 목록을 불러오지 못했습니다.',
+                  ),
+                );
+              }
+            })
+            .finally(() => finishTarget('friends')),
+        );
+      }
+
+      if (shouldLoadReceivedRequests) {
+        let receivedRequestItems: FriendRequestItem[] | undefined;
+        let inboxCountsFailed = false;
+
+        const applyReceivedRequestResult = (receivedRequestsResult: AsyncResult<{
+          hasNext: boolean;
+          items: FriendRequestItem[];
+          nextCursor: string | null;
+        }>) => {
+          if (receivedRequestsResult.ok && isCurrent('RECEIVED')) {
+            receivedRequestItems = receivedRequestsResult.value.items;
+            setReceivedRequests(receivedRequestItems);
+            setReceivedNextCursor(receivedRequestsResult.value.nextCursor);
+            setHasLoadedReceivedRequests(true);
+            requestListVersionsRef.current.RECEIVED += 1;
+            if (inboxCountsFailed) {
+              setIncomingRequestCount(current => current ?? receivedRequestItems!.length);
+            }
+            return;
+          }
+
+          if (!receivedRequestsResult.ok && isCurrent('RECEIVED')) {
+            setReceivedRequestsError(
+              getErrorMessage(
+                receivedRequestsResult.error,
+                '받은 친구 요청을 불러오지 못했습니다.',
+              ),
+            );
+          }
+        };
+
+        const receivedRequestsOperation = settle(() =>
+          friendRepository.getFriendRequests({
+            direction: 'RECEIVED',
+            size: 20,
+          }),
+        ).then(applyReceivedRequestResult);
+        const inboxCountsOperation = settle(() => friendRepository.getInboxCounts()).then(
+          inboxCountsResult => {
+            if (inboxCountsResult.ok && isCurrent('RECEIVED')) {
+              setIncomingRequestCount(inboxCountsResult.value.incomingRequestCount);
+              return;
+            }
+
+            if (!inboxCountsResult.ok && isCurrent('RECEIVED')) {
+              inboxCountsFailed = true;
+              if (receivedRequestItems) {
+                setIncomingRequestCount(current => current ?? receivedRequestItems!.length);
+              }
+            }
+          },
+        );
+
+        operations.push(
+          Promise.all([receivedRequestsOperation, inboxCountsOperation]).finally(() =>
+            finishTarget('RECEIVED'),
+          ),
+        );
+      }
+
+      if (shouldLoadSentRequests) {
+        operations.push(
+          settle(() =>
+            friendRepository.getFriendRequests({
+              direction: 'SENT',
+              size: 20,
+            }),
+          )
+            .then(sentRequestsResult => {
+              if (sentRequestsResult.ok && isCurrent('SENT')) {
+                setSentRequests(sentRequestsResult.value.items);
+                setSentNextCursor(sentRequestsResult.value.nextCursor);
+                setHasLoadedSentRequests(true);
+                requestListVersionsRef.current.SENT += 1;
+              } else if (!sentRequestsResult.ok && isCurrent('SENT')) {
+                setSentRequestsError(
+                  getErrorMessage(
+                    sentRequestsResult.error,
+                    '보낸 친구 요청을 불러오지 못했습니다.',
+                  ),
+                );
+              }
+            })
+            .finally(() => finishTarget('SENT')),
+        );
+      }
+
+      await Promise.all(operations);
     },
     [friendRepository],
   );
