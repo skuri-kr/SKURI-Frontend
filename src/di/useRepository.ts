@@ -14,6 +14,7 @@ import type {
   ICampusBannerRepository,
   ICafeteriaRepository,
   IChatRepository,
+  IFriendRepository,
   IInquiryFormRepository,
   ILegalDocumentRepository,
   IMemberDirectoryRepository,
@@ -57,6 +58,14 @@ export function usePartyRepository(): IPartyRepository {
 export function useChatRepository(): IChatRepository {
   const {chatRepository} = useRepositories();
   return chatRepository;
+}
+
+/**
+ * Friend Repository 접근 훅
+ */
+export function useFriendRepository(): IFriendRepository {
+  const {friendRepository} = useRepositories();
+  return friendRepository;
 }
 
 /**

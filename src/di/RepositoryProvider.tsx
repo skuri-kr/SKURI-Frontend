@@ -14,6 +14,7 @@ import {SpringAcademicRepository} from '@/features/campus/data/repositories/Spri
 import {SpringCampusBannerRepository} from '@/features/campus/data/repositories/SpringCampusBannerRepository';
 import {SpringCafeteriaRepository} from '@/features/campus/data/repositories/SpringCafeteriaRepository';
 import {SpringChatRepository} from '@/features/chat/data/repositories/SpringChatRepository';
+import {SpringFriendRepository} from '@/features/friend';
 import {SpringNoticeRepository} from '@/features/notice/data/repositories/SpringNoticeRepository';
 import {SpringReportRepository} from '@/features/report';
 import {SpringAppConfigRepository} from '@/features/settings/data/repositories/SpringAppConfigRepository';
@@ -55,6 +56,7 @@ export function RepositoryProvider({
     const defaultRepositories: RepositoryContainer = {
       partyRepository: new SpringPartyRepository(),
       chatRepository: new SpringChatRepository(),
+      friendRepository: new SpringFriendRepository(),
       boardRepository: new SpringBoardRepository(),
       noticeRepository: new SpringNoticeRepository(),
       reportRepository: new SpringReportRepository(),

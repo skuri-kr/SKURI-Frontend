@@ -2,6 +2,7 @@ export type MyPageMenuActionKey =
   | 'profileEdit'
   | 'minecraftAccount'
   | 'minecraftServer'
+  | 'friendHub'
   | 'myPosts'
   | 'bookmarks'
   | 'taxiHistory'

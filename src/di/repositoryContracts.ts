@@ -6,6 +6,7 @@ export type {
 } from '@/features/campus';
 export type {IBoardRepository} from '@/features/board';
 export type {IChatRepository} from '@/features/chat';
+export type {IFriendRepository} from '@/features/friend';
 export type {IMemberDirectoryRepository, IMemberRepository} from '@/features/member';
 export type {INoticeRepository} from '@/features/notice';
 export type {IReportRepository} from '@/features/report';

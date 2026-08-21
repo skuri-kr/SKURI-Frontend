@@ -15,6 +15,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 
 import {type CampusStackParamList} from '@/app/navigation/types';
 import {useAuth} from '@/features/auth';
+import {useFriendInboxCounts} from '@/features/friend';
 import {
   DefaultProfileAvatar,
   ProfileScreenSkeleton,
@@ -45,15 +46,25 @@ export const MyScreen = () => {
   const insets = useSafeAreaInsets();
   const {loading: authLoading, signOut} = useAuth();
   const {data, error, loading, reload} = useMyPageData();
+  const {counts: friendInboxCounts, reload: reloadFriendInboxCounts} =
+    useFriendInboxCounts();
 
   const [withdrawing, setWithdrawing] = React.useState(false);
   const [signingOut, setSigningOut] = React.useState(false);
-
+  const hasReceivedInitialFocus = React.useRef(false);
 
   useFocusEffect(
     React.useCallback(() => {
-      reload().catch(() => undefined);
-    }, [reload]),
+      if (!hasReceivedInitialFocus.current) {
+        hasReceivedInitialFocus.current = true;
+        return;
+      }
+
+      Promise.all([
+        reload(),
+        reloadFriendInboxCounts(),
+      ]).catch(() => undefined);
+    }, [reload, reloadFriendInboxCounts]),
   );
 
   const openAction = React.useCallback(
@@ -67,6 +78,9 @@ export const MyScreen = () => {
           return;
         case 'minecraftServer':
           navigation.navigate('MinecraftDetail');
+          return;
+        case 'friendHub':
+          navigation.navigate('FriendHub');
           return;
         case 'myPosts':
           navigation.navigate('MyPosts');
@@ -246,6 +260,9 @@ export const MyScreen = () => {
 
               {data.sections.map(section => (
                 <MyPageMenuSection
+                  badgeCounts={{
+                    friendHub: friendInboxCounts?.totalActionCount ?? 0,
+                  }}
                   key={section.id}
                   onPressItem={handlePressMenuItem}
                   section={section}

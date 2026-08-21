@@ -1,14 +1,54 @@
 # SKURI 친구 기능 모바일 구현 계획
 
-> 문서 상태: UX 및 구현 계획 승인 완료, 실제 코드 미구현
+> 문서 상태: Friend 관계 Core 모바일 구현 완료, PR 생성 준비 중
 > 기준일: 2026-08-18
 > 정책 기준: SKURI-Backend docs/features/friends.md
-> 구현 게이트: 문서 검토가 끝난 뒤 사용자의 별도 코드 구현 승인을 받아야 한다.
+> 구현 게이트: 관계 Core는 사용자 승인 완료. 후속 도메인 협력 기능은 각각 별도 승인한다.
 
 백엔드 기준 문서:
 
 - GitHub: https://github.com/skuri-kr/SKURI-Backend/blob/main/docs/features/friends.md
 - 로컬 작업 경로: /Users/jisung/skuri-backend/docs/features/friends.md
+
+---
+
+## 1.1 관계 Core 모바일 전달 범위 (2026-08-18 확정)
+
+백엔드 PR #80의 Friend Foundation·관계 Core가 `main`에 병합됐다. 이 모바일 작업은 병합된 런타임 계약 중 친구 관계를 직접 사용할 수 있는 범위만 구현한다.
+
+이번 모바일 PR에 포함:
+
+- 친구 목록·상세, 즐겨찾기, 친구 끊기, 차단·차단 해제
+- 친구 코드 preview·내 코드 표시/복사/공유/재발급, 닉네임 검색과 명시적 요청 발송
+- 받은·보낸 PENDING 친구 요청의 목록, 수락·거절·취소
+- 마이페이지 친구 진입점과 서버 `totalActionCount` badge
+- 닉네임 검색 허용과 차단 목록을 제공하는 관계 Core 범위의 FriendSettings
+- `FriendHub`의 `친구 | 요청` 두 탭
+
+### 1.2 구현 확정 UI 경계 (2026-08-18)
+
+관계 Core 구현에서는 아래처럼 범위를 더 구체화했다. 이 절은 문서의 후속 버전 설계와 충돌할 경우 현재 PR의 실제 동작을 우선한다.
+
+- 마이페이지의 `친구` 행이 FriendHub로 이동하고, 서버 `totalActionCount`가 1~99+ badge로 표시된다. 배지 조회 실패는 마이페이지 자체를 막지 않는다.
+- FriendHub 헤더의 `+`는 FriendAdd로 바로 이동한다. FriendAdd 한 화면 상단에 `내 친구 코드`의 복사·공유·재발급을 두고, 아래에 친구 코드 확인과 닉네임 검색을 둔다. QR을 제공할 때 별도 action sheet 또는 화면 분리는 그 PR에서 다시 결정한다.
+- FriendHub에는 친구 목록 및 받은·보낸 PENDING 요청만 보여준다. 목록 정렬은 즐겨찾기 우선·가나다순이며, 요청·검색의 opaque cursor 다음 페이지는 `더 보기`로 이어 붙인다.
+- FriendHub는 pull-to-refresh를 제공한다. 수락·거절·취소·즐겨찾기 변경 직후에는 화면 상태를 먼저 반영하고, 이전에 시작된 새로고침 응답은 최신 상태를 덮어쓰지 않도록 무시한다.
+- 닉네임 검색의 빈 결과는 현재 입력값으로 성공한 검색 뒤에만 표시하며, 다른 친구에게 보내는 요청은 각각 완료될 때까지 독립적으로 진행 상태를 유지한다.
+- 친구 상세는 프로필 요약, 즐겨찾기, 친구 끊기, 차단만 제공한다. 시간표, Minecraft, 택시파티 및 채팅방 초대는 안내 문구를 제외하고 노출하지 않는다.
+- FriendSettings에는 닉네임 검색 공개 toggle과 차단 목록/차단 해제만 둔다. 두 정보는 독립적으로 불러오므로 한 조회가 실패해도 다른 정보와 개별 재시도를 제공한다.
+- 차단 목록에서도 닉네임과 학과가 모두 같은 대상이 둘 이상일 때만 `friendPublicId` 마지막 6자리를 `식별 코드 · ABC123`으로 표시한다. 그 외에는 식별 코드를 노출하지 않는다.
+- QR 생성·스캔, 카메라 권한과 native 의존성은 추가하지 않았다. FriendAdd의 QR 안내는 후속 기능 예정 상태를 알리는 비상호작용 안내다.
+- 실제 사용자 노출은 백엔드 배포와 기존 ACTIVE 회원 FriendProfile provisioning 검증 이후에만 진행한다.
+
+이번 모바일 PR에서 의도적으로 제외:
+
+- 초대 탭, 택시파티·공개방 친구 초대, 초대 수락/거절, 친구·초대 알림 이동
+- 친구 시간표·공유 설정·공통 공강, Minecraft 친구 계정 projection, 친구 신고
+- QR 생성/스캔과 Android·iOS 카메라 권한 변경
+
+제외 항목은 정책 폐기가 아니다. 해당 백엔드 API와 도메인 협력이 구현된 뒤 별도 PR에서 추가한다. 특히 FriendHub의 초대 탭은 서버의 초대 목록·mutation API가 준비되기 전에는 빈 상태로도 노출하지 않는다.
+
+백엔드 계약은 `main`에 존재하지만 배포·기존 ACTIVE 회원 FriendProfile provisioning 완료 여부는 아직 이 작업에서 확인하지 않았다. 모바일 코드는 구현할 수 있으나, 실제 사용자에게 친구 진입점을 노출하는 릴리스는 백엔드 배포와 provisioning 검증 이후에만 진행한다.
 
 ---
 
@@ -53,8 +93,7 @@
 - 받은 요청 또는 초대가 있으면 행 우측에 통합 badge를 표시한다.
 - 친구 항목을 누르면 FriendHub 화면으로 이동한다.
 - FriendHub 헤더 우측에는 친구 설정과 `+` action을 각각 제공한다.
-- `+` action은 바로 FriendAdd로 이동하지 않고 `내 친구 코드`와 `친구 추가`를 고르는 feature 전용 action sheet를 연다.
-- `내 친구 코드`는 같은 sheet 안에서 코드·QR 표시, 복사, 공유, 재발급을 제공하고 `친구 추가`는 FriendAdd로 이동한다.
+- 관계 Core의 `+` action은 FriendAdd로 이동한다. FriendAdd 상단의 내 친구 코드 영역에서 코드 표시·복사·공유·재발급을 제공한다.
 
 ### 3.2 보조 진입점
 
@@ -72,10 +111,10 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 
 | Route | Params | 설명 |
 | --- | --- | --- |
-| FriendHub | initialTab?, targetInvitationType?, targetInvitationId? | 친구, 요청, 초대 허브와 특정 초대 카드 target |
-| FriendAdd | initialMethod optional | 코드, QR, 닉네임 추가 |
-| FriendDetail | friendPublicId | 친구 상세 |
-| FriendSettings | 없음 | 검색 허용과 시간표 기본 공유 |
+| FriendHub | 없음 | 관계 Core 친구·요청 허브 |
+| FriendAdd | 없음 | 내 코드, 코드 확인, 닉네임 검색 |
+| FriendDetail | friendId | 관계 Core 친구 상세 |
+| FriendSettings | 없음 | 닉네임 검색 허용과 차단 목록 |
 | TimetableDetail | 기존 initialView?, mode? + targetFriendPublicId? | 대상 친구 accordion 자동 이동·전개 |
 
 알림 payload는 app/notifications에서 파싱하고 app/navigation/services에서 목적지를 결정한다. feature가 root navigation state를 직접 해석하지 않는다.
@@ -95,7 +134,7 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 ┌──────────────────────────────┐
 │ ‹  친구               ⚙  ＋   │
 │                              │
-│ [ 친구 12 ] [ 요청 2 ] [ 초대 1 ] │
+│ [ 친구 12 ] [ 요청 2 ]            │
 ├──────────────────────────────┤
 │ [ 친구 이름 검색             ] │
 │                              │
@@ -114,6 +153,7 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 - 즐겨찾기 우선, 이후 가나다순으로 표시한다.
 - 행 전체를 누르면 FriendDetail로 이동한다.
 - 우측 별 버튼은 행 navigation과 이벤트를 분리한다.
+- 같은 화면에 닉네임과 학과가 모두 같은 친구가 둘 이상 있을 때만 `friendPublicId` 마지막 6자리를 `식별 코드 · ABC123`으로 표시한다. 그 외에는 식별 코드를 노출하지 않는다.
 - 마인크래프트 계정이 있으면 대표 SELF 게임명 외 N개를 표시한다.
 - 계정이 없으면 빈 보조 문구를 과도하게 강조하지 않는다.
 - 친구 목록 새로고침은 pull-to-refresh를 제공한다.
@@ -121,16 +161,14 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 
 헤더 `+` action:
 
-- 기존 BottomSheetModal 표현을 따르는 friend feature 전용 action sheet를 사용한다.
-- 첫 action `내 친구 코드`는 현재 코드와 QR을 표시하고 복사·공유·재발급을 제공한다.
-- 두 번째 action `친구 추가`는 FriendAdd로 이동한다.
-- sheet를 닫기 전·후 navigation이 중복 실행되지 않도록 한 번의 action만 소비한다.
-- 코드 재발급은 기존 코드가 즉시 무효화된다는 확인 후 실행하고 성공 시 코드와 QR을 함께 갱신한다.
+- 관계 Core에서는 FriendAdd로 바로 이동한다.
+- FriendAdd 상단에서 현재 코드 표시·복사·공유·재발급을 제공한다.
+- 코드 재발급은 기존 코드가 즉시 무효화된다는 확인 후 실행하고 성공 시 현재 코드만 갱신한다. QR은 후속 QR PR에서 함께 갱신한다.
 
 빈 상태:
 
 - 제목: 아직 친구가 없어요
-- 설명: 친구 코드, QR 또는 닉네임으로 친구를 추가해보세요.
+- 설명: 친구 코드 또는 닉네임으로 친구를 추가해보세요.
 - CTA: 친구 추가
 
 오류 상태:
@@ -143,12 +181,14 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 받은 요청:
 
 - 프로필, 닉네임, 학과, 만료까지 남은 기간
+- 같은 화면에 닉네임과 학과가 모두 같은 요청이 둘 이상 있을 때만 `friendPublicId` 마지막 6자리를 `식별 코드 · ABC123`으로 표시한다. 그 외에는 식별 코드를 노출하지 않는다.
 - 수락, 거절
 - 수락 중에는 양쪽 버튼 중복 입력 방지
 
 보낸 요청:
 
 - 프로필, 닉네임, 상태, 만료 시각
+- 같은 화면에 닉네임과 학과가 모두 같은 요청이 둘 이상 있을 때만 받은 요청과 같은 식별 코드 규칙을 적용한다.
 - PENDING 요청 취소
 - 거절·만료 후 즉시 다시 요청할 수 있다.
 
@@ -156,7 +196,7 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 
 - 받은·보낸 탭은 각각 서버의 `direction=RECEIVED|SENT`를 사용하며 현재 PENDING 요청만 표시한다.
 - 한 페이지는 20건이고 서버의 opaque cursor를 사용한다. `createdAt DESC`, `requestId DESC` 순서로 이어 붙인다.
-- 수락·거절·취소 결과는 mutation 직후 짧게 표시한 뒤 현재 PENDING 목록에서 제거하고 query를 재조회한다.
+- 수락·거절·취소 결과는 같은 카드의 버튼 영역에 완료 상태로 1.2초간 표시한 뒤 현재 PENDING 목록에서 제거하고 query를 재조회한다.
 - 거절·취소·만료 terminal 이력 조회는 V1에서 제공하지 않고 후속 TODO로 남긴다.
 
 거절 동작:
@@ -166,6 +206,8 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 - 처리 후 요청 목록에서 완료 상태를 짧게 보여준 뒤 제거 또는 완료 section으로 이동한다.
 
 ### 4.4 초대 탭
+
+초대 탭은 택시파티·공개방 초대 API가 구현된 후의 후속 범위다. 관계 Core 모바일 PR에서는 이 탭과 관련 badge·알림 이동을 렌더링하지 않는다.
 
 - 택시파티 초대와 공개방 초대를 시간순으로 한 목록에 표시한다.
 - 각 카드에 초대한 친구, 대상 이름, 만료 또는 파티 상태를 보여준다.
@@ -187,7 +229,7 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 
 - 헤더 우측 설정 아이콘은 FriendSettings로 이동한다.
 - 접근성 label은 `친구 설정`으로 지정하고 친구 추가 action과 독립된 hit target을 사용한다.
-- 닉네임 검색 허용, 시간표 기본 공유, 친구별 예외와 차단 목록을 이 화면에서 관리한다.
+- 관계 Core에서는 닉네임 검색 허용과 차단 목록만 관리한다. 시간표 기본 공유와 친구별 예외는 시간표 공유 API가 준비되는 후속 PR에서 추가한다.
 
 ---
 
@@ -686,17 +728,19 @@ API client / DTO / Mapper
 
 ## 15. 구현 PR 분리 계획
 
-문서 PR 이후에도 실제 코드 구현 승인이 있어야 시작한다.
+관계 Core 모바일은 사용자 구현 승인을 받아 이 브랜치에서 시작한다. 이후 각 PR은 대응 백엔드 API·도메인 협력 준비와 별도 사용자 승인을 전제로 한다.
 
 ### PR 1: 친구 핵심 모바일
 
 - navigation
-- FriendHub
+- FriendHub 친구·요청 두 탭
 - 친구 코드·닉네임 요청
 - 내 친구 코드 action sheet와 cursor 검색
 - 즐겨찾기, 요청 수락·거절·취소
-- 친구 상세, 신고, 끊기, 차단
+- 친구 상세, 끊기, 차단
 - badge
+
+초대 탭·초대 badge, 친구 신고, 시간표·Minecraft projection, 알림 이동, QR은 포함하지 않는다. 서버의 `partyInvitationCount`와 `chatRoomInvitationCount`는 관계 Core에서 0이지만, 이를 근거로 미구현 초대 UI를 미리 노출하지 않는다.
 
 ### PR 2: QR
 
@@ -845,17 +889,17 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 
 이 PR에서 허용되는 변경:
 
+- 관계 Core를 위한 `src/features/friend` 데이터·모델·화면·컴포넌트·hook
+- 관계 Core navigation, DI, 마이페이지 친구 진입점·badge, 관련 테스트
 - 이 구현 계획 문서
 
 이 PR에서 허용되지 않는 변경:
 
-- src 아래 런타임 코드
-- package.json과 lockfile
-- Android·iOS 설정
-- API client, DTO, navigation
-- 테스트 코드
+- package.json과 lockfile, Android·iOS QR 카메라 설정
+- 초대·시간표 공유·Minecraft projection·친구 신고·알림 이동을 위한 런타임 코드
+- 기존 택시·공개방 메뉴 및 시간표·Minecraft 화면의 기능 변경
 
-실제 구현은 사용자의 별도 명시적 승인 전까지 시작하지 않는다.
+관계 Core 구현 중 새로운 정책이나 기존 공통 UI로 표현하기 어려운 UI 선택이 발견되면 작업을 멈추고 사용자 승인을 받는다.
 
 ---
 
