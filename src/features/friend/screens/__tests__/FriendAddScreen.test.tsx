@@ -5,7 +5,10 @@ import {act, fireEvent, render, waitFor} from '@testing-library/react-native';
 import {useNavigation} from '@react-navigation/native';
 
 import {invalidateData} from '@/app/data-freshness/dataInvalidation';
-import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
+import {
+  FRIEND_HUB_INVALIDATION_KEY,
+  FRIEND_INBOX_COUNTS_INVALIDATION_KEY,
+} from '@/app/data-freshness/invalidationKeys';
 
 import {useFriendAddData} from '../../hooks/useFriendAddData';
 import {FriendAddScreen} from '../FriendAddScreen';
@@ -145,6 +148,9 @@ describe('FriendAddScreen', () => {
     expect(alertSpy).not.toHaveBeenCalled();
     expect(navigation.goBack).not.toHaveBeenCalled();
     expect(mockedInvalidateData).toHaveBeenCalledWith(FRIEND_HUB_INVALIDATION_KEY);
+    expect(mockedInvalidateData).toHaveBeenCalledWith(
+      FRIEND_INBOX_COUNTS_INVALIDATION_KEY,
+    );
   });
 
   it('두 글자 이상 닉네임을 입력하면 300ms 뒤 자동으로 검색한다', () => {
@@ -253,6 +259,10 @@ describe('FriendAddScreen', () => {
     actions?.find(action => action.text === '요청 목록 보기')?.onPress?.();
 
     expect(navigation.popTo).toHaveBeenCalledWith('FriendHub', {initialTab: 'requests'});
+    expect(mockedInvalidateData).toHaveBeenCalledWith(FRIEND_HUB_INVALIDATION_KEY);
+    expect(mockedInvalidateData).not.toHaveBeenCalledWith(
+      FRIEND_INBOX_COUNTS_INVALIDATION_KEY,
+    );
   });
 
   it('하이픈 없는 친구 코드를 정규화하고 구분이 필요한 동명이인에 식별 코드를 표시한다', () => {
