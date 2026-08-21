@@ -141,6 +141,82 @@ describe('useFriendHubData', () => {
     expect(result.current.receivedNextCursor).toBeNull();
   });
 
+  it('방향 재조회가 성공하면 이전 더 보기 요청의 로딩 잠금을 해제한다', async () => {
+    const repository = createRepository();
+    const staleNextPage = createDeferred<{
+      hasNext: boolean;
+      items: Array<{
+        createdAt: string;
+        department: string | null;
+        expiresAt: string;
+        friend: {department: string | null; id: string; nickname: string; photoUrl: string | null};
+        id: string;
+      }>;
+      nextCursor: string | null;
+    }>();
+    let receivedFirstPageCount = 0;
+    repository.getFriendRequests.mockImplementation(({cursor, direction}) => {
+      if (direction !== 'RECEIVED') {
+        return Promise.resolve({hasNext: false, items: [], nextCursor: null});
+      }
+      if (cursor === 'received-cursor') {
+        return staleNextPage.promise;
+      }
+
+      receivedFirstPageCount += 1;
+      return Promise.resolve({
+        hasNext: true,
+        items: [
+          {
+            createdAt: '2026-08-18T11:00:00',
+            department: null,
+            expiresAt: '2026-09-17T11:00:00',
+            friend: {
+              department: null,
+              id: receivedFirstPageCount === 1 ? 'friend-1' : 'friend-3',
+              nickname: receivedFirstPageCount === 1 ? '가람' : '다온',
+              photoUrl: null,
+            },
+            id: receivedFirstPageCount === 1 ? 'request-1' : 'request-3',
+          },
+        ],
+        nextCursor: receivedFirstPageCount === 1 ? 'received-cursor' : 'fresh-cursor',
+      });
+    });
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await waitFor(() => {
+      expect(result.current.receivedNextCursor).toBe('received-cursor');
+    });
+
+    let loadMorePromise!: Promise<void>;
+    await act(async () => {
+      loadMorePromise = result.current.loadMoreRequests('RECEIVED');
+    });
+    expect(result.current.loadingMoreDirections).toEqual(new Set(['RECEIVED']));
+
+    await act(async () => {
+      await result.current.reloadRequestDirection('RECEIVED');
+    });
+
+    expect(result.current.receivedNextCursor).toBe('fresh-cursor');
+    expect(result.current.loadingMoreDirections).toEqual(new Set());
+
+    await act(async () => {
+      staleNextPage.resolve({hasNext: false, items: [], nextCursor: null});
+      await loadMorePromise;
+    });
+
+    expect(result.current.receivedRequests.map(request => request.id)).toEqual([
+      'request-3',
+    ]);
+    expect(result.current.loadingMoreDirections).toEqual(new Set());
+  });
+
   it('새로고침이 실패해도 이전에 불러온 친구 허브 데이터를 유지한다', async () => {
     const repository = createRepository();
     repository.getFriends
