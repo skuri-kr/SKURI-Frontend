@@ -188,13 +188,19 @@ export const useFriendAddData = () => {
 
       sendingFriendIdsRef.current.add(friendId);
       setSendingFriendIds(new Set(sendingFriendIdsRef.current));
+      const previewRequestVersionAtMutationStart = previewRequestVersionRef.current;
+      const searchRequestVersionAtMutationStart = searchRequestVersionRef.current;
       try {
         const mutation = await friendRepository.createFriendRequest(friendId);
-        previewRequestVersionRef.current += 1;
-        searchRequestVersionRef.current += 1;
-        loadingMoreSearchVersionRef.current = undefined;
-        setPreviewing(false);
-        setSearching(false);
+        if (previewRequestVersionRef.current === previewRequestVersionAtMutationStart) {
+          previewRequestVersionRef.current += 1;
+          setPreviewing(false);
+        }
+        if (searchRequestVersionRef.current === searchRequestVersionAtMutationStart) {
+          searchRequestVersionRef.current += 1;
+          loadingMoreSearchVersionRef.current = undefined;
+          setSearching(false);
+        }
         const relationshipState =
           mutation.status === 'ACCEPTED'
             ? ('ALREADY_FRIEND' as const)
