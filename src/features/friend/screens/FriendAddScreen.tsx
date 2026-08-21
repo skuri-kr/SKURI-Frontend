@@ -211,14 +211,20 @@ export const FriendAddScreen = () => {
         style: 'destructive',
         onPress: () => {
           regenerateMyCode()
-            .then(() => Alert.alert('재발급 완료', '새 친구 코드가 발급되었습니다.'))
+            .then(() => {
+              if (navigation.isFocused()) {
+                Alert.alert('재발급 완료', '새 친구 코드가 발급되었습니다.');
+              }
+            })
             .catch(regenerateError => {
-              Alert.alert('오류', getErrorMessage(regenerateError, '친구 코드를 재발급하지 못했습니다.'));
+              if (navigation.isFocused()) {
+                Alert.alert('오류', getErrorMessage(regenerateError, '친구 코드를 재발급하지 못했습니다.'));
+              }
             });
         },
       },
     ]);
-  }, [myCode?.canRegenerate, regenerateMyCode]);
+  }, [myCode?.canRegenerate, navigation, regenerateMyCode]);
 
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
