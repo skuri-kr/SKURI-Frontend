@@ -33,7 +33,7 @@ export const useFriendDetailData = (friendId: string) => {
 
   const updateFavorite = React.useCallback(async () => {
     if (!friend || mutationInFlightRef.current) {
-      return;
+      return false;
     }
 
     const previousFriend = friend;
@@ -42,6 +42,7 @@ export const useFriendDetailData = (friendId: string) => {
       setMutating(true);
       setFriend({...previousFriend, favorite: !previousFriend.favorite});
       await friendRepository.updateFavorite(previousFriend.id, !previousFriend.favorite);
+      return true;
     } catch (favoriteError) {
       setFriend(current =>
         current?.id === previousFriend.id
@@ -57,13 +58,14 @@ export const useFriendDetailData = (friendId: string) => {
 
   const removeFriend = React.useCallback(async () => {
     if (mutationInFlightRef.current) {
-      return;
+      return false;
     }
 
     try {
       mutationInFlightRef.current = true;
       setMutating(true);
       await friendRepository.removeFriend(friendId);
+      return true;
     } finally {
       mutationInFlightRef.current = false;
       setMutating(false);
@@ -72,13 +74,14 @@ export const useFriendDetailData = (friendId: string) => {
 
   const blockFriend = React.useCallback(async () => {
     if (mutationInFlightRef.current) {
-      return;
+      return false;
     }
 
     try {
       mutationInFlightRef.current = true;
       setMutating(true);
       await friendRepository.blockMember(friendId);
+      return true;
     } finally {
       mutationInFlightRef.current = false;
       setMutating(false);
