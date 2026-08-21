@@ -12,6 +12,8 @@ export const PROFILE_NOTICE_BOOKMARKS_INVALIDATION_KEY: DataInvalidationKey =
 export const PROFILE_MY_POSTS_INVALIDATION_KEY: DataInvalidationKey =
   'profile.myPosts';
 export const FRIEND_HUB_INVALIDATION_KEY: DataInvalidationKey = 'friend.hub';
+export const FRIEND_INBOX_COUNTS_INVALIDATION_KEY: DataInvalidationKey =
+  'friend.inboxCounts';
 
 export const PROFILE_BOOKMARKS_INVALIDATION_KEYS = [
   PROFILE_BOARD_BOOKMARKS_INVALIDATION_KEY,

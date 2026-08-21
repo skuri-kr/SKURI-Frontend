@@ -1,5 +1,7 @@
 import React from 'react';
 
+import {useInvalidationVersion} from '@/app/data-freshness/dataInvalidation';
+import {FRIEND_INBOX_COUNTS_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {useFriendRepository} from '@/di';
 
 import type {FriendInboxCounts} from '../model/friend';
@@ -7,7 +9,11 @@ import type {FriendInboxCounts} from '../model/friend';
 export const useFriendInboxCounts = () => {
   const friendRepository = useFriendRepository();
   const [counts, setCounts] = React.useState<FriendInboxCounts>();
+  const inboxCountsInvalidationVersion = useInvalidationVersion(
+    FRIEND_INBOX_COUNTS_INVALIDATION_KEY,
+  );
   const reloadVersionRef = React.useRef(0);
+  const lastInvalidationVersionRef = React.useRef<number | undefined>(undefined);
 
   const reload = React.useCallback(async () => {
     const requestVersion = reloadVersionRef.current + 1;
@@ -27,6 +33,19 @@ export const useFriendInboxCounts = () => {
   React.useEffect(() => {
     reload().catch(() => undefined);
   }, [reload]);
+
+  React.useEffect(() => {
+    if (lastInvalidationVersionRef.current === undefined) {
+      lastInvalidationVersionRef.current = inboxCountsInvalidationVersion;
+      return;
+    }
+    if (lastInvalidationVersionRef.current === inboxCountsInvalidationVersion) {
+      return;
+    }
+
+    lastInvalidationVersionRef.current = inboxCountsInvalidationVersion;
+    reload().catch(() => undefined);
+  }, [inboxCountsInvalidationVersion, reload]);
 
   return {counts, reload};
 };

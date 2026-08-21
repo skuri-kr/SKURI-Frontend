@@ -9,7 +9,8 @@ export type DataInvalidationKey =
   | 'profile.boardBookmarks'
   | 'profile.noticeBookmarks'
   | 'profile.myPosts'
-  | 'friend.hub';
+  | 'friend.hub'
+  | 'friend.inboxCounts';
 
 type Listener = () => void;
 

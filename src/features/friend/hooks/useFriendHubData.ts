@@ -1,5 +1,7 @@
 import React from 'react';
 
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {FRIEND_INBOX_COUNTS_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {useFriendRepository} from '@/di';
 
 import type {FriendRequestItem, FriendSummary} from '../model/friend';
@@ -450,6 +452,7 @@ export const useFriendHubData = () => {
         setIncomingRequestCount(current =>
           current === undefined ? current : Math.max(0, current - 1),
         );
+        invalidateData(FRIEND_INBOX_COUNTS_INVALIDATION_KEY);
         const acceptedFriend = mutation.friend;
         if (acceptedFriend) {
           setFriends(current =>
@@ -485,6 +488,7 @@ export const useFriendHubData = () => {
         setIncomingRequestCount(current =>
           current === undefined ? current : Math.max(0, current - 1),
         );
+        invalidateData(FRIEND_INBOX_COUNTS_INVALIDATION_KEY);
         completeRequest(requestId, 'DECLINED', 'RECEIVED');
       } finally {
         endRequestMutation(requestId);
