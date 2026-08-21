@@ -2,8 +2,27 @@ export interface FriendSummaryResponseDto {
   department: string | null;
   favorite: boolean;
   friendPublicId: string;
+  minecraftAccountCount?: number | null;
   nickname: string;
   photoUrl: string | null;
+  primaryMinecraftGameName?: string | null;
+}
+
+export type FriendMinecraftEditionDto = 'JAVA' | 'BEDROCK';
+
+export interface FriendMinecraftAccountResponseDto {
+  avatarUuid: string | null;
+  edition: FriendMinecraftEditionDto;
+  gameName: string;
+}
+
+export interface FriendMinecraftSelfAccountResponseDto
+  extends FriendMinecraftAccountResponseDto {
+  friendAccounts: FriendMinecraftAccountResponseDto[];
+}
+
+export interface FriendMinecraftAccountsResponseDto {
+  selfAccounts: FriendMinecraftSelfAccountResponseDto[];
 }
 
 export interface FriendSearchResultResponseDto {

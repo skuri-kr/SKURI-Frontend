@@ -7,6 +7,7 @@ import {
   mapFriendCodeDto,
   mapFriendCodePreviewDto,
   mapFriendInboxCountsDto,
+  mapFriendMinecraftAccountsDto,
   mapFriendPrivacyDto,
   mapFriendRequestMutationDto,
   mapFriendRequestPageDto,
@@ -41,6 +42,11 @@ export class SpringFriendRepository implements IFriendRepository {
   async getFriend(friendPublicId: string) {
     const response = await this.apiClient.getFriend(friendPublicId);
     return mapFriendSummaryDto(response.data);
+  }
+
+  async getFriendMinecraftAccounts(friendPublicId: string) {
+    const response = await this.apiClient.getFriendMinecraftAccounts(friendPublicId);
+    return mapFriendMinecraftAccountsDto(response.data);
   }
 
   async removeFriend(friendPublicId: string) {

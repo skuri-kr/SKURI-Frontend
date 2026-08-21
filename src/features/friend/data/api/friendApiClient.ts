@@ -8,6 +8,7 @@ import type {
   FriendCodePreviewResponseDto,
   FriendCodeResponseDto,
   FriendInboxCountsResponseDto,
+  FriendMinecraftAccountsResponseDto,
   FriendPrivacyResponseDto,
   FriendRequestMutationResponseDto,
   FriendRequestPageResponseDto,
@@ -29,6 +30,12 @@ export class FriendApiClient {
   getFriend(friendPublicId: string) {
     return httpClient.get<ApiSuccessResponse<FriendSummaryResponseDto>>(
       `/v1/friends/${encodeURIComponent(friendPublicId)}`,
+    );
+  }
+
+  getFriendMinecraftAccounts(friendPublicId: string) {
+    return httpClient.get<ApiSuccessResponse<FriendMinecraftAccountsResponseDto>>(
+      `/v1/friends/${encodeURIComponent(friendPublicId)}/minecraft-accounts`,
     );
   }
 

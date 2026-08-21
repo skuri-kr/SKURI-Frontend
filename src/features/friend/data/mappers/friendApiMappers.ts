@@ -3,6 +3,7 @@ import type {
   FriendCodePreviewResponseDto,
   FriendCodeResponseDto,
   FriendInboxCountsResponseDto,
+  FriendMinecraftAccountsResponseDto,
   FriendPrivacyResponseDto,
   FriendRequestItemResponseDto,
   FriendRequestMutationResponseDto,
@@ -16,6 +17,7 @@ import type {
   FriendCode,
   FriendCodePreview,
   FriendInboxCounts,
+  FriendMinecraftAccounts,
   FriendPrivacy,
   FriendRequestItem,
   FriendRequestMutation,
@@ -31,9 +33,15 @@ export const mapFriendSummaryDto = (
   department: dto.department,
   favorite: dto.favorite,
   id: dto.friendPublicId,
+  minecraftAccountCount: dto.minecraftAccountCount ?? 0,
   nickname: dto.nickname,
   photoUrl: dto.photoUrl,
+  primaryMinecraftGameName: dto.primaryMinecraftGameName ?? null,
 });
+
+export const mapFriendMinecraftAccountsDto = (
+  dto: FriendMinecraftAccountsResponseDto,
+): FriendMinecraftAccounts => dto;
 
 export const mapFriendSearchResultDto = (
   dto: FriendSearchResultResponseDto | FriendCodePreviewResponseDto,

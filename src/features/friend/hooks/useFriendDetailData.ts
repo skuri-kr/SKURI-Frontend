@@ -2,7 +2,7 @@ import React from 'react';
 
 import {useFriendRepository} from '@/di';
 
-import type {FriendSummary} from '../model/friend';
+import type {FriendMinecraftAccounts, FriendSummary} from '../model/friend';
 
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -10,6 +10,9 @@ const getErrorMessage = (error: unknown, fallback: string) =>
 export const useFriendDetailData = (friendId: string) => {
   const friendRepository = useFriendRepository();
   const [friend, setFriend] = React.useState<FriendSummary>();
+  const [minecraftAccounts, setMinecraftAccounts] = React.useState<FriendMinecraftAccounts>();
+  const [minecraftAccountsError, setMinecraftAccountsError] = React.useState<string>();
+  const [minecraftAccountsLoading, setMinecraftAccountsLoading] = React.useState(true);
   const [error, setError] = React.useState<string>();
   const [loading, setLoading] = React.useState(true);
   const [mutating, setMutating] = React.useState(false);
@@ -19,11 +22,46 @@ export const useFriendDetailData = (friendId: string) => {
     try {
       setLoading(true);
       setError(undefined);
-      setFriend(await friendRepository.getFriend(friendId));
+      setMinecraftAccountsLoading(true);
+      setMinecraftAccountsError(undefined);
+      const [friendResult, minecraftAccountsResult] = await Promise.allSettled([
+        friendRepository.getFriend(friendId),
+        friendRepository.getFriendMinecraftAccounts(friendId),
+      ]);
+
+      if (friendResult.status === 'fulfilled') {
+        setFriend(friendResult.value);
+      } else {
+        throw friendResult.reason;
+      }
+
+      if (minecraftAccountsResult.status === 'fulfilled') {
+        setMinecraftAccounts(minecraftAccountsResult.value);
+        setMinecraftAccountsError(undefined);
+      } else {
+        setMinecraftAccounts(undefined);
+        setMinecraftAccountsError(getErrorMessage(
+          minecraftAccountsResult.reason,
+          '마인크래프트 계정을 불러오지 못했습니다.',
+        ));
+      }
     } catch (loadError) {
       setError(getErrorMessage(loadError, '친구 정보를 불러오지 못했습니다.'));
     } finally {
       setLoading(false);
+      setMinecraftAccountsLoading(false);
+    }
+  }, [friendId, friendRepository]);
+
+  const reloadMinecraftAccounts = React.useCallback(async () => {
+    try {
+      setMinecraftAccountsLoading(true);
+      setMinecraftAccountsError(undefined);
+      setMinecraftAccounts(await friendRepository.getFriendMinecraftAccounts(friendId));
+    } catch (loadError) {
+      setMinecraftAccountsError(getErrorMessage(loadError, '마인크래프트 계정을 불러오지 못했습니다.'));
+    } finally {
+      setMinecraftAccountsLoading(false);
     }
   }, [friendId, friendRepository]);
 
@@ -93,8 +131,12 @@ export const useFriendDetailData = (friendId: string) => {
     error,
     friend,
     loading,
+    minecraftAccounts,
+    minecraftAccountsError,
+    minecraftAccountsLoading,
     mutating,
     reload,
+    reloadMinecraftAccounts,
     removeFriend,
     updateFavorite,
   };
