@@ -1,6 +1,6 @@
 import React from 'react';
 import {Alert} from 'react-native';
-import {fireEvent, render, waitFor} from '@testing-library/react-native';
+import {act, fireEvent, render, waitFor} from '@testing-library/react-native';
 
 import {useNavigation, useRoute} from '@react-navigation/native';
 
@@ -100,6 +100,48 @@ describe('FriendDetailScreen', () => {
     expect(mockedInvalidateData).toHaveBeenCalledTimes(2);
     expect(mockedInvalidateData).toHaveBeenNthCalledWith(1, FRIEND_HUB_INVALIDATION_KEY);
     expect(mockedInvalidateData).toHaveBeenNthCalledWith(2, FRIEND_HUB_INVALIDATION_KEY);
+  });
+
+  it('화면을 떠난 뒤 친구 끊기와 차단이 실패해도 오류를 표시하지 않는다', async () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(false)};
+    const removeFriend = jest.fn().mockRejectedValue(new Error('network unavailable'));
+    const blockFriend = jest.fn().mockRejectedValue(new Error('network unavailable'));
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseRoute.mockReturnValue({params: {friendId: 'friend-1'}} as ReturnType<typeof useRoute>);
+    mockedUseFriendDetailData.mockReturnValue({
+      blockFriend,
+      error: undefined,
+      friend: {
+        department: null,
+        favorite: false,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      },
+      loading: false,
+      mutating: false,
+      reload: jest.fn(),
+      removeFriend,
+      updateFavorite: jest.fn(),
+    } as ReturnType<typeof useFriendDetailData>);
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((...args) => {
+      const action = args[2]?.find(button => button.text !== '취소');
+      action?.onPress?.();
+    });
+
+    const view = render(<FriendDetailScreen />);
+
+    fireEvent.press(view.getByText('친구 끊기'));
+    fireEvent.press(view.getByText('차단하기'));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(removeFriend).toHaveBeenCalled();
+    expect(blockFriend).toHaveBeenCalled();
+    expect(alertSpy).toHaveBeenCalledTimes(2);
+    expect(navigation.goBack).not.toHaveBeenCalled();
   });
 
   it('친구 관리 요청이 진행 중이면 모든 친구 관리 액션을 비활성화한다', () => {
