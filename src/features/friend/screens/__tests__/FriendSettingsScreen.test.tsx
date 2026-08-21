@@ -1,5 +1,6 @@
 import React from 'react';
-import {render} from '@testing-library/react-native';
+import {Alert} from 'react-native';
+import {act, fireEvent, render} from '@testing-library/react-native';
 
 import {useNavigation} from '@react-navigation/native';
 
@@ -67,5 +68,49 @@ describe('FriendSettingsScreen', () => {
     expect(view.getByText('식별 코드 · ABC123')).toBeTruthy();
     expect(view.getByText('식별 코드 · DEF456')).toBeTruthy();
     expect(view.queryByText('식별 코드 · GHI789')).toBeNull();
+  });
+
+  it('화면을 떠난 뒤 차단 해제가 실패해도 오류를 표시하지 않는다', async () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(false)};
+    const unblockMember = jest.fn().mockRejectedValue(new Error('network unavailable'));
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseFriendSettingsData.mockReturnValue({
+      blocks: [
+        {
+          blockedAt: '2026-08-18T11:00:00',
+          department: null,
+          id: 'friend-1',
+          nickname: '가람',
+          photoUrl: null,
+        },
+      ],
+      blocksError: undefined,
+      hasLoadedBlocks: true,
+      loadingBlocks: false,
+      loadingPrivacy: false,
+      privacy: undefined,
+      privacyError: undefined,
+      reload: jest.fn(),
+      reloadBlocks: jest.fn(),
+      reloadPrivacy: jest.fn(),
+      savingPrivacy: false,
+      unblockMember,
+      unblockingIds: new Set(),
+      updateNicknameSearchable: jest.fn(),
+    } as ReturnType<typeof useFriendSettingsData>);
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((...args) => {
+      const action = args[2]?.find(button => button.text === '차단 해제');
+      action?.onPress?.();
+    });
+
+    const view = render(<FriendSettingsScreen />);
+    fireEvent.press(view.getByText('차단 해제'));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(unblockMember).toHaveBeenCalledWith('friend-1');
+    expect(alertSpy).toHaveBeenCalledTimes(1);
   });
 });
