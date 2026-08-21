@@ -27,6 +27,7 @@ export const FriendRow = ({
       accessibilityLabel={`${friend.nickname} 친구 상세 보기`}
       accessibilityRole="button"
       activeOpacity={0.82}
+      disabled={disabled}
       onPress={onPress}
       style={styles.main}>
       <FriendAvatar photoUrl={friend.photoUrl} />
