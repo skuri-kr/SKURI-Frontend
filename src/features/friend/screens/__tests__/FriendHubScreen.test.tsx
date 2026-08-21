@@ -23,7 +23,11 @@ jest.mock('@/app/data-freshness/dataInvalidation', () => ({
 }));
 
 jest.mock('@/shared/design-system/components', () => ({
-  SegmentedControl: () => null,
+  SegmentedControl: ({items}: {items: Array<{label: string}>}) => {
+    const {createElement} = require('react');
+    const {Text} = require('react-native');
+    return createElement(Text, undefined, items.map(item => item.label).join(' '));
+  },
   StackHeader: () => null,
   StateCard: ({title}: {title: string}) => {
     const {createElement} = require('react');
@@ -105,6 +109,33 @@ describe('FriendHubScreen', () => {
 
     expect(view.getByText('친구 목록을 불러오지 못했습니다')).toBeTruthy();
     expect(view.queryByText('친구를 불러오는 중')).toBeNull();
+  });
+
+  it('정확한 요청 수를 알 수 없고 다음 페이지가 있으면 하한으로 표시한다', () => {
+    const receivedRequests = Array.from({length: 20}, (_, index) => ({
+      createdAt: '2026-08-18T11:00:00',
+      department: null,
+      expiresAt: '2026-09-17T11:00:00',
+      friend: {
+        department: null,
+        id: `friend-${index + 1}`,
+        nickname: `친구${index + 1}`,
+        photoUrl: null,
+      },
+      id: `request-${index + 1}`,
+    }));
+    mockedUseFriendHubData.mockReturnValue(
+      createFriendHubData({
+        hasLoadedReceivedRequests: true,
+        incomingRequestCount: undefined,
+        receivedNextCursor: 'received-cursor',
+        receivedRequests,
+      }),
+    );
+
+    const view = render(<FriendHubScreen />);
+
+    expect(view.getByText('친구 0 요청 20+')).toBeTruthy();
   });
 
   it('화면을 떠난 뒤 즐겨찾기 저장이 실패해도 오류를 표시하지 않는다', async () => {

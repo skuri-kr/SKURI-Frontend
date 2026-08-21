@@ -285,6 +285,42 @@ describe('useFriendHubData', () => {
     expect(result.current.incomingRequestCount).toBe(31);
   });
 
+  it('초기 요청 수 조회 실패 시 첫 페이지 길이를 전체 요청 수로 저장하지 않는다', async () => {
+    const repository = createRepository();
+    const receivedRequests = Array.from({length: 20}, (_, index) => ({
+      createdAt: '2026-08-18T11:00:00',
+      department: null,
+      expiresAt: '2026-09-17T11:00:00',
+      friend: {
+        department: null,
+        id: `friend-${index + 1}`,
+        nickname: `친구${index + 1}`,
+        photoUrl: null,
+      },
+      id: `request-${index + 1}`,
+    }));
+    repository.getInboxCounts.mockRejectedValue(new Error('network unavailable'));
+    repository.getFriendRequests.mockImplementation(({direction}) =>
+      Promise.resolve({
+        hasNext: direction === 'RECEIVED',
+        items: direction === 'RECEIVED' ? receivedRequests : [],
+        nextCursor: direction === 'RECEIVED' ? 'received-cursor' : null,
+      }),
+    );
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await waitFor(() => {
+      expect(result.current.hasLoadedReceivedRequests).toBe(true);
+      expect(result.current.receivedNextCursor).toBe('received-cursor');
+    });
+
+    expect(result.current.incomingRequestCount).toBeUndefined();
+  });
+
   it('초기 조회에서 한 요청 방향이 실패해도 성공한 친구 목록을 유지한다', async () => {
     const repository = createRepository();
     repository.getFriends.mockResolvedValue([friend]);
