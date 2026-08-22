@@ -35,7 +35,7 @@ export const useFriendDetailData = (friendId: string) => {
     try {
       setLoading(true);
       setError(undefined);
-      void loadMinecraftAccounts();
+      loadMinecraftAccounts().catch(() => undefined);
       setFriend(await friendRepository.getFriend(friendId));
     } catch (loadError) {
       setError(getErrorMessage(loadError, '친구 정보를 불러오지 못했습니다.'));
