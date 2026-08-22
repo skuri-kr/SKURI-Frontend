@@ -10,7 +10,8 @@ import type {TimetableSupplementItemViewData} from '../model/timetableViewData';
 interface TimetableSupplementSectionProps {
   items: TimetableSupplementItemViewData[];
   kind: 'online' | 'saturday';
-  onPressItem: (courseId: string) => void;
+  onPressItem?: (courseId: string) => void;
+  readOnly?: boolean;
   selectedCourseId?: string;
   title: string;
 }
@@ -19,6 +20,7 @@ export const TimetableSupplementSection = ({
   items,
   kind,
   onPressItem,
+  readOnly = false,
   selectedCourseId,
   title,
 }: TimetableSupplementSectionProps) => {
@@ -40,17 +42,8 @@ export const TimetableSupplementSection = ({
         {items.map(item => {
           const tone = TIMETABLE_COURSE_TONES[item.toneId];
           const selected = item.courseId === selectedCourseId;
-
-          return (
-            <TouchableOpacity
-              key={item.id}
-              accessibilityRole="button"
-              activeOpacity={0.88}
-              onPress={() => onPressItem(item.courseId)}
-              style={[
-                styles.card,
-                selected ? {backgroundColor: tone.softBackground} : null,
-              ]}>
+          const isInteractive = !readOnly && Boolean(onPressItem);
+          const content = <>
               <View style={[styles.accentBar, {backgroundColor: tone.accent}]} />
 
               <View style={styles.copy}>
@@ -69,8 +62,36 @@ export const TimetableSupplementSection = ({
                 </Text>
               </View>
 
-              <Icon color={COLORS.border.default} name="chevron-forward" size={18} />
+              {isInteractive ? (
+                <Icon
+                  color={COLORS.border.default}
+                  name="chevron-forward"
+                  size={18}
+                />
+              ) : null}
+            </>;
+
+          return isInteractive ? (
+            <TouchableOpacity
+              key={item.id}
+              accessibilityRole="button"
+              activeOpacity={0.88}
+              onPress={() => onPressItem?.(item.courseId)}
+              style={[
+                styles.card,
+                selected ? {backgroundColor: tone.softBackground} : null,
+              ]}>
+              {content}
             </TouchableOpacity>
+          ) : (
+            <View
+              key={item.id}
+              style={[
+                styles.card,
+                selected ? {backgroundColor: tone.softBackground} : null,
+              ]}>
+              {content}
+            </View>
           );
         })}
       </View>

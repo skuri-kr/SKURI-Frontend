@@ -5,6 +5,7 @@ import {act, fireEvent, render} from '@testing-library/react-native';
 import {useNavigation} from '@react-navigation/native';
 
 import {useFriendSettingsData} from '../../hooks/useFriendSettingsData';
+import {useTimetableSharingSettingsData} from '../../hooks/useTimetableSharingSettingsData';
 import {FriendSettingsScreen} from '../FriendSettingsScreen';
 
 jest.mock('@react-navigation/native', () => ({
@@ -31,13 +32,43 @@ jest.mock('../../components/FriendAvatar', () => ({FriendAvatar: () => null}));
 jest.mock('../../hooks/useFriendSettingsData', () => ({
   useFriendSettingsData: jest.fn(),
 }));
+jest.mock('../../hooks/useTimetableSharingSettingsData', () => ({
+  useTimetableSharingSettingsData: jest.fn(),
+}));
+jest.mock('@/features/timetable/components/TimetableSharingScopeSheet', () => ({
+  TimetableSharingScopeSheet: () => null,
+}));
 
 const mockedUseNavigation = jest.mocked(useNavigation);
 const mockedUseFriendSettingsData = jest.mocked(useFriendSettingsData);
+const mockedUseTimetableSharingSettingsData = jest.mocked(
+  useTimetableSharingSettingsData,
+);
+
+const createTimetableSharingSettingsData = () => ({
+  friends: [],
+  friendsError: undefined,
+  getFriendScope: jest.fn(),
+  loading: false,
+  loadingFriends: false,
+  loadingSettings: false,
+  reload: jest.fn(),
+  saving: false,
+  settings: {
+    defaultScope: 'PRIVATE' as const,
+    overrides: [],
+  },
+  settingsError: undefined,
+  updateDefaultScope: jest.fn(),
+  updateFriendScope: jest.fn(),
+}) as ReturnType<typeof useTimetableSharingSettingsData>;
 
 describe('FriendSettingsScreen', () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    mockedUseTimetableSharingSettingsData.mockReturnValue(
+      createTimetableSharingSettingsData(),
+    );
   });
 
   it('동일 프로필 차단 대상에만 공개 식별 코드 일부를 표시한다', () => {

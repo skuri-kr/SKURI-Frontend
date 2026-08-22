@@ -1,3 +1,4 @@
+import type {TimetableCourseRecord} from './timetableDomain';
 import type {
   TimetableCourseToneId,
   TimetableWeekdayId,
@@ -191,7 +192,9 @@ export interface TimetableDetailScreenViewData {
   activeMode: TimetableDetailViewMode;
   addCourseSheet: TimetableAddCourseSheetViewData;
   allView: TimetableAllViewData;
+  courses: TimetableCourseRecord[];
   selectedCourse?: TimetableCourseDetailViewData;
+  semesterId: string;
   semesterLabel: string;
   semesterOptions: TimetableSemesterOptionViewData[];
   totalCreditsLabel: string;

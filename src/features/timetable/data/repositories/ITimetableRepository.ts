@@ -4,6 +4,9 @@ import type {
   TimetableCourseFilterOptions,
   TimetableManualCourseDraft,
   TimetableSemesterRecord,
+  TimetableShareScope,
+  TimetableSharingSettings,
+  FriendTimetable,
 } from '../../model/timetableDomain';
 import type {TimetableCourseToneId} from '../../model/timetablePrimitives';
 
@@ -35,4 +38,15 @@ export interface ITimetableRepository {
     semesterId: string;
     size: number;
   }): Promise<TimetableCatalogCourseSearchPage>;
+  deleteShareOverride(friendId: string): Promise<void>;
+  getFriendTimetable(params: {
+    friendId: string;
+    semesterId: string;
+  }): Promise<FriendTimetable>;
+  getMySharingSettings(): Promise<TimetableSharingSettings>;
+  updateMySharingSettings(scope: TimetableShareScope): Promise<TimetableSharingSettings>;
+  updateShareOverride(params: {
+    friendId: string;
+    scope: TimetableShareScope;
+  }): Promise<void>;
 }

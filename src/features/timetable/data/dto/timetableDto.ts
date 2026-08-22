@@ -93,3 +93,48 @@ export interface CreateMyManualTimetableCourseRequestDto {
   startPeriod?: number | null;
   endPeriod?: number | null;
 }
+
+export type TimetableShareScopeDto = 'PRIVATE' | 'BUSY_ONLY' | 'DETAILS';
+
+export interface TimetableSharingSettingsDto {
+  defaultScope: TimetableShareScopeDto;
+  overrides: TimetableShareOverrideDto[];
+}
+
+export interface TimetableShareOverrideDto {
+  friendPublicId: string;
+  scope: TimetableShareScopeDto;
+}
+
+export interface UpdateTimetableSharingSettingsRequestDto {
+  defaultScope: TimetableShareScopeDto;
+}
+
+export interface UpdateTimetableShareOverrideRequestDto {
+  scope: TimetableShareScopeDto;
+}
+
+export interface FriendTimetableSlotDto {
+  dayOfWeek: number;
+  startPeriod: number;
+  endPeriod: number;
+}
+
+export interface FriendTimetableCourseDto {
+  courseId: string | null;
+  code: string;
+  name: string;
+  professor: string | null;
+  location: string | null;
+  credits: number;
+  isOnline: boolean;
+  schedule: FriendTimetableSlotDto[];
+}
+
+export interface FriendTimetableDto {
+  semester: string;
+  effectiveScope: TimetableShareScopeDto;
+  hasTimetable: boolean;
+  courses: FriendTimetableCourseDto[];
+  slots: FriendTimetableSlotDto[];
+}

@@ -35,6 +35,43 @@ export interface TimetableSemesterRecord {
   courses: TimetableCourseRecord[];
 }
 
+export type TimetableShareScope = 'PRIVATE' | 'BUSY_ONLY' | 'DETAILS';
+
+export interface TimetableShareOverride {
+  friendId: string;
+  scope: TimetableShareScope;
+}
+
+export interface TimetableSharingSettings {
+  defaultScope: TimetableShareScope;
+  overrides: TimetableShareOverride[];
+}
+
+export interface FriendTimetableSlot {
+  dayOfWeek: number;
+  startPeriod: number;
+  endPeriod: number;
+}
+
+export interface FriendTimetableCourse {
+  code: string;
+  courseId: string | null;
+  credits: number;
+  isOnline: boolean;
+  location: string | null;
+  name: string;
+  professor: string | null;
+  schedule: FriendTimetableSlot[];
+}
+
+export interface FriendTimetable {
+  courses: FriendTimetableCourse[];
+  effectiveScope: TimetableShareScope;
+  hasTimetable: boolean;
+  semester: string;
+  slots: FriendTimetableSlot[];
+}
+
 export interface TimetableCatalogCourseSearchPage {
   hasNext: boolean;
   items: TimetableCatalogCourseRecord[];

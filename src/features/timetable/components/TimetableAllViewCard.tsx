@@ -15,8 +15,9 @@ interface TimetableAllViewCardProps {
   blocks: TimetableGridBlockViewData[];
   collapsed: boolean;
   columns: TimetableDayColumnViewData[];
+  containerWidth?: number;
   hasNightClasses: boolean;
-  onPressBlock: (courseId: string) => void;
+  onPressBlock?: (courseId: string) => void;
   onToggleNightClasses: () => void;
   periods: TimetablePeriodViewData[];
   toggleLabel: string;
@@ -35,6 +36,7 @@ export const TimetableAllViewCard = ({
   blocks,
   collapsed,
   columns,
+  containerWidth,
   hasNightClasses,
   onPressBlock,
   onToggleNightClasses,
@@ -42,7 +44,10 @@ export const TimetableAllViewCard = ({
   toggleLabel,
 }: TimetableAllViewCardProps) => {
   const {width} = useWindowDimensions();
-  const cardWidth = width - CARD_HORIZONTAL_MARGIN * 2;
+  const cardWidth = Math.max(
+    0,
+    (containerWidth ?? width) - CARD_HORIZONTAL_MARGIN * 2,
+  );
   const columnWidth = cardWidth / (columns.length + 1);
   const cardHeight = HEADER_HEIGHT + periods.length * ROW_HEIGHT;
 
@@ -117,31 +122,26 @@ export const TimetableAllViewCard = ({
             return null;
           }
 
-          return (
-            <TouchableOpacity
-              key={block.id}
-              accessibilityRole="button"
-              activeOpacity={0.9}
-              onPress={() => onPressBlock(block.courseId)}
-              style={[
-                styles.block,
-                {
-                  height: rowSpan * ROW_HEIGHT - BLOCK_INSET_Y * 2,
-                  left:
-                    columnWidth +
-                    dayIndex * columnWidth +
-                    GRID_LINE_WIDTH +
-                    BLOCK_INSET_X,
-                  top:
-                    HEADER_HEIGHT +
-                    (block.startPeriod - 1) * ROW_HEIGHT +
-                    BLOCK_INSET_Y,
-                  width:
-                    columnWidth -
-                    GRID_LINE_WIDTH -
-                    BLOCK_INSET_X * 2,
-                },
-              ]}>
+          const blockStyle = [
+            styles.block,
+            {
+              height: rowSpan * ROW_HEIGHT - BLOCK_INSET_Y * 2,
+              left:
+                columnWidth +
+                dayIndex * columnWidth +
+                GRID_LINE_WIDTH +
+                BLOCK_INSET_X,
+              top:
+                HEADER_HEIGHT +
+                (block.startPeriod - 1) * ROW_HEIGHT +
+                BLOCK_INSET_Y,
+              width:
+                columnWidth -
+                GRID_LINE_WIDTH -
+                BLOCK_INSET_X * 2,
+            },
+          ];
+          const blockContent = <>
               <View style={styles.blockBase} />
               <View
                 style={[
@@ -159,7 +159,21 @@ export const TimetableAllViewCard = ({
                   {block.roomLabel}
                 </Text>
               ) : null}
+            </>;
+
+          return onPressBlock ? (
+            <TouchableOpacity
+              key={block.id}
+              accessibilityRole="button"
+              activeOpacity={0.9}
+              onPress={() => onPressBlock(block.courseId)}
+              style={blockStyle}>
+              {blockContent}
             </TouchableOpacity>
+          ) : (
+            <View key={block.id} style={blockStyle}>
+              {blockContent}
+            </View>
           );
         })}
       </View>

@@ -6,6 +6,7 @@ export interface FriendSummary {
   nickname: string;
   photoUrl: string | null;
   primaryMinecraftGameName?: string | null;
+  effectiveTimetableScope?: 'PRIVATE' | 'BUSY_ONLY' | 'DETAILS';
 }
 
 export type FriendMinecraftEdition = 'JAVA' | 'BEDROCK';

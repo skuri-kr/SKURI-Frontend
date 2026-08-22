@@ -170,11 +170,12 @@ export const FriendDetailScreen = () => {
             ) : null}
           </View>
           <SettingsSection style={styles.section} title="친구 관리">
+            <SettingsRow accessoryType="chevron" iconBackgroundColor={COLORS.brand.primaryTint} iconColor={COLORS.brand.primaryStrong} iconName="calendar-outline" onPress={() => navigation.navigate('TimetableDetail', {initialView: 'all', targetFriendPublicId: friend.id})} showDivider title="친구 시간표 보기" />
             <SettingsRow accessoryType="chevron" disabled={mutating} iconBackgroundColor={COLORS.accent.yellowSoft} iconColor={COLORS.accent.yellowStrong} iconName="star-outline" onPress={handleFavorite} showDivider title={friend.favorite ? '즐겨찾기 해제' : '즐겨찾기에 추가'} />
             <SettingsRow accessoryType="chevron" disabled={mutating} iconBackgroundColor={COLORS.accent.orangeSoft} iconColor={COLORS.accent.orange} iconName="person-remove-outline" onPress={handleRemove} showDivider title="친구 끊기" />
             <SettingsRow accessoryType="chevron" disabled={mutating} iconBackgroundColor={COLORS.accent.pinkSoft} iconColor={COLORS.status.danger} iconName="ban-outline" onPress={handleBlock} title="차단하기" />
           </SettingsSection>
-          <Text style={styles.note}>시간표 공유, 택시파티 및 채팅방 초대 기능은 후속 업데이트에서 제공될 예정이에요.</Text>
+          <Text style={styles.note}>택시파티 및 채팅방 초대 기능은 후속 업데이트에서 제공될 예정이에요.</Text>
         </> : null}
       </ScrollView>
     </SafeAreaView>
