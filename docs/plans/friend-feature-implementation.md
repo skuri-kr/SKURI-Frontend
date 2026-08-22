@@ -36,7 +36,7 @@ PR #23 병합 후 실제 기기·시뮬레이터 수동 QA에서 발견된 가�
 1. 친구 초대: 택시파티와 공개 채팅방 초대
 2. 알림·탈퇴 정리: 친구·초대 알림, badge·이동, 최종 cleanup
 
-시간표 공유는 [Backend #84](https://github.com/skuri-kr/SKURI-Backend/pull/84)와 [Frontend #26](https://github.com/skuri-kr/SKURI-Frontend/pull/26)에서 구현·테스트·문서 정합성 점검까지 완료했으며, 병합과 실제 기기 QA는 아직 완료로 표시하지 않는다.
+시간표 공유는 [Backend #84](https://github.com/skuri-kr/SKURI-Backend/pull/84)와 [Frontend #26](https://github.com/skuri-kr/SKURI-Frontend/pull/26)에서 구현·테스트·문서 정합성 점검까지 완료했으며, 리뷰 보완 반영·재검토, 병합과 실제 기기 QA는 아직 완료로 표시하지 않는다.
 
 각 단계는 저장소당 최대 1개 PR로 진행한다. 런타임, 테스트, 문서는 같은 PR에 포함하되 리뷰 가능한 작은 Conventional Commit으로 나눈다. 예상보다 범위가 커져 PR을 나눠야 하면 임의로 분리하지 않고 먼저 사용자 승인을 받는다.
 
@@ -52,7 +52,8 @@ PR #23 병합 후 실제 기기·시뮬레이터 수동 QA에서 발견된 가�
 
 - Backend 친구 목록의 `effectiveTimetableScope`와 친구 시간표 응답의 `effectiveScope`를 모두 **친구가 현재 사용자에게 공개한 범위**로 통일했다.
 - 모바일 DTO·mapper·repository와 `GET /v1/timetables/friends/{friendPublicId}?semester=...`, 공유 설정·예외 API를 대조했고 요청·응답 필드와 세 범위 정책의 충돌은 없었다.
-- focused 자동 테스트·타입 검사·변경 파일 lint는 통과했다. 실제 기기/시뮬레이터 QA, Backend 전체 build의 기존 무관 실패 해소, PR 병합은 아직 남은 gate다.
+- 친구 목록·공유 설정은 독립적으로 실패·재시도하며, pull-to-refresh는 열린 친구 시간표 cache까지 강제 갱신한다. 별 변경은 대상별 진행 중 상태로 중복 탭을 막고, 친구 accordion 안의 시간표는 실제 container 폭을 기준으로 그린다.
+- Backend `clean build`, 모바일 focused 자동 테스트·타입 검사·변경 파일 lint는 통과했다. 실제 기기/시뮬레이터 QA, PR 재검토·병합은 아직 남은 gate다.
 
 ---
 
@@ -98,6 +99,7 @@ PR #23에서 의도적으로 제외:
 1단계 모바일 PR #24는 PR #23 수동 QA 결과와 회원 정책 변경을 한 번에 반영했다.
 
 - 회원가입·프로필 저장 시 `ACTIVE` 회원 간 닉네임 중복과 `스쿠리 유저`, `운영자` 포함 닉네임을 서버 오류에 맞춰 안내하고 현재 화면에 머문다.
+- 가입 완료는 `ACTIVE`이고 nickname·studentId·department가 모두 null도 공백도 아닌 경우로만 판단한다. 예약어는 새 nickname 입력 검증에만 사용하며, 기존 예약어 nickname 회원의 친구 기능 이용을 막는 기준은 아니다.
 - FriendAdd 닉네임 검색은 1글자부터 검색 버튼을 눌렀을 때만 실행하며, blur·키보드 내림으로 자동 검색하지 않는다.
 - 검색·코드 preview는 서버의 관계 상태 enum을 사용해 `요청`, `수락`, `요청 보냄`, `이미 친구`를 구분한다.
 - 명시적 재조회는 이전 로컬 요청 상태보다 서버 최신 상태를 우선해, 상대가 거절한 뒤 즉시 다시 요청할 수 있게 한다.
@@ -470,6 +472,7 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 - 펼칠 때 화면 상단 학기 선택기의 `selectedSemester`를 필수 query parameter로 전달해 해당 친구의 같은 학기 시간표를 지연 조회한다.
 - query key는 `friendPublicId + selectedSemester`로 구성하고, 학기 변경 시 열린 친구를 같은 학기로 재조회한다.
 - 이미 조회한 데이터는 query cache를 사용하되 pull-to-refresh 시 갱신한다.
+- 친구 목록 재조회가 실패했을 때는 초기 target friend를 부재로 확정하지 않고, 성공한 목록 응답에서만 unavailable 처리를 한다.
 - 친구가 선택 학기에 시간표가 없으면 현재 학기 데이터로 대체하지 않고 `이 학기에 등록된 시간표가 없어요` 빈 상태를 표시한다.
 - 펼친 친구가 친구 해제·차단되면 즉시 닫고 목록에서 제거한다.
 - 전체 주간 시간표를 읽기 전용으로 표시하며 오늘·전체 toggle을 내부에 중복 제공하지 않는다.
@@ -491,6 +494,8 @@ BUSY_ONLY:
 DETAILS:
 
 - 과목명과 허용 상세를 표시한다.
+- 시간이 없는 온라인 수업은 주간 grid와 공통 공강 계산에서는 제외하되, 읽기 전용 `온라인 수업` 목록으로 표시한다.
+- 공식 강의에 등록된 교수 정보가 없으면 `professor`는 null로 유지하며 직접 입력 수업처럼 임의 문구로 대체하지 않는다.
 - 같은 courseId의 공식 강의를 같이 듣는 수업으로 표시한다.
 - 직접 입력 수업은 같은 이름이어도 같이 듣는 수업으로 판단하지 않는다.
 
@@ -518,6 +523,9 @@ DETAILS:
 ## 8. 시간표 공유 설정
 
 FriendSettings에서 다음을 제공한다. FriendHub 헤더 설정 아이콘과 시간표 친구 section 제목 우측의 `공유 설정`이 같은 화면으로 이동한다.
+
+- 기본 공개 범위와 친구 목록은 서로 독립적으로 조회한다. 친구 목록 조회가 실패해도 기본 공개 범위의 조회·변경은 계속 제공한다.
+- 각 친구 row에는 override 유무뿐 아니라 현재 실제 적용 범위와 `기본값 적용` 또는 `개별 설정`을 함께 표시한다.
 
 ### 8.1 닉네임 검색 허용
 
@@ -963,6 +971,7 @@ Core 출시 준비와 친구 화면 완성은 #24·#25에서 병합됐고, 시�
 - [x] 프로필 완료 회원만 FriendProfile·코드를 갖고 미완료 회원 데이터는 출시 전 정리하는 gate가 반영되어 있다.
 - [x] 검색 기본 true·1글자·검색 버튼 실행과 관계 상태별 행동이 반영되어 있다.
 - [x] ACTIVE 닉네임 중복·예약어 정책과 기존 중복 유지가 반영되어 있다.
+- [x] 가입 완료와 nickname 예약어 입력 검증의 책임을 분리했고, 기존 예약어 nickname 회원을 일괄 제외하지 않는다.
 - [x] 친구 요청 거절 알림이 5단계 후속 범위로 보존되어 있다.
 - [x] 백엔드 기준 문서와 V1 정책이 일치한다.
 - [x] URL 딥링크와 1:1·비공개 채팅이 V1에서 제외되어 있다.
@@ -1023,3 +1032,5 @@ Core 출시 준비와 친구 화면 완성은 #24·#25에서 병합됐고, 시�
 | 2026-08-21 | FRIEND_DECLINED 알림은 5단계에서 원 요청자에게 제공하고 요청 탭으로 이동 |
 | 2026-08-22 | Core 출시 준비(#81·#24)와 친구 화면 완성(#83·#25)을 완료 이력으로 고정하고 다음 구현 단위를 시간표 공유로 전환 |
 | 2026-08-22 | 시간표 공유 Backend·Frontend 구현은 각각 한 PR 범위에서 완료하고, 문서 정합성 점검 후 PR 검토·실기기 QA를 남은 gate로 분리 |
+| 2026-08-22 | 가입 완료는 ACTIVE·nickname·studentId·department의 null/공백 여부만으로 판단하고, 예약어는 신규 nickname 입력 검증에만 사용 |
+| 2026-08-22 | 시간표 공유 리뷰 보완: 독립 오류 상태, 열린 친구 cache pull-to-refresh, 별 변경 중복 방지, accordion container 폭, DETAILS 온라인 수업 목록과 nullable 교수 계약을 확정 |
