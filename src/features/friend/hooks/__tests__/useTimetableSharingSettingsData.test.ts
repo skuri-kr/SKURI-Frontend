@@ -58,4 +58,79 @@ describe('useTimetableSharingSettingsData', () => {
     });
     expect(result.current.getFriendScope('friend-1')).toBe('DETAILS');
   });
+
+  it('친구 목록 실패와 기본 공개 범위 실패를 독립적으로 표시한다', async () => {
+    mockedUseFriendRepository.mockReturnValue({
+      getFriends: jest.fn().mockRejectedValue(new Error('friends offline')),
+    } as unknown as ReturnType<typeof useFriendRepository>);
+    mockedUseTimetableRepository.mockReturnValue({
+      getMySharingSettings: jest.fn().mockResolvedValue({
+        defaultScope: 'PRIVATE',
+        overrides: [],
+      }),
+    } as unknown as ReturnType<typeof useTimetableRepository>);
+
+    const {result} = renderHook(() => useTimetableSharingSettingsData());
+
+    await waitFor(() => {
+      expect(result.current.settings?.defaultScope).toBe('PRIVATE');
+      expect(result.current.friendsError).toBe('friends offline');
+    });
+
+    expect(result.current.settingsError).toBeUndefined();
+  });
+
+  it('겹친 새로고침에서는 가장 최신 응답만 반영한다', async () => {
+    let resolveOlderSettings: ((value: {
+      defaultScope: 'PRIVATE';
+      overrides: [];
+    }) => void) | undefined;
+    let resolveLatestSettings: ((value: {
+      defaultScope: 'DETAILS';
+      overrides: [];
+    }) => void) | undefined;
+    const getMySharingSettings = jest
+      .fn()
+      .mockResolvedValueOnce({defaultScope: 'BUSY_ONLY', overrides: []})
+      .mockImplementationOnce(
+        () => new Promise(resolve => {
+          resolveOlderSettings = resolve;
+        }),
+      )
+      .mockImplementationOnce(
+        () => new Promise(resolve => {
+          resolveLatestSettings = resolve;
+        }),
+      );
+    mockedUseFriendRepository.mockReturnValue({
+      getFriends: jest.fn().mockResolvedValue([]),
+    } as unknown as ReturnType<typeof useFriendRepository>);
+    mockedUseTimetableRepository.mockReturnValue({
+      getMySharingSettings,
+    } as unknown as ReturnType<typeof useTimetableRepository>);
+
+    const {result} = renderHook(() => useTimetableSharingSettingsData());
+    await waitFor(() => {
+      expect(result.current.settings?.defaultScope).toBe('BUSY_ONLY');
+    });
+
+    let olderReload: Promise<void>;
+    let latestReload: Promise<void>;
+    act(() => {
+      olderReload = result.current.reload();
+      latestReload = result.current.reload();
+    });
+
+    await act(async () => {
+      resolveLatestSettings?.({defaultScope: 'DETAILS', overrides: []});
+      await latestReload;
+    });
+    expect(result.current.settings?.defaultScope).toBe('DETAILS');
+
+    await act(async () => {
+      resolveOlderSettings?.({defaultScope: 'PRIVATE', overrides: []});
+      await olderReload;
+    });
+    expect(result.current.settings?.defaultScope).toBe('DETAILS');
+  });
 });

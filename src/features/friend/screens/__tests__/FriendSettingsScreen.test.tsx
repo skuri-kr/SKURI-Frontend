@@ -46,16 +46,19 @@ const mockedUseTimetableSharingSettingsData = jest.mocked(
 );
 
 const createTimetableSharingSettingsData = () => ({
-  error: undefined,
   friends: [],
+  friendsError: undefined,
   getFriendScope: jest.fn(),
   loading: false,
+  loadingFriends: false,
+  loadingSettings: false,
   reload: jest.fn(),
   saving: false,
   settings: {
     defaultScope: 'PRIVATE' as const,
     overrides: [],
   },
+  settingsError: undefined,
   updateDefaultScope: jest.fn(),
   updateFriendScope: jest.fn(),
 }) as ReturnType<typeof useTimetableSharingSettingsData>;
