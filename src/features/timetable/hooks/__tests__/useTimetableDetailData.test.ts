@@ -27,12 +27,15 @@ const semesterRecord: TimetableSemesterRecord = {
 const createRepository = () => ({
   addCatalogCourse: jest.fn(),
   addManualCourse: jest.fn(),
+  deleteShareOverride: jest.fn(),
   getCourseFilterOptions: jest.fn().mockResolvedValue({
     categories: ['전공선택'],
     departments: ['컴퓨터공학과'],
     grades: [2],
   }),
   getSemesterRecord: jest.fn().mockResolvedValue(semesterRecord),
+  getFriendTimetable: jest.fn(),
+  getMySharingSettings: jest.fn(),
   listDepartments: jest.fn().mockResolvedValue(['정보통신공학과']),
   listSemesterRecords: jest.fn().mockResolvedValue([semesterRecord]),
   removeCourse: jest.fn(),
@@ -41,6 +44,8 @@ const createRepository = () => ({
     items: [],
     page: 0,
   }),
+  updateMySharingSettings: jest.fn(),
+  updateShareOverride: jest.fn(),
 });
 
 describe('useTimetableDetailData add course options', () => {

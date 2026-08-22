@@ -31,6 +31,7 @@ export const mapFriendSummaryDto = (
   dto: FriendSummaryResponseDto,
 ): FriendSummary => ({
   department: dto.department,
+  effectiveTimetableScope: dto.effectiveTimetableScope ?? 'PRIVATE',
   favorite: dto.favorite,
   id: dto.friendPublicId,
   minecraftAccountCount: dto.minecraftAccountCount ?? 0,

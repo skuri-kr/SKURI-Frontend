@@ -5,6 +5,7 @@ import type {
   TimetableCourseFilterOptions,
   TimetableManualCourseDraft,
   TimetableSemesterRecord,
+  TimetableShareScope,
 } from '../../model/timetableDomain';
 import {getDepartments} from '@/shared/api';
 import {getCurrentSemester} from '../../services/timetableCalendar';
@@ -12,6 +13,8 @@ import {getTimetableCourseToneMap} from '../../services/timetableToneStorage';
 import {
   buildTimetableSemesterRecord,
   mapCourseSummaryDtoToCatalogCourseRecord,
+  mapFriendTimetableDto,
+  mapTimetableSharingSettingsDto,
 } from '../mappers/timetableApiMapper';
 import {timetableApiClient, TimetableApiClient} from '../api/timetableApiClient';
 import type {UserTimetableDto} from '../dto/timetableDto';
@@ -208,5 +211,42 @@ export class SpringTimetableRepository implements ITimetableRepository {
       ),
       page: response.data.page,
     };
+  }
+
+  async getMySharingSettings() {
+    const response = await this.apiClient.getMySharingSettings();
+    return mapTimetableSharingSettingsDto(response.data);
+  }
+
+  async updateMySharingSettings(scope: TimetableShareScope) {
+    const response = await this.apiClient.updateMySharingSettings({
+      defaultScope: scope,
+    });
+    return mapTimetableSharingSettingsDto(response.data);
+  }
+
+  async updateShareOverride({
+    friendId,
+    scope,
+  }: {
+    friendId: string;
+    scope: TimetableShareScope;
+  }) {
+    await this.apiClient.updateShareOverride(friendId, {scope});
+  }
+
+  async deleteShareOverride(friendId: string) {
+    await this.apiClient.deleteShareOverride(friendId);
+  }
+
+  async getFriendTimetable({
+    friendId,
+    semesterId,
+  }: {
+    friendId: string;
+    semesterId: string;
+  }) {
+    const response = await this.apiClient.getFriendTimetable(friendId, semesterId);
+    return mapFriendTimetableDto(response.data);
   }
 }

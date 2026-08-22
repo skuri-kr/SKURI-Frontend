@@ -1,6 +1,8 @@
 import type {
   CourseScheduleDto,
   CourseSummaryDto,
+  FriendTimetableDto,
+  TimetableSharingSettingsDto,
   TimetableCourseDto,
   UserTimetableDto,
 } from '../dto/timetableDto';
@@ -157,4 +159,25 @@ export const buildTimetableSemesterRecord = ({
   ),
   id: semesterId,
   label: semesterLabel ?? `${semesterId}학기`,
+});
+
+export const mapTimetableSharingSettingsDto = (
+  dto: TimetableSharingSettingsDto,
+) => ({
+  defaultScope: dto.defaultScope,
+  overrides: dto.overrides.map(override => ({
+    friendId: override.friendPublicId,
+    scope: override.scope,
+  })),
+});
+
+export const mapFriendTimetableDto = (dto: FriendTimetableDto) => ({
+  courses: dto.courses.map(course => ({
+    ...course,
+    schedule: course.schedule.map(schedule => ({...schedule})),
+  })),
+  effectiveScope: dto.effectiveScope,
+  hasTimetable: dto.hasTimetable,
+  semester: dto.semester,
+  slots: dto.slots.map(slot => ({...slot})),
 });
