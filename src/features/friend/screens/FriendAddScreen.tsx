@@ -59,7 +59,7 @@ const parseFriendQrPayload = (payload: string) => {
     return undefined;
   }
 
-  const friendCode = formatCode(payload.slice(FRIEND_QR_PREFIX.length).trim());
+  const friendCode = payload.slice(FRIEND_QR_PREFIX.length);
   return /^SKR-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(friendCode)
     ? friendCode
     : undefined;
@@ -142,6 +142,9 @@ export const FriendAddScreen = () => {
           targetFormats: ['qr'],
         });
       } catch (scanError) {
+        if (!navigation.isFocused()) {
+          return;
+        }
         if (isCameraScanUnavailable(scanError)) {
           Alert.alert('QR 스캔을 사용할 수 없어요', '카메라 권한과 기기 설정을 확인한 뒤 다시 시도해주세요.', [
             {text: '취소', style: 'cancel'},
@@ -153,27 +156,32 @@ export const FriendAddScreen = () => {
         return;
       }
 
+      invalidateFriendCodePreview();
+      if (!navigation.isFocused()) {
+        return;
+      }
       const scannedFriendCode = parseFriendQrPayload(scanned.value);
       if (!scannedFriendCode) {
         Alert.alert('QR 코드 확인', '스쿠리 친구 QR 코드가 아니에요. 친구가 공유한 QR 코드를 다시 스캔해주세요.');
         return;
       }
 
-      invalidateFriendCodePreview();
       setFriendCode(scannedFriendCode);
       try {
         const result = await previewFriendCode(scannedFriendCode);
-        if (result) {
+        if (result && navigation.isFocused()) {
           friendCodeInputRef.current?.blur();
           Keyboard.dismiss();
         }
       } catch (previewError) {
-        Alert.alert('친구 코드 확인', getErrorMessage(previewError, '친구 코드를 확인하지 못했습니다.'));
+        if (navigation.isFocused()) {
+          Alert.alert('친구 코드 확인', getErrorMessage(previewError, '친구 코드를 확인하지 못했습니다.'));
+        }
       }
     } finally {
       setScanning(false);
     }
-  }, [invalidateFriendCodePreview, previewFriendCode, scanning]);
+  }, [invalidateFriendCodePreview, navigation, previewFriendCode, scanning]);
 
   const handleSearch = React.useCallback(async () => {
     try {

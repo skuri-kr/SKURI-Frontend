@@ -17,17 +17,29 @@ export const useFriendDetailData = (friendId: string) => {
   const [loading, setLoading] = React.useState(true);
   const [mutating, setMutating] = React.useState(false);
   const mutationInFlightRef = React.useRef(false);
+  const minecraftAccountsLoadVersionRef = React.useRef(0);
 
   const loadMinecraftAccounts = React.useCallback(async () => {
+    const requestVersion = minecraftAccountsLoadVersionRef.current + 1;
+    minecraftAccountsLoadVersionRef.current = requestVersion;
     try {
       setMinecraftAccountsLoading(true);
       setMinecraftAccountsError(undefined);
-      setMinecraftAccounts(await friendRepository.getFriendMinecraftAccounts(friendId));
+      const accounts = await friendRepository.getFriendMinecraftAccounts(friendId);
+      if (requestVersion !== minecraftAccountsLoadVersionRef.current) {
+        return;
+      }
+      setMinecraftAccounts(accounts);
     } catch (loadError) {
+      if (requestVersion !== minecraftAccountsLoadVersionRef.current) {
+        return;
+      }
       setMinecraftAccounts(undefined);
       setMinecraftAccountsError(getErrorMessage(loadError, '마인크래프트 계정을 불러오지 못했습니다.'));
     } finally {
-      setMinecraftAccountsLoading(false);
+      if (requestVersion === minecraftAccountsLoadVersionRef.current) {
+        setMinecraftAccountsLoading(false);
+      }
     }
   }, [friendId, friendRepository]);
 
