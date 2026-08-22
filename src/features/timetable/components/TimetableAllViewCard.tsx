@@ -15,6 +15,7 @@ interface TimetableAllViewCardProps {
   blocks: TimetableGridBlockViewData[];
   collapsed: boolean;
   columns: TimetableDayColumnViewData[];
+  containerWidth?: number;
   hasNightClasses: boolean;
   onPressBlock?: (courseId: string) => void;
   onToggleNightClasses: () => void;
@@ -35,6 +36,7 @@ export const TimetableAllViewCard = ({
   blocks,
   collapsed,
   columns,
+  containerWidth,
   hasNightClasses,
   onPressBlock,
   onToggleNightClasses,
@@ -42,7 +44,10 @@ export const TimetableAllViewCard = ({
   toggleLabel,
 }: TimetableAllViewCardProps) => {
   const {width} = useWindowDimensions();
-  const cardWidth = width - CARD_HORIZONTAL_MARGIN * 2;
+  const cardWidth = Math.max(
+    0,
+    (containerWidth ?? width) - CARD_HORIZONTAL_MARGIN * 2,
+  );
   const columnWidth = cardWidth / (columns.length + 1);
   const cardHeight = HEADER_HEIGHT + periods.length * ROW_HEIGHT;
 

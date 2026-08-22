@@ -60,7 +60,7 @@ export interface FriendTimetableCourse {
   isOnline: boolean;
   location: string | null;
   name: string;
-  professor: string;
+  professor: string | null;
   schedule: FriendTimetableSlot[];
 }
 

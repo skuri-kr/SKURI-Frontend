@@ -2,6 +2,7 @@ import React from 'react';
 import {
   AccessibilityInfo,
   Alert,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -31,7 +32,10 @@ import {TimetableAddCourseSheet} from '../components/TimetableAddCourseSheet';
 import {TimetableAllViewCard} from '../components/TimetableAllViewCard';
 import {TimetableCourseDetailSheet} from '../components/TimetableCourseDetailSheet';
 import {TimetableDetailHeader} from '../components/TimetableDetailHeader';
-import {FriendTimetableSection} from '../components/FriendTimetableSection';
+import {
+  FriendTimetableSection,
+  type FriendTimetableSectionHandle,
+} from '../components/FriendTimetableSection';
 import {TimetableSemesterSheet} from '../components/TimetableSemesterSheet';
 import {TimetableSupplementSection} from '../components/TimetableSupplementSection';
 import {TimetableTodayViewCard} from '../components/TimetableTodayViewCard';
@@ -59,7 +63,10 @@ export const TimetableDetailScreen = () => {
   const [friendSectionTop, setFriendSectionTop] = React.useState<number>();
   const autoOpenedEditRef = React.useRef(false);
   const autoOpenedFriendRef = React.useRef<string | undefined>(undefined);
+  const friendTimetableSectionRef =
+    React.useRef<FriendTimetableSectionHandle>(null);
   const scrollViewRef = React.useRef<ScrollView>(null);
+  const [refreshing, setRefreshing] = React.useState(false);
 
   const {
     activeMode,
@@ -136,6 +143,18 @@ export const TimetableDetailScreen = () => {
     Alert.alert('친구 시간표', '더 이상 친구 시간표를 볼 수 없어요.');
   }, [navigation]);
 
+  const handleRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        reload(),
+        friendTimetableSectionRef.current?.refresh() ?? Promise.resolve(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [reload]);
+
   const selectedCourseId = data?.selectedCourse?.courseId;
   const hasAnyCourse =
     Boolean(data?.allView.blocks.length) ||
@@ -194,6 +213,16 @@ export const TimetableDetailScreen = () => {
 
         <ScrollView
           contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              colors={[COLORS.brand.primary]}
+              onRefresh={() => {
+                handleRefresh().catch(() => undefined);
+              }}
+              refreshing={refreshing}
+              tintColor={COLORS.brand.primary}
+            />
+          }
           ref={scrollViewRef}
           showsVerticalScrollIndicator={false}>
           {loading && !data ? (
@@ -295,6 +324,7 @@ export const TimetableDetailScreen = () => {
                 onInitialFriendUnavailable={handleInitialFriendUnavailable}
                 onPressSettings={() => navigation.navigate('FriendSettings')}
                 ownCourses={data.courses}
+                ref={friendTimetableSectionRef}
                 semesterId={data.semesterId}
               />
             </View>
@@ -382,14 +412,16 @@ const styles = StyleSheet.create({
   toolbar: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     paddingBottom: 12,
     paddingHorizontal: 16,
+    rowGap: SPACING.xs,
   },
   modeGroup: {
     alignItems: 'center',
     flexDirection: 'row',
     flexShrink: 1,
+    minWidth: 0,
   },
   modeControl: {
   },
@@ -407,6 +439,7 @@ const styles = StyleSheet.create({
   creditContainer: {
     alignItems: 'center',
     flexDirection: 'row',
+    marginLeft: 'auto',
   },
   creditMuted: {
     color: COLORS.text.muted,

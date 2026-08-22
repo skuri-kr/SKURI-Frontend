@@ -124,7 +124,7 @@ export interface FriendTimetableCourseDto {
   courseId: string | null;
   code: string;
   name: string;
-  professor: string;
+  professor: string | null;
   location: string | null;
   credits: number;
   isOnline: boolean;

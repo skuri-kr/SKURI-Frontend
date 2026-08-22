@@ -174,6 +174,7 @@ export const mapTimetableSharingSettingsDto = (
 export const mapFriendTimetableDto = (dto: FriendTimetableDto) => ({
   courses: dto.courses.map(course => ({
     ...course,
+    professor: course.professor?.trim() || null,
     schedule: course.schedule.map(schedule => ({...schedule})),
   })),
   effectiveScope: dto.effectiveScope,

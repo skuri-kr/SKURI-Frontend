@@ -29,10 +29,12 @@ import type {
   TimetableDayColumnViewData,
   TimetableGridBlockViewData,
   TimetablePeriodViewData,
+  TimetableSupplementItemViewData,
 } from '../model/timetableViewData';
 import {getPeriodTimeInfo} from '../services/timetableCalendar';
 import {TimetableAllViewCard} from './TimetableAllViewCard';
 import {TimetableBottomSheet} from './TimetableBottomSheet';
+import {TimetableSupplementSection} from './TimetableSupplementSection';
 
 const DAY_BY_NUMBER: Record<number, TimetableWeekdayId> = {
   1: 'mon',
@@ -158,6 +160,24 @@ const getSaturdayItems = (timetable: FriendTimetable) => {
     }));
 };
 
+const getOnlineItems = (
+  timetable: FriendTimetable,
+): TimetableSupplementItemViewData[] =>
+  timetable.courses
+    .filter(course => course.isOnline && course.schedule.length === 0)
+    .map((course, index) => ({
+      courseId: course.courseId ?? `friend-online-${index}`,
+      id: `friend-online-${course.courseId ?? index}`,
+      metaLabel: [
+        course.professor ? `${course.professor} 교수님` : undefined,
+        `${course.credits}학점`,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      title: course.name,
+      toneId: getToneId(course.courseId ?? `${course.name}-${index}`),
+    }));
+
 const getCommonFreePeriods = (
   ownCourses: TimetableCourseRecord[],
   friendTimetable: FriendTimetable,
@@ -225,19 +245,27 @@ interface FriendTimetableSectionProps {
   semesterId?: string;
 }
 
-export const FriendTimetableSection = ({
+export interface FriendTimetableSectionHandle {
+  refresh: () => Promise<void>;
+}
+
+export const FriendTimetableSection = React.forwardRef<
+  FriendTimetableSectionHandle,
+  FriendTimetableSectionProps
+>(({
   initialFriendId,
   onInitialFriendHandled,
   onInitialFriendUnavailable,
   onPressSettings,
   ownCourses,
   semesterId,
-}: FriendTimetableSectionProps) => {
+}, ref) => {
   const {
     friends,
     friendsError,
     hasLoadedFriends,
     loadingTimetable,
+    refresh,
     reloadFriends,
     reloadSelectedTimetable,
     selectedFriendId,
@@ -245,6 +273,7 @@ export const FriendTimetableSection = ({
     selectFriend,
     timetableError,
     updateFavorite,
+    updatingFavoriteIds,
   } = useFriendTimetableData(semesterId);
   const handledInitialFriendRef = React.useRef<string | undefined>(undefined);
   const [commonFreeSheetVisible, setCommonFreeSheetVisible] =
@@ -271,8 +300,15 @@ export const FriendTimetableSection = ({
     );
   }, [ownCourses, selectedTimetable]);
 
+  React.useImperativeHandle(ref, () => ({refresh}), [refresh]);
+
   React.useEffect(() => {
-    if (!initialFriendId || !hasLoadedFriends || handledInitialFriendRef.current === initialFriendId) {
+    if (
+      !initialFriendId ||
+      !hasLoadedFriends ||
+      friendsError ||
+      handledInitialFriendRef.current === initialFriendId
+    ) {
       return;
     }
 
@@ -284,7 +320,15 @@ export const FriendTimetableSection = ({
 
     selectFriend(initialFriendId);
     onInitialFriendHandled?.();
-  }, [friends, hasLoadedFriends, initialFriendId, onInitialFriendHandled, onInitialFriendUnavailable, selectFriend]);
+  }, [
+    friends,
+    friendsError,
+    hasLoadedFriends,
+    initialFriendId,
+    onInitialFriendHandled,
+    onInitialFriendUnavailable,
+    selectFriend,
+  ]);
 
   return (
     <View accessibilityLabel="친구 시간표" style={styles.section}>
@@ -338,6 +382,7 @@ export const FriendTimetableSection = ({
         <View style={styles.listCard}>
           {friends.map((friend, index) => {
             const expanded = friend.id === selectedFriendId;
+            const isUpdatingFavorite = updatingFavoriteIds.has(friend.id);
             return (
               <Animated.View
                 key={friend.id}
@@ -374,7 +419,9 @@ export const FriendTimetableSection = ({
                   <TouchableOpacity
                     accessibilityLabel={`${friend.nickname} 즐겨찾기 ${friend.favorite ? '해제' : '추가'}`}
                     accessibilityRole="button"
+                    accessibilityState={{disabled: isUpdatingFavorite}}
                     activeOpacity={0.82}
+                    disabled={isUpdatingFavorite}
                     onPress={() => {
                       updateFavorite(friend).catch(error => {
                         Alert.alert(
@@ -386,11 +433,15 @@ export const FriendTimetableSection = ({
                       });
                     }}
                     style={styles.favoriteButton}>
-                    <Icon
-                      color={friend.favorite ? COLORS.accent.yellow : COLORS.text.muted}
-                      name={friend.favorite ? 'star' : 'star-outline'}
-                      size={21}
-                    />
+                    {isUpdatingFavorite ? (
+                      <ActivityIndicator color={COLORS.brand.primary} size="small" />
+                    ) : (
+                      <Icon
+                        color={friend.favorite ? COLORS.accent.yellow : COLORS.text.muted}
+                        name={friend.favorite ? 'star' : 'star-outline'}
+                        size={21}
+                      />
+                    )}
                   </TouchableOpacity>
                 </View>
 
@@ -452,7 +503,9 @@ export const FriendTimetableSection = ({
       </TimetableBottomSheet>
     </View>
   );
-};
+});
+
+FriendTimetableSection.displayName = 'FriendTimetableSection';
 
 const FriendTimetableContent = ({
   commonFreePeriods,
@@ -465,6 +518,7 @@ const FriendTimetableContent = ({
   sharedCourseNames: string[];
   timetable: FriendTimetable;
 }) => {
+  const [containerWidth, setContainerWidth] = React.useState<number>();
   if (timetable.effectiveScope === 'PRIVATE') {
     return (
       <View style={styles.privateState}>
@@ -491,9 +545,16 @@ const FriendTimetableContent = ({
       ? getDetailBlocks(timetable)
       : getBusyBlocks(timetable);
   const saturdayItems = getSaturdayItems(timetable);
+  const onlineItems =
+    timetable.effectiveScope === 'DETAILS' ? getOnlineItems(timetable) : [];
 
   return (
-    <View style={styles.timetableContent}>
+    <View
+      onLayout={event => {
+        const nextWidth = event.nativeEvent.layout.width;
+        setContainerWidth(current => current === nextWidth ? current : nextWidth);
+      }}
+      style={styles.timetableContent}>
       <Text style={styles.scopeDescription}>
         {timetable.effectiveScope === 'DETAILS'
           ? '상세 시간표를 공유 중이에요.'
@@ -503,6 +564,7 @@ const FriendTimetableContent = ({
         blocks={blocks}
         collapsed={false}
         columns={WEEKDAY_COLUMNS}
+        containerWidth={containerWidth}
         hasNightClasses={false}
         onToggleNightClasses={() => undefined}
         periods={ALL_PERIODS}
@@ -522,6 +584,12 @@ const FriendTimetableContent = ({
           같이 듣는 수업 · {sharedCourseNames.join(', ')}
         </Text>
       ) : null}
+      <TimetableSupplementSection
+        items={onlineItems}
+        kind="online"
+        readOnly
+        title="온라인 수업"
+      />
       {saturdayItems.length > 0 ? (
         <View style={styles.saturdaySection}>
           <Text style={styles.saturdayTitle}>토요일 수업</Text>
