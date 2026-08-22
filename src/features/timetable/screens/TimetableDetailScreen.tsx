@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   AccessibilityInfo,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -129,6 +130,11 @@ export const TimetableDetailScreen = () => {
     const frame = requestAnimationFrame(scrollToFriendTimetable);
     return () => cancelAnimationFrame(frame);
   }, [friendSectionTop, route.params?.targetFriendPublicId, scrollToFriendTimetable]);
+
+  const handleInitialFriendUnavailable = React.useCallback(() => {
+    navigation.setParams({targetFriendPublicId: undefined});
+    Alert.alert('친구 시간표', '더 이상 친구 시간표를 볼 수 없어요.');
+  }, [navigation]);
 
   const selectedCourseId = data?.selectedCourse?.courseId;
   const hasAnyCourse =
@@ -283,6 +289,10 @@ export const TimetableDetailScreen = () => {
               <View style={styles.friendTimetableDivider} />
               <FriendTimetableSection
                 initialFriendId={route.params?.targetFriendPublicId}
+                onInitialFriendHandled={() => {
+                  navigation.setParams({targetFriendPublicId: undefined});
+                }}
+                onInitialFriendUnavailable={handleInitialFriendUnavailable}
                 onPressSettings={() => navigation.navigate('FriendSettings')}
                 ownCourses={data.courses}
                 semesterId={data.semesterId}

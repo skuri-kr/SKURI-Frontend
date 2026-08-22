@@ -217,7 +217,9 @@ const getCommonFreePeriods = (
 };
 
 interface FriendTimetableSectionProps {
+  onInitialFriendHandled?: () => void;
   initialFriendId?: string;
+  onInitialFriendUnavailable?: () => void;
   onPressSettings: () => void;
   ownCourses: TimetableCourseRecord[];
   semesterId?: string;
@@ -225,6 +227,8 @@ interface FriendTimetableSectionProps {
 
 export const FriendTimetableSection = ({
   initialFriendId,
+  onInitialFriendHandled,
+  onInitialFriendUnavailable,
   onPressSettings,
   ownCourses,
   semesterId,
@@ -268,18 +272,19 @@ export const FriendTimetableSection = ({
   }, [ownCourses, selectedTimetable]);
 
   React.useEffect(() => {
-    if (
-      !initialFriendId ||
-      !hasLoadedFriends ||
-      handledInitialFriendRef.current === initialFriendId ||
-      !friends.some(friend => friend.id === initialFriendId)
-    ) {
+    if (!initialFriendId || !hasLoadedFriends || handledInitialFriendRef.current === initialFriendId) {
       return;
     }
 
     handledInitialFriendRef.current = initialFriendId;
+    if (!friends.some(friend => friend.id === initialFriendId)) {
+      onInitialFriendUnavailable?.();
+      return;
+    }
+
     selectFriend(initialFriendId);
-  }, [friends, hasLoadedFriends, initialFriendId, selectFriend]);
+    onInitialFriendHandled?.();
+  }, [friends, hasLoadedFriends, initialFriendId, onInitialFriendHandled, onInitialFriendUnavailable, selectFriend]);
 
   return (
     <View accessibilityLabel="친구 시간표" style={styles.section}>
