@@ -112,13 +112,15 @@ export const FriendSettingsScreen = () => {
     updateNicknameSearchable,
   } = useFriendSettingsData();
   const {
-    error: sharingError,
     friends: sharingFriends,
+    friendsError: sharingFriendsError,
     getFriendScope,
-    loading: loadingSharing,
+    loadingFriends: loadingSharingFriends,
+    loadingSettings: loadingSharingSettings,
     reload: reloadSharing,
     saving: savingSharing,
     settings: sharingSettings,
+    settingsError: sharingSettingsError,
     updateDefaultScope,
     updateFriendScope,
   } = useTimetableSharingSettingsData();
@@ -228,7 +230,7 @@ export const FriendSettingsScreen = () => {
           </>
         ) : null}
 
-        {loadingSharing && !sharingSettings ? (
+        {loadingSharingSettings && !sharingSettings ? (
           <StateCard
             description="친구에게 보이는 시간표 범위를 준비하고 있습니다."
             icon={<ActivityIndicator color={COLORS.brand.primary} />}
@@ -236,10 +238,10 @@ export const FriendSettingsScreen = () => {
             title="시간표 공유 설정을 불러오는 중"
           />
         ) : null}
-        {sharingError && !sharingSettings ? (
+        {sharingSettingsError && !sharingSettings ? (
           <StateCard
             actionLabel="다시 시도"
-            description={sharingError}
+            description={sharingSettingsError}
             icon={<Icon color={COLORS.accent.orange} name="alert-circle-outline" size={28} />}
             onPressAction={() => {
               reloadSharing().catch(() => undefined);
@@ -250,9 +252,9 @@ export const FriendSettingsScreen = () => {
         ) : null}
         {sharingSettings ? (
           <>
-            {sharingError ? (
+            {sharingSettingsError ? (
               <ErrorBanner
-                error={sharingError}
+                error={sharingSettingsError}
                 onRetry={() => {
                   reloadSharing().catch(() => undefined);
                 }}
@@ -272,9 +274,37 @@ export const FriendSettingsScreen = () => {
               />
             </SettingsSection>
             <SettingsSection style={styles.sharingSection} title="친구별 공개 범위">
+              {loadingSharingFriends && sharingFriends.length === 0 ? (
+                <StateCard
+                  description="친구별 공개 범위를 준비하고 있습니다."
+                  icon={<ActivityIndicator color={COLORS.brand.primary} />}
+                  title="친구 목록을 불러오는 중"
+                />
+              ) : null}
+              {sharingFriendsError && sharingFriends.length === 0 ? (
+                <StateCard
+                  actionLabel="다시 시도"
+                  description={sharingFriendsError}
+                  icon={<Icon color={COLORS.accent.orange} name="alert-circle-outline" size={28} />}
+                  onPressAction={() => {
+                    reloadSharing().catch(() => undefined);
+                  }}
+                  title="친구 목록을 불러오지 못했습니다"
+                />
+              ) : null}
+              {sharingFriendsError && sharingFriends.length > 0 ? (
+                <ErrorBanner
+                  error={sharingFriendsError}
+                  onRetry={() => {
+                    reloadSharing().catch(() => undefined);
+                  }}
+                />
+              ) : null}
               {sharingFriends.length > 0 ? (
                 sharingFriends.map((friend, index) => {
-                  const scope = getFriendScope(friend.id);
+                  const overrideScope = getFriendScope(friend.id);
+                  const effectiveScope =
+                    overrideScope ?? sharingSettings.defaultScope;
                   return (
                     <SettingsRow
                       accessoryType="chevron"
@@ -285,19 +315,22 @@ export const FriendSettingsScreen = () => {
                       key={friend.id}
                       onPress={() => setScopeTarget({friendId: friend.id})}
                       showDivider={index < sharingFriends.length - 1}
-                      subtitle={`${getTimetableScopeLabel(scope)} · ${friend.department || '학과 정보 없음'}`}
+                      subtitle={`${getTimetableScopeLabel(effectiveScope)} · ${overrideScope ? '개별 설정' : '기본값 적용'} · ${friend.department || '학과 정보 없음'}`}
                       title={friend.nickname}
                       titleWeight="700"
                     />
                   );
                 })
-              ) : (
+              ) : null}
+              {!loadingSharingFriends &&
+              !sharingFriendsError &&
+              sharingFriends.length === 0 ? (
                 <StateCard
                   description="친구를 추가하면 사람별로 다른 범위를 정할 수 있어요."
                   icon={<Icon color={COLORS.text.muted} name="people-outline" size={28} />}
                   title="친구별 예외가 없어요"
                 />
-              )}
+              ) : null}
             </SettingsSection>
           </>
         ) : null}

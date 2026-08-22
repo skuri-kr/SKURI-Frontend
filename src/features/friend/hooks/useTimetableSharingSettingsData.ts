@@ -35,35 +35,48 @@ export const useTimetableSharingSettingsData = () => {
   );
   const [friends, setFriends] = React.useState<FriendSummary[]>([]);
   const [settings, setSettings] = React.useState<TimetableSharingSettings>();
-  const [error, setError] = React.useState<string>();
-  const [loading, setLoading] = React.useState(true);
+  const [friendsError, setFriendsError] = React.useState<string>();
+  const [loadingFriends, setLoadingFriends] = React.useState(true);
+  const [loadingSettings, setLoadingSettings] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
+  const [settingsError, setSettingsError] = React.useState<string>();
   const savingRef = React.useRef(false);
   const stateVersionRef = React.useRef(0);
 
   const reload = React.useCallback(async () => {
-    const loadVersion = stateVersionRef.current;
-    try {
-      setLoading(true);
-      setError(undefined);
-      const [nextSettings, nextFriends] = await Promise.all([
-        timetableRepository.getMySharingSettings(),
-        friendRepository.getFriends(),
-      ]);
-      if (loadVersion !== stateVersionRef.current) {
-        return;
-      }
-      setSettings(nextSettings);
-      setFriends(sortFriends(nextFriends));
-    } catch (loadError) {
-      if (loadVersion === stateVersionRef.current) {
-        setError(getErrorMessage(loadError, '시간표 공유 설정을 불러오지 못했습니다.'));
-      }
-    } finally {
-      if (loadVersion === stateVersionRef.current) {
-        setLoading(false);
-      }
+    const loadVersion = stateVersionRef.current + 1;
+    stateVersionRef.current = loadVersion;
+    setLoadingSettings(true);
+    setLoadingFriends(true);
+    setSettingsError(undefined);
+    setFriendsError(undefined);
+    const [settingsResult, friendsResult] = await Promise.allSettled([
+      timetableRepository.getMySharingSettings(),
+      friendRepository.getFriends(),
+    ]);
+    if (loadVersion !== stateVersionRef.current) {
+      return;
     }
+
+    if (settingsResult.status === 'fulfilled') {
+      setSettings(settingsResult.value);
+    } else {
+      setSettingsError(
+        getErrorMessage(
+          settingsResult.reason,
+          '시간표 공유 설정을 불러오지 못했습니다.',
+        ),
+      );
+    }
+    if (friendsResult.status === 'fulfilled') {
+      setFriends(sortFriends(friendsResult.value));
+    } else {
+      setFriendsError(
+        getErrorMessage(friendsResult.reason, '친구 목록을 불러오지 못했습니다.'),
+      );
+    }
+    setLoadingSettings(false);
+    setLoadingFriends(false);
   }, [friendRepository, timetableRepository]);
 
   React.useEffect(() => {
@@ -80,7 +93,7 @@ export const useTimetableSharingSettingsData = () => {
       savingRef.current = true;
       stateVersionRef.current += 1;
       setSaving(true);
-      setError(undefined);
+      setSettingsError(undefined);
       setSettings(current => current ? {...current, defaultScope: scope} : current);
       try {
         const saved = await timetableRepository.updateMySharingSettings(scope);
@@ -113,7 +126,7 @@ export const useTimetableSharingSettingsData = () => {
       savingRef.current = true;
       stateVersionRef.current += 1;
       setSaving(true);
-      setError(undefined);
+      setSettingsError(undefined);
       setSettings(nextSettings);
       try {
         if (scope) {
@@ -140,13 +153,16 @@ export const useTimetableSharingSettingsData = () => {
   );
 
   return {
-    error,
     friends,
+    friendsError,
     getFriendScope,
-    loading,
+    loading: loadingSettings || loadingFriends,
+    loadingFriends,
+    loadingSettings,
     reload,
     saving,
     settings,
+    settingsError,
     updateDefaultScope,
     updateFriendScope,
   };
