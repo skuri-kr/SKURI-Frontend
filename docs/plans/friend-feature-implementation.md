@@ -36,7 +36,7 @@ PR #23 병합 후 실제 기기·시뮬레이터 수동 QA에서 발견된 가�
 1. 친구 초대: 택시파티와 공개 채팅방 초대
 2. 알림·탈퇴 정리: 친구·초대 알림, badge·이동, 최종 cleanup
 
-시간표 공유는 Backend·Frontend 각각 한 개의 현재 PR에서 구현·테스트·문서 정합성 점검까지 완료했으며, 병합과 실제 기기 QA는 아직 완료로 표시하지 않는다.
+시간표 공유는 [Backend #84](https://github.com/skuri-kr/SKURI-Backend/pull/84)와 [Frontend #26](https://github.com/skuri-kr/SKURI-Frontend/pull/26)에서 구현·테스트·문서 정합성 점검까지 완료했으며, 병합과 실제 기기 QA는 아직 완료로 표시하지 않는다.
 
 각 단계는 저장소당 최대 1개 PR로 진행한다. 런타임, 테스트, 문서는 같은 PR에 포함하되 리뷰 가능한 작은 Conventional Commit으로 나눈다. 예상보다 범위가 커져 PR을 나눠야 하면 임의로 분리하지 않고 먼저 사용자 승인을 받는다.
 
@@ -787,7 +787,7 @@ API client / DTO / Mapper
 | 4. 친구 초대 | 1 | 1 | 택시파티·공개방 초대, FriendHub 초대 탭, 공통 선택 sheet |
 | 5. 알림·탈퇴 정리 | 1 | 1 | 요청·수락·거절·초대 알림, FCM·인박스·SSE·이동, 최종 cleanup |
 
-기존 완료 이력을 포함하면 Backend #78~#83·Frontend #22~#25가 1·2단계를 전달했다. 시간표 공유는 Backend·Frontend 각각 현재 PR 한 개에서 구현을 완료했고, 이후 친구 초대와 알림·탈퇴 정리에 Backend와 Frontend 각각 2개의 구현 PR을 추가한다. 관리자 친구 관계망 UI는 V1 제외 범위이므로 Admin PR은 만들지 않는다.
+기존 완료 이력을 포함하면 Backend #78~#83·Frontend #22~#25가 1·2단계를 전달했다. 시간표 공유는 Backend #84·Frontend #26에서 구현을 완료했고, 이후 친구 초대와 알림·탈퇴 정리에 Backend와 Frontend 각각 2개의 구현 PR을 추가한다. 관리자 친구 관계망 UI는 V1 제외 범위이므로 Admin PR은 만들지 않는다.
 
 ### 15.1 1단계: Core 출시 준비 (완료)
 
@@ -945,7 +945,7 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 
 ## 19. 3단계 구현 완료 후 다음 구현 경계
 
-Core 출시 준비와 친구 화면 완성은 #24·#25에서 병합됐고, 시간표 공유는 현재 Backend·Frontend PR에서 검토 대기다. 다음 구현은 친구 초대 단계의 별도 승인 후에만 시작한다.
+Core 출시 준비와 친구 화면 완성은 #24·#25에서 병합됐고, 시간표 공유는 Backend #84·Frontend #26에서 검토 대기다. 다음 구현은 친구 초대 단계의 별도 승인 후에만 시작한다.
 
 현재 별도 승인이 필요한 남은 변경:
 
