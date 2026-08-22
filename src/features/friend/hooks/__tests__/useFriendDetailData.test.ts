@@ -81,6 +81,31 @@ describe('useFriendDetailData', () => {
     expect(result.current.friend?.favorite).toBe(true);
   });
 
+  it('마인크래프트 조회가 지연돼도 친구 기본 정보를 먼저 표시한다', async () => {
+    const repository = createRepository();
+    const minecraftAccountsDeferred = createDeferred<{selfAccounts: []}>();
+    repository.getFriendMinecraftAccounts.mockReturnValue(minecraftAccountsDeferred.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendDetailData('friend-1'));
+
+    await waitFor(() => {
+      expect(result.current.friend?.id).toBe('friend-1');
+      expect(result.current.loading).toBe(false);
+      expect(result.current.minecraftAccountsLoading).toBe(true);
+    });
+
+    await act(async () => {
+      minecraftAccountsDeferred.resolve({selfAccounts: []});
+    });
+
+    await waitFor(() => {
+      expect(result.current.minecraftAccountsLoading).toBe(false);
+    });
+  });
+
   it('즐겨찾기를 즉시 반영하고 저장에 실패하면 이전 상태로 되돌린다', async () => {
     const repository = createRepository();
     const favoriteDeferred = createDeferred<void>();

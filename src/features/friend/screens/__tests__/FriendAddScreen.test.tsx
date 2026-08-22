@@ -293,6 +293,30 @@ describe('FriendAddScreen', () => {
     });
   });
 
+  it('QR 스캔 후 친구 코드 미리보기 실패는 카메라 오류로 안내하지 않는다', async () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true)};
+    const previewFriendCode = jest.fn().mockRejectedValue(new Error('network unavailable'));
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseFriendAddData.mockReturnValue(createFriendAddData({previewFriendCode}));
+    mockedDataScanner.scanBarcode.mockResolvedValue({
+      format: 'qr',
+      value: 'skuri-friend:v1:SKR-7K4M-9Q2D',
+    });
+    const alertSpy = jest.spyOn(Alert, 'alert');
+
+    const view = render(<FriendAddScreen />);
+    fireEvent.press(view.getByLabelText('친구 QR 코드 스캔'));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith('친구 코드 확인', 'network unavailable');
+    });
+    expect(alertSpy).not.toHaveBeenCalledWith(
+      'QR 스캔을 사용할 수 없어요',
+      expect.any(String),
+      expect.any(Array),
+    );
+  });
+
   it('대기 중인 친구 요청을 보낸 뒤 요청 목록으로 이동할 수 있다', async () => {
     const navigation = {
       goBack: jest.fn(),
