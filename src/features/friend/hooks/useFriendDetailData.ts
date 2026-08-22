@@ -18,52 +18,31 @@ export const useFriendDetailData = (friendId: string) => {
   const [mutating, setMutating] = React.useState(false);
   const mutationInFlightRef = React.useRef(false);
 
-  const reload = React.useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(undefined);
-      setMinecraftAccountsLoading(true);
-      setMinecraftAccountsError(undefined);
-      const [friendResult, minecraftAccountsResult] = await Promise.allSettled([
-        friendRepository.getFriend(friendId),
-        friendRepository.getFriendMinecraftAccounts(friendId),
-      ]);
-
-      if (friendResult.status === 'fulfilled') {
-        setFriend(friendResult.value);
-      } else {
-        throw friendResult.reason;
-      }
-
-      if (minecraftAccountsResult.status === 'fulfilled') {
-        setMinecraftAccounts(minecraftAccountsResult.value);
-        setMinecraftAccountsError(undefined);
-      } else {
-        setMinecraftAccounts(undefined);
-        setMinecraftAccountsError(getErrorMessage(
-          minecraftAccountsResult.reason,
-          '마인크래프트 계정을 불러오지 못했습니다.',
-        ));
-      }
-    } catch (loadError) {
-      setError(getErrorMessage(loadError, '친구 정보를 불러오지 못했습니다.'));
-    } finally {
-      setLoading(false);
-      setMinecraftAccountsLoading(false);
-    }
-  }, [friendId, friendRepository]);
-
-  const reloadMinecraftAccounts = React.useCallback(async () => {
+  const loadMinecraftAccounts = React.useCallback(async () => {
     try {
       setMinecraftAccountsLoading(true);
       setMinecraftAccountsError(undefined);
       setMinecraftAccounts(await friendRepository.getFriendMinecraftAccounts(friendId));
     } catch (loadError) {
+      setMinecraftAccounts(undefined);
       setMinecraftAccountsError(getErrorMessage(loadError, '마인크래프트 계정을 불러오지 못했습니다.'));
     } finally {
       setMinecraftAccountsLoading(false);
     }
   }, [friendId, friendRepository]);
+
+  const reload = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(undefined);
+      void loadMinecraftAccounts();
+      setFriend(await friendRepository.getFriend(friendId));
+    } catch (loadError) {
+      setError(getErrorMessage(loadError, '친구 정보를 불러오지 못했습니다.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [friendId, friendRepository, loadMinecraftAccounts]);
 
   React.useEffect(() => {
     reload().catch(() => undefined);
@@ -136,7 +115,7 @@ export const useFriendDetailData = (friendId: string) => {
     minecraftAccountsLoading,
     mutating,
     reload,
-    reloadMinecraftAccounts,
+    reloadMinecraftAccounts: loadMinecraftAccounts,
     removeFriend,
     updateFavorite,
   };

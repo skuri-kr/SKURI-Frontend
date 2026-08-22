@@ -133,12 +133,26 @@ export const FriendAddScreen = () => {
       return;
     }
 
+    setScanning(true);
     try {
-      setScanning(true);
-      const scanned = await DataScanner.scanBarcode({
-        enableAutoZoom: true,
-        targetFormats: ['qr'],
-      });
+      let scanned: Awaited<ReturnType<typeof DataScanner.scanBarcode>>;
+      try {
+        scanned = await DataScanner.scanBarcode({
+          enableAutoZoom: true,
+          targetFormats: ['qr'],
+        });
+      } catch (scanError) {
+        if (isCameraScanUnavailable(scanError)) {
+          Alert.alert('QR 스캔을 사용할 수 없어요', '카메라 권한과 기기 설정을 확인한 뒤 다시 시도해주세요.', [
+            {text: '취소', style: 'cancel'},
+            {text: '설정 열기', onPress: () => { Linking.openSettings().catch(() => undefined); }},
+          ]);
+        } else if (!isScanCanceled(scanError)) {
+          Alert.alert('QR 스캔', getErrorMessage(scanError, 'QR 스캔을 시작하지 못했습니다. 카메라 권한과 기기 설정을 확인해주세요.'));
+        }
+        return;
+      }
+
       const scannedFriendCode = parseFriendQrPayload(scanned.value);
       if (!scannedFriendCode) {
         Alert.alert('QR 코드 확인', '스쿠리 친구 QR 코드가 아니에요. 친구가 공유한 QR 코드를 다시 스캔해주세요.');
@@ -147,19 +161,14 @@ export const FriendAddScreen = () => {
 
       invalidateFriendCodePreview();
       setFriendCode(scannedFriendCode);
-      const result = await previewFriendCode(scannedFriendCode);
-      if (result) {
-        friendCodeInputRef.current?.blur();
-        Keyboard.dismiss();
-      }
-    } catch (scanError) {
-      if (isCameraScanUnavailable(scanError)) {
-        Alert.alert('QR 스캔을 사용할 수 없어요', '카메라 권한과 기기 설정을 확인한 뒤 다시 시도해주세요.', [
-          {text: '취소', style: 'cancel'},
-          {text: '설정 열기', onPress: () => { Linking.openSettings().catch(() => undefined); }},
-        ]);
-      } else if (!isScanCanceled(scanError)) {
-        Alert.alert('QR 스캔', getErrorMessage(scanError, 'QR 스캔을 시작하지 못했습니다. 카메라 권한과 기기 설정을 확인해주세요.'));
+      try {
+        const result = await previewFriendCode(scannedFriendCode);
+        if (result) {
+          friendCodeInputRef.current?.blur();
+          Keyboard.dismiss();
+        }
+      } catch (previewError) {
+        Alert.alert('친구 코드 확인', getErrorMessage(previewError, '친구 코드를 확인하지 못했습니다.'));
       }
     } finally {
       setScanning(false);
