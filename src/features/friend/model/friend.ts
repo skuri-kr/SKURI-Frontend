@@ -2,8 +2,26 @@ export interface FriendSummary {
   department: string | null;
   favorite: boolean;
   id: string;
+  minecraftAccountCount?: number;
   nickname: string;
   photoUrl: string | null;
+  primaryMinecraftGameName?: string | null;
+}
+
+export type FriendMinecraftEdition = 'JAVA' | 'BEDROCK';
+
+export interface FriendMinecraftAccount {
+  avatarUuid: string | null;
+  edition: FriendMinecraftEdition;
+  gameName: string;
+}
+
+export interface FriendMinecraftSelfAccount extends FriendMinecraftAccount {
+  friendAccounts: FriendMinecraftAccount[];
+}
+
+export interface FriendMinecraftAccounts {
+  selfAccounts: FriendMinecraftSelfAccount[];
 }
 
 export type FriendRelationshipState =

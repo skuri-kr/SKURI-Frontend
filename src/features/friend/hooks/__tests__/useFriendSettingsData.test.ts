@@ -29,6 +29,7 @@ const createRepository = () => ({
   declineFriendRequest: jest.fn(),
   getBlocks: jest.fn(),
   getFriend: jest.fn(),
+  getFriendMinecraftAccounts: jest.fn(),
   getFriendRequests: jest.fn(),
   getFriends: jest.fn(),
   getInboxCounts: jest.fn(),

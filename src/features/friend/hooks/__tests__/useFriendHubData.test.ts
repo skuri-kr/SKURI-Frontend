@@ -25,6 +25,7 @@ const createRepository = () => ({
   declineFriendRequest: jest.fn(),
   getBlocks: jest.fn(),
   getFriend: jest.fn(),
+  getFriendMinecraftAccounts: jest.fn(),
   getFriendRequests: jest.fn().mockImplementation(({cursor, direction}) => {
     if (direction === 'RECEIVED' && cursor === 'received-cursor') {
       return Promise.resolve({

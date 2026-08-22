@@ -45,6 +45,10 @@ jest.mock('@/app/data-freshness/dataInvalidation', () => ({
 
 jest.mock('../../components/FriendAvatar', () => ({FriendAvatar: () => null}));
 
+jest.mock('../../components/FriendMinecraftAccountTree', () => ({
+  FriendMinecraftAccountTree: () => null,
+}));
+
 jest.mock('../../hooks/useFriendDetailData', () => ({
   useFriendDetailData: jest.fn(),
 }));
@@ -53,6 +57,28 @@ const mockedUseNavigation = jest.mocked(useNavigation);
 const mockedUseRoute = jest.mocked(useRoute);
 const mockedUseFriendDetailData = jest.mocked(useFriendDetailData);
 const mockedInvalidateData = jest.mocked(invalidateData);
+
+const createFriendDetailData = (overrides: Partial<ReturnType<typeof useFriendDetailData>> = {}) => ({
+  blockFriend: jest.fn(),
+  error: undefined,
+  friend: {
+    department: null,
+    favorite: false,
+    id: 'friend-1',
+    nickname: '가람',
+    photoUrl: null,
+  },
+  loading: false,
+  minecraftAccounts: {selfAccounts: []},
+  minecraftAccountsError: undefined,
+  minecraftAccountsLoading: false,
+  mutating: false,
+  reload: jest.fn(),
+  reloadMinecraftAccounts: jest.fn(),
+  removeFriend: jest.fn(),
+  updateFavorite: jest.fn(),
+  ...overrides,
+}) as ReturnType<typeof useFriendDetailData>;
 
 describe('FriendDetailScreen', () => {
   beforeEach(() => {
@@ -65,7 +91,7 @@ describe('FriendDetailScreen', () => {
     const blockFriend = jest.fn().mockResolvedValue(true);
     mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
     mockedUseRoute.mockReturnValue({params: {friendId: 'friend-1'}} as ReturnType<typeof useRoute>);
-    mockedUseFriendDetailData.mockReturnValue({
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData({
       blockFriend,
       error: undefined,
       friend: {
@@ -80,7 +106,7 @@ describe('FriendDetailScreen', () => {
       reload: jest.fn(),
       removeFriend,
       updateFavorite: jest.fn(),
-    } as ReturnType<typeof useFriendDetailData>);
+    }));
     jest.spyOn(Alert, 'alert').mockImplementation((...args) => {
       const action = args[2]?.find(button => button.text !== '취소');
       action?.onPress?.();
@@ -109,7 +135,7 @@ describe('FriendDetailScreen', () => {
     const blockFriend = jest.fn().mockRejectedValue(new Error('network unavailable'));
     mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
     mockedUseRoute.mockReturnValue({params: {friendId: 'friend-1'}} as ReturnType<typeof useRoute>);
-    mockedUseFriendDetailData.mockReturnValue({
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData({
       blockFriend,
       error: undefined,
       friend: {
@@ -124,7 +150,7 @@ describe('FriendDetailScreen', () => {
       reload: jest.fn(),
       removeFriend,
       updateFavorite: jest.fn(),
-    } as ReturnType<typeof useFriendDetailData>);
+    }));
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((...args) => {
       const action = args[2]?.find(button => button.text !== '취소');
       action?.onPress?.();
@@ -151,7 +177,7 @@ describe('FriendDetailScreen', () => {
     const blockFriend = jest.fn().mockResolvedValue(false);
     mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
     mockedUseRoute.mockReturnValue({params: {friendId: 'friend-1'}} as ReturnType<typeof useRoute>);
-    mockedUseFriendDetailData.mockReturnValue({
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData({
       blockFriend,
       error: undefined,
       friend: {
@@ -166,7 +192,7 @@ describe('FriendDetailScreen', () => {
       reload: jest.fn(),
       removeFriend,
       updateFavorite: jest.fn(),
-    } as ReturnType<typeof useFriendDetailData>);
+    }));
     jest.spyOn(Alert, 'alert').mockImplementation((...args) => {
       const action = args[2]?.find(button => button.text !== '취소');
       action?.onPress?.();
@@ -193,7 +219,7 @@ describe('FriendDetailScreen', () => {
     const updateFavorite = jest.fn();
     mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
     mockedUseRoute.mockReturnValue({params: {friendId: 'friend-1'}} as ReturnType<typeof useRoute>);
-    mockedUseFriendDetailData.mockReturnValue({
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData({
       blockFriend,
       error: undefined,
       friend: {
@@ -208,7 +234,7 @@ describe('FriendDetailScreen', () => {
       reload: jest.fn(),
       removeFriend,
       updateFavorite,
-    } as ReturnType<typeof useFriendDetailData>);
+    }));
 
     const view = render(<FriendDetailScreen />);
 
@@ -226,7 +252,7 @@ describe('FriendDetailScreen', () => {
     const updateFavorite = jest.fn().mockResolvedValue(true);
     mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
     mockedUseRoute.mockReturnValue({params: {friendId: 'friend-1'}} as ReturnType<typeof useRoute>);
-    mockedUseFriendDetailData.mockReturnValue({
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData({
       blockFriend: jest.fn(),
       error: undefined,
       friend: {
@@ -241,7 +267,7 @@ describe('FriendDetailScreen', () => {
       reload: jest.fn(),
       removeFriend: jest.fn(),
       updateFavorite,
-    } as ReturnType<typeof useFriendDetailData>);
+    }));
 
     const view = render(<FriendDetailScreen />);
 
@@ -263,7 +289,7 @@ describe('FriendDetailScreen', () => {
     const updateFavorite = jest.fn().mockRejectedValue(relationshipError);
     mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
     mockedUseRoute.mockReturnValue({params: {friendId: 'friend-1'}} as ReturnType<typeof useRoute>);
-    mockedUseFriendDetailData.mockReturnValue({
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData({
       blockFriend: jest.fn(),
       error: undefined,
       friend: {
@@ -278,7 +304,7 @@ describe('FriendDetailScreen', () => {
       reload: jest.fn(),
       removeFriend: jest.fn(),
       updateFavorite,
-    } as ReturnType<typeof useFriendDetailData>);
+    }));
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((...args) => {
       args[2]?.find(button => button.text === '확인')?.onPress?.();
     });

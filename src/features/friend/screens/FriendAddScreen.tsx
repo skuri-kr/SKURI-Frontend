@@ -4,6 +4,7 @@ import {
   Alert,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Share,
   ScrollView,
@@ -19,6 +20,8 @@ import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Animated from 'react-native-reanimated';
+import QRCode from 'react-native-qrcode-svg';
+import {DataScanner} from 'react-native-data-scanner';
 
 import {type CampusStackParamList} from '@/app/navigation/types';
 import {invalidateData} from '@/app/data-freshness/dataInvalidation';
@@ -26,7 +29,7 @@ import {
   FRIEND_HUB_INVALIDATION_KEY,
   FRIEND_INBOX_COUNTS_INVALIDATION_KEY,
 } from '@/app/data-freshness/invalidationKeys';
-import {StateCard, StackHeader} from '@/shared/design-system/components';
+import {StackHeader} from '@/shared/design-system/components';
 import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
 import {
   enteringTransitions,
@@ -49,6 +52,25 @@ const formatCode = (value: string) => {
     .join('-');
 };
 
+const FRIEND_QR_PREFIX = 'skuri-friend:v1:';
+
+const parseFriendQrPayload = (payload: string) => {
+  if (!payload.startsWith(FRIEND_QR_PREFIX)) {
+    return undefined;
+  }
+
+  const friendCode = payload.slice(FRIEND_QR_PREFIX.length);
+  return /^SKR-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(friendCode)
+    ? friendCode
+    : undefined;
+};
+
+const isScanCanceled = (scanError: unknown) =>
+  scanError instanceof Error && /cancell?ed|취소/i.test(scanError.message);
+
+const isCameraScanUnavailable = (scanError: unknown) =>
+  scanError instanceof Error && /camera|permission|unavailable/i.test(scanError.message);
+
 const getDuplicateResultIds = (results: FriendSearchResult[]) => {
   const counts = new Map<string, number>();
   results.forEach(result => {
@@ -69,6 +91,8 @@ export const FriendAddScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
   const [friendCode, setFriendCode] = React.useState('');
   const [nicknameQuery, setNicknameQuery] = React.useState('');
+  const [scanning, setScanning] = React.useState(false);
+  const [showMyCodeQr, setShowMyCodeQr] = React.useState(false);
   const friendCodeInputRef = React.useRef<TextInput>(null);
   const {
     loadingMyCode,
@@ -103,6 +127,61 @@ export const FriendAddScreen = () => {
       Alert.alert('친구 코드 확인', getErrorMessage(previewError, '친구 코드를 확인하지 못했습니다.'));
     }
   }, [friendCode, previewFriendCode]);
+
+  const handleScanFriendQr = React.useCallback(async () => {
+    if (scanning) {
+      return;
+    }
+
+    setScanning(true);
+    try {
+      let scanned: Awaited<ReturnType<typeof DataScanner.scanBarcode>>;
+      try {
+        scanned = await DataScanner.scanBarcode({
+          enableAutoZoom: true,
+          targetFormats: ['qr'],
+        });
+      } catch (scanError) {
+        if (!navigation.isFocused()) {
+          return;
+        }
+        if (isCameraScanUnavailable(scanError)) {
+          Alert.alert('QR 스캔을 사용할 수 없어요', '카메라 권한과 기기 설정을 확인한 뒤 다시 시도해주세요.', [
+            {text: '취소', style: 'cancel'},
+            {text: '설정 열기', onPress: () => { Linking.openSettings().catch(() => undefined); }},
+          ]);
+        } else if (!isScanCanceled(scanError)) {
+          Alert.alert('QR 스캔', getErrorMessage(scanError, 'QR 스캔을 시작하지 못했습니다. 카메라 권한과 기기 설정을 확인해주세요.'));
+        }
+        return;
+      }
+
+      invalidateFriendCodePreview();
+      if (!navigation.isFocused()) {
+        return;
+      }
+      const scannedFriendCode = parseFriendQrPayload(scanned.value);
+      if (!scannedFriendCode) {
+        Alert.alert('QR 코드 확인', '스쿠리 친구 QR 코드가 아니에요. 친구가 공유한 QR 코드를 다시 스캔해주세요.');
+        return;
+      }
+
+      setFriendCode(scannedFriendCode);
+      try {
+        const result = await previewFriendCode(scannedFriendCode);
+        if (result && navigation.isFocused()) {
+          friendCodeInputRef.current?.blur();
+          Keyboard.dismiss();
+        }
+      } catch (previewError) {
+        if (navigation.isFocused()) {
+          Alert.alert('친구 코드 확인', getErrorMessage(previewError, '친구 코드를 확인하지 못했습니다.'));
+        }
+      }
+    } finally {
+      setScanning(false);
+    }
+  }, [invalidateFriendCodePreview, navigation, previewFriendCode, scanning]);
 
   const handleSearch = React.useCallback(async () => {
     try {
@@ -233,7 +312,32 @@ export const FriendAddScreen = () => {
                   <Icon color={COLORS.text.secondary} name="share-social-outline" size={17} />
                   <Text style={styles.secondaryActionText}>공유</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  accessibilityLabel={showMyCodeQr ? '내 친구 QR 코드 닫기' : '내 친구 QR 코드 보기'}
+                  accessibilityRole="button"
+                  activeOpacity={0.82}
+                  onPress={() => setShowMyCodeQr(current => !current)}
+                  style={styles.secondaryAction}>
+                  <Icon color={COLORS.text.secondary} name="qr-code-outline" size={17} />
+                  <Text style={styles.secondaryActionText}>QR 코드</Text>
+                </TouchableOpacity>
               </View>
+              {showMyCodeQr ? (
+                <Animated.View
+                  entering={enteringTransitions.fadeInDown()}
+                  exiting={exitingTransitions.fadeOutUp()}
+                  style={styles.qrCodeContainer}>
+                  <QRCode
+                    backgroundColor={COLORS.background.surface}
+                    color={COLORS.text.primary}
+                    ecl="M"
+                    quietZone={8}
+                    size={172}
+                    value={`${FRIEND_QR_PREFIX}${myCode.code}`}
+                  />
+                  <Text style={styles.qrCodeHint}>친구가 이 QR 코드를 스캔하면 친구 코드를 빠르게 확인할 수 있어요.</Text>
+                </Animated.View>
+              ) : null}
               <TouchableOpacity
                 accessibilityRole="button"
                 activeOpacity={0.82}
@@ -328,12 +432,27 @@ export const FriendAddScreen = () => {
           {searchNextCursor ? <TouchableOpacity accessibilityRole="button" activeOpacity={0.82} disabled={searching} onPress={() => { loadMoreSearchResults(nicknameQuery).catch(searchError => Alert.alert('친구 검색', getErrorMessage(searchError, '검색 결과를 더 불러오지 못했습니다.'))); }} style={styles.loadMoreButton}>{searching ? <ActivityIndicator color={COLORS.brand.primary} size="small" /> : <Text style={styles.loadMoreText}>더 보기</Text>}</TouchableOpacity> : null}
           {!searching && completedSearchQuery === nicknameQuery.trim() && searchResults.length === 0 ? <Text style={styles.emptySearch}>검색 결과가 없어요.</Text> : null}
         </Animated.View>
-        <StateCard
-          description="카메라 권한과 QR 인식 기능은 후속 버전에서 제공할 예정이에요."
-          icon={<Icon color={COLORS.accent.blue} name="qr-code-outline" size={28} />}
-          title="QR 추가는 준비 중이에요"
-          style={{marginTop: SPACING.lg}}
-        />
+        <Text style={styles.sectionTitle}>QR 코드로 추가</Text>
+        <TouchableOpacity
+          accessibilityLabel="친구 QR 코드 스캔"
+          accessibilityRole="button"
+          activeOpacity={0.82}
+          disabled={scanning}
+          onPress={() => {
+            handleScanFriendQr().catch(() => undefined);
+          }}
+          style={styles.qrScanCard}>
+          {scanning ? (
+            <ActivityIndicator color={COLORS.brand.primary} />
+          ) : (
+            <Icon color={COLORS.accent.blue} name="qr-code-outline" size={28} />
+          )}
+          <View style={styles.qrScanContent}>
+            <Text style={styles.qrScanTitle}>{scanning ? 'QR 스캔을 준비하고 있어요' : '친구 QR 코드 스캔'}</Text>
+            <Text style={styles.qrScanDescription}>스쿠리 친구 QR 코드를 스캔한 뒤, 요청 전에 상대를 확인해요.</Text>
+          </View>
+          <Icon color={COLORS.text.muted} name="chevron-forward" size={20} />
+        </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -386,6 +505,8 @@ const styles = StyleSheet.create({
   secondaryAction: {alignItems: 'center', backgroundColor: COLORS.background.subtle, borderRadius: RADIUS.md, flexDirection: 'row', gap: 6, height: 36, justifyContent: 'center', paddingHorizontal: SPACING.lg},
   secondaryActionText: {color: COLORS.text.secondary, fontSize: 13, fontWeight: '700'},
   regenerateButton: {marginTop: SPACING.lg, minHeight: 20},
+  qrCodeContainer: {alignItems: 'center', borderTopColor: COLORS.border.subtle, borderTopWidth: 1, marginTop: SPACING.lg, paddingTop: SPACING.lg},
+  qrCodeHint: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: SPACING.sm, textAlign: 'center'},
   regenerateText: {color: COLORS.text.muted, fontSize: 12, textDecorationLine: 'underline'},
   disabledText: {color: COLORS.text.muted},
   codeErrorContent: {alignItems: 'center', gap: SPACING.sm},
@@ -409,4 +530,8 @@ const styles = StyleSheet.create({
   emptySearch: {color: COLORS.text.muted, fontSize: 13, padding: SPACING.lg, textAlign: 'center'},
   loadMoreButton: {alignItems: 'center', borderTopColor: COLORS.border.subtle, borderTopWidth: 1, height: 44, justifyContent: 'center'},
   loadMoreText: {color: COLORS.brand.primaryStrong, fontSize: 13, fontWeight: '700'},
+  qrScanCard: {alignItems: 'center', backgroundColor: COLORS.background.surface, borderRadius: RADIUS.lg, flexDirection: 'row', gap: SPACING.md, minHeight: 88, paddingHorizontal: SPACING.lg, ...SHADOWS.card},
+  qrScanContent: {flex: 1},
+  qrScanTitle: {color: COLORS.text.primary, fontSize: 14, fontWeight: '700', lineHeight: 20},
+  qrScanDescription: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: 2},
 });

@@ -1,9 +1,9 @@
 # SKURI 친구 기능 모바일 구현 계획
 
-> 문서 상태: Friend 관계 Core 모바일 구현 병합 완료, Core 출시 준비 보완 단계 진행 예정
-> 기준일: 2026-08-21
+> 문서 상태: Friend 관계 Core, Core 출시 준비, 친구 화면 완성 모바일 구현 병합 완료
+> 기준일: 2026-08-22
 > 정책 기준: SKURI-Backend docs/features/friends.md
-> 구현 게이트: 승인된 V1은 5단계·저장소별 단계당 1개 PR로 진행한다. 현재 1단계 Core 출시 준비 구현이 승인됐다.
+> 구현 게이트: 승인된 V1의 1·2단계가 완료됐다. 다음 3단계 시간표 공유는 별도 구현 승인이 필요하다.
 
 백엔드 기준 문서:
 
@@ -21,18 +21,21 @@
 | Backend | [#78](https://github.com/skuri-kr/SKURI-Backend/pull/78) | 친구 기능 기준 명세, 도메인 경계, 상태·권한·탈퇴 계획 문서화 |
 | Backend | [#79](https://github.com/skuri-kr/SKURI-Backend/pull/79) | FriendProfile·영구 코드 registry, 코드 조회·재발급·preview, 검색 공개 설정, provisioning·backfill |
 | Backend | [#80](https://github.com/skuri-kr/SKURI-Backend/pull/80) | 친구 요청·수락·거절·취소·만료, friendship, 즐겨찾기, 친구 끊기, 차단, 검색·PENDING 목록·badge API |
+| Backend | [#81](https://github.com/skuri-kr/SKURI-Backend/pull/81) | 프로필 완료 eligibility, ACTIVE 닉네임 정책, Friend 데이터 lifecycle, 관계 상태와 운영 cleanup |
+| Backend | [#82](https://github.com/skuri-kr/SKURI-Backend/pull/82) | 친구 출시 운영 postcheck CTE 검증 보정 |
+| Backend | [#83](https://github.com/skuri-kr/SKURI-Backend/pull/83) | 친구 Minecraft 안전 projection과 목록·수락 응답 요약 |
 | Frontend | [#22](https://github.com/skuri-kr/SKURI-Frontend/pull/22) | 친구 기능 모바일 정보 구조·화면·상태·검증 계획 문서화 |
 | Frontend | [#23](https://github.com/skuri-kr/SKURI-Frontend/pull/23) | FriendHub·FriendAdd·FriendDetail·FriendSettings, 관계 Core API 연동, navigation·badge·테스트 |
+| Frontend | [#24](https://github.com/skuri-kr/SKURI-Frontend/pull/24) | Core 출시 준비 UX, 회원가입·프로필 닉네임 정책과 수동 QA 보완 |
+| Frontend | [#25](https://github.com/skuri-kr/SKURI-Frontend/pull/25) | 친구 QR 생성·스캔과 친구 Minecraft SELF·FRIEND 계정 표시 |
 
-PR #23 병합 후 실제 기기·시뮬레이터 수동 QA에서 발견된 가입 완료 판정, 닉네임 정책, 검색·요청 상태와 UI 문제는 1단계 Core 출시 준비에서 보완한다. 완료 PR에 대한 보완은 기존 완료 범위를 취소하지 않으며, 출시 전 계약을 운영 가능한 상태로 강화하는 작업이다.
+PR #23 병합 후 실제 기기·시뮬레이터 수동 QA에서 발견된 가입 완료 판정, 닉네임 정책, 검색·요청 상태와 UI 문제는 #81·#24의 1단계 Core 출시 준비에서 보완했다. 완료 PR에 대한 보완은 기존 완료 범위를 취소하지 않으며, 출시 전 계약을 운영 가능한 상태로 강화한 작업이다.
 
 남은 승인 구현 단계:
 
-1. Core 출시 준비: 회원·FriendProfile 수명주기와 수동 QA 보완
-2. 친구 화면 완성: QR, 친구 신고, Minecraft 안전 계정 표시
-3. 시간표 공유: 공개 범위, 친구 시간표, 공통 공강·같이 듣는 수업
-4. 친구 초대: 택시파티와 공개 채팅방 초대
-5. 알림·탈퇴 정리: 친구·초대 알림, badge·이동, 최종 cleanup
+1. 시간표 공유: 공개 범위, 친구 시간표, 공통 공강·같이 듣는 수업
+2. 친구 초대: 택시파티와 공개 채팅방 초대
+3. 알림·탈퇴 정리: 친구·초대 알림, badge·이동, 최종 cleanup
 
 각 단계는 저장소당 최대 1개 PR로 진행한다. 런타임, 테스트, 문서는 같은 PR에 포함하되 리뷰 가능한 작은 Conventional Commit으로 나눈다. 예상보다 범위가 커져 PR을 나눠야 하면 임의로 분리하지 않고 먼저 사용자 승인을 받는다.
 
@@ -64,29 +67,28 @@ PR #23 완료 범위:
 관계 Core 구현에서는 아래처럼 범위를 더 구체화했다. 이 절은 문서의 후속 버전 설계와 충돌할 경우 현재 PR의 실제 동작을 우선한다.
 
 - 마이페이지의 `친구` 행이 FriendHub로 이동하고, 서버 `totalActionCount`가 1~99+ badge로 표시된다. 배지 조회 실패는 마이페이지 자체를 막지 않는다.
-- FriendHub 헤더의 `+`는 FriendAdd로 바로 이동한다. FriendAdd 한 화면 상단에 `내 친구 코드`의 복사·공유·재발급을 두고, 아래에 친구 코드 확인과 닉네임 검색을 둔다. QR을 제공할 때 별도 action sheet 또는 화면 분리는 그 PR에서 다시 결정한다.
+- FriendHub 헤더의 `+`는 FriendAdd로 바로 이동한다. FriendAdd 한 화면 상단에 `내 친구 코드`의 복사·공유·재발급·QR 표시를 두고, 아래에 친구 코드 확인·닉네임 검색·QR 스캔을 둔다.
 - FriendHub에는 친구 목록 및 받은·보낸 PENDING 요청만 보여준다. 목록 정렬은 즐겨찾기 우선·가나다순이며, 요청·검색의 opaque cursor 다음 페이지는 `더 보기`로 이어 붙인다.
 - FriendHub는 pull-to-refresh를 제공한다. 수락·거절·취소·즐겨찾기 변경 직후에는 화면 상태를 먼저 반영하고, 이전에 시작된 새로고침 응답은 최신 상태를 덮어쓰지 않도록 무시한다.
 - 닉네임 검색의 빈 결과는 현재 입력값으로 성공한 검색 뒤에만 표시하며, 다른 친구에게 보내는 요청은 각각 완료될 때까지 독립적으로 진행 상태를 유지한다.
-- 친구 상세는 프로필 요약, 즐겨찾기, 친구 끊기, 차단만 제공한다. 시간표, Minecraft, 택시파티 및 채팅방 초대는 안내 문구를 제외하고 노출하지 않는다.
+- 친구 상세는 프로필 요약, Minecraft SELF·FRIEND 계정 계층, 즐겨찾기, 친구 끊기, 차단을 제공한다. 시간표, 택시파티 및 채팅방 초대는 안내 문구를 제외하고 노출하지 않는다.
 - FriendSettings에는 닉네임 검색 공개 toggle과 차단 목록/차단 해제만 둔다. 두 정보는 독립적으로 불러오므로 한 조회가 실패해도 다른 정보와 개별 재시도를 제공한다.
 - 차단 목록에서도 닉네임과 학과가 모두 같은 대상이 둘 이상일 때만 `friendPublicId` 마지막 6자리를 `식별 코드 · ABC123`으로 표시한다. 그 외에는 식별 코드를 노출하지 않는다.
-- QR 생성·스캔, 카메라 권한과 native 의존성은 추가하지 않았다. FriendAdd의 QR 안내는 후속 기능 예정 상태를 알리는 비상호작용 안내다.
+- QR은 `skuri-friend:v1:{friendCode}`만 생성·인식하고, 스캔 뒤 기존 친구 코드 preview를 호출한 뒤에만 요청 action을 노출한다.
 - 실제 사용자 노출은 백엔드 배포와 프로필 완료 ACTIVE 회원 FriendProfile provisioning 검증 이후에만 진행한다.
 
 PR #23에서 의도적으로 제외:
 
 - 초대 탭, 택시파티·공개방 친구 초대, 초대 수락/거절, 친구·초대 알림 이동
-- 친구 시간표·공유 설정·공통 공강, Minecraft 친구 계정 projection, 친구 신고
-- QR 생성/스캔과 Android·iOS 카메라 권한 변경
+- 친구 시간표·공유 설정·공통 공강
 
 제외 항목은 정책 폐기가 아니다. 해당 백엔드 API와 도메인 협력이 구현된 뒤 별도 PR에서 추가한다. 특히 FriendHub의 초대 탭은 서버의 초대 목록·mutation API가 준비되기 전에는 빈 상태로도 노출하지 않는다.
 
-관계 Core 백엔드·모바일 코드는 `main`에 존재한다. 실제 사용자 릴리스 전에는 1단계에서 가입 완료 회원만 provisioning하는 정책으로 전환하고, 운영 DB의 미완료 회원 Friend 데이터를 정리한 뒤 완료 회원 누락 0건을 다시 검증한다.
+관계 Core 백엔드·모바일 코드는 `main`에 존재한다. 1단계 #81·#24에서 가입 완료 회원만 provisioning하는 정책으로 전환했고, 운영 DB의 미완료 회원 Friend 데이터를 정리한 뒤 완료 회원 누락 0건을 검증했다. 실제 앱스토어·플레이스토어 릴리스는 별도 배포 절차다.
 
-### 1.3 Core 출시 준비 보완 범위 (2026-08-21 확정)
+### 1.3 Core 출시 준비 보완 범위 (완료)
 
-1단계의 모바일 PR은 PR #23 수동 QA 결과와 회원 정책 변경을 한 번에 반영한다.
+1단계 모바일 PR #24는 PR #23 수동 QA 결과와 회원 정책 변경을 한 번에 반영했다.
 
 - 회원가입·프로필 저장 시 `ACTIVE` 회원 간 닉네임 중복과 `스쿠리 유저`, `운영자` 포함 닉네임을 서버 오류에 맞춰 안내하고 현재 화면에 머문다.
 - FriendAdd 닉네임 검색은 1글자부터 검색 버튼을 눌렀을 때만 실행하며, blur·키보드 내림으로 자동 검색하지 않는다.
@@ -126,7 +128,7 @@ PR #23에서 의도적으로 제외:
 | 마인크래프트 계층 | MinecraftDetailScreen의 SELF 부모 + FRIEND 자식 accordion |
 | 알림 | FCM, 알림 인박스, notification SSE, navigation intent 구조 존재 |
 | 딥링크 | iOS·Android skuri custom scheme 등록은 있으나 NavigationContainer linking 계약은 없음 |
-| QR | QR 생성·스캔 의존성 없음 |
+| QR | `react-native-qrcode-svg`로 QR 표시, `react-native-data-scanner`의 플랫폼 기본 one-shot scanner 사용 |
 | 디자인 | shared/design-system의 토큰, SegmentedControl, StateCard, ToneBadge, DefaultProfileAvatar 등 사용 |
 
 이 기준선은 실제 구현 시작 직전에 최신 main에서 다시 확인한다.
@@ -211,7 +213,7 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 
 - 관계 Core에서는 FriendAdd로 바로 이동한다.
 - FriendAdd 상단에서 현재 코드 표시·복사·공유·재발급을 제공한다.
-- 코드 재발급은 기존 코드가 즉시 무효화된다는 확인 후 실행하고 성공 시 현재 코드만 갱신한다. QR은 후속 QR PR에서 함께 갱신한다.
+- 코드 재발급은 기존 코드가 즉시 무효화된다는 확인 후 실행하고 성공 시 현재 코드와 QR payload를 함께 갱신한다.
 
 빈 상태:
 
@@ -312,20 +314,10 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 - payload는 skuri-friend:v1:{friendCode}만 인식한다.
 - 스캔 성공 후 카메라를 닫고 같은 친구 코드 preview API를 호출한 뒤 대상 프로필 확인 카드로 이동한다.
 - 대상 확인 전 요청을 자동 발송하지 않는다.
-- 카메라 권한 최초 요청, 거절, 다시 요청 불가, 설정 이동을 각각 처리한다.
-- 현재 NSCameraUsageDescription은 이미지 업로드 용도만 설명하므로 QR 스캔 목적을 추가해야 한다.
-- Android 카메라 permission과 런타임 권한도 실제 라이브러리 요구사항에 맞춰 확인한다.
-
-QR 구현 전 기술 확인:
-
-- 현재 React Native·New Architecture 호환
-- iOS·Android 공식 설치 절차
-- 카메라 권한 동작
-- 유지보수 상태
-- react-native-svg와의 QR 생성 호환
-- patches/README.md 영향
-
-라이브러리는 코드 구현 승인 후 공식 문서를 다시 확인해 선정한다.
+- `react-native-data-scanner`의 플랫폼 기본 one-shot scanner를 사용한다. 스캔 화면은 브랜드 오버레이가 아닌 iOS VisionKit·Android Google Play Services UI다.
+- iOS는 `NSCameraUsageDescription`으로 최초 권한을 요청하고, 거절·스캔 불가 시 설정 이동 action을 제공한다. 최소 iOS 버전은 16.0이다.
+- Android는 Google Play Services scanner가 카메라를 처리하므로 앱의 CAMERA permission·런타임 권한 요청을 추가하지 않는다. 첫 사용 시 scanner module 설치가 필요할 수 있다.
+- QR 생성은 기존 `react-native-svg`와 호환되는 `react-native-qrcode-svg`를 사용한다. `patches/README.md`를 확인한 뒤 의존성을 추가한다.
 
 ### 5.4 닉네임 검색
 
@@ -380,7 +372,6 @@ QR 구현 전 기술 확인:
 │   ├ Alex       친구 계정 · BE   │
 │   └ Jisung_MC  친구 계정 · JAVA │
 │                              │
-│ 신고                          │
 │ 친구 끊기                     │
 │ 차단                          │
 └──────────────────────────────┘
@@ -397,8 +388,6 @@ QR 구현 전 기술 확인:
 - TimetableDetail은 자신의 시간표와 친구 요약 목록이 준비되면 친구 section으로 스크롤하고 해당 친구 accordion을 펼친다.
 - 대상 적용 후 `targetFriendPublicId`를 한 번 소비해 rerender·학기 변경·화면 복귀 시 자동 이동을 반복하지 않는다.
 - 친구 해제·차단으로 대상이 목록에 없으면 `더 이상 친구 시간표를 볼 수 없어요` 안내 후 친구 section의 기본 상태를 유지한다.
-- 신고는 기존 ReportReasonModal의 카테고리·사유 입력 UX를 재사용하고 `POST /v1/friends/{friendPublicId}/report`를 호출한다.
-- 신고 접수는 친구 관계를 자동으로 끊거나 차단하지 않으며, 완료 후 사용자가 별도로 차단할 수 있다.
 - 친구 끊기와 차단은 destructive confirmation을 사용한다.
 - 차단 설명에는 친구 관계와 소셜 공유가 함께 해제되며 공개 콘텐츠는 유지된다고 명시한다.
 
@@ -412,7 +401,7 @@ QR 구현 전 기술 확인:
 - FRIEND가 없는 SELF는 불필요한 펼침 버튼을 표시하지 않는다.
 - 계층이 길어질 때는 MinecraftDetailScreen의 accordion motion과 접근성 상태를 참고한다.
 
-의미가 마인크래프트에 종속되므로 계층 컴포넌트는 우선 features/minecraft/components에 둔다. 기존 MinecraftDetailScreen과 친구 상세에서 동일 표현을 안전하게 재사용할 수 있을 때 추출하며, 기존 화면 동작을 바꾸는 리팩터링은 별도 검토한다.
+의미가 친구 상세 공개 projection에 종속되므로 계층 컴포넌트는 우선 `features/friend/components`에 둔다. 기존 MinecraftDetailScreen과 완전히 같은 표현 계약이 실제로 필요해질 때만 공통화하며, 기존 화면 동작을 바꾸는 리팩터링은 별도 검토한다.
 
 ---
 
@@ -786,14 +775,14 @@ API client / DTO / Mapper
 | 단계 | Backend PR | Frontend PR | 결과 |
 | --- | --- | --- | --- |
 | 1. Core 출시 준비 | 1 | 1 | 회원·FriendProfile 수명주기, 닉네임 정책, 관계 상태 계약, 수동 QA 보완 |
-| 2. 친구 화면 완성 | 1 | 1 | QR, friendPublicId 신고, Minecraft SELF·FRIEND 표시 |
+| 2. 친구 화면 완성 | 1 | 1 | QR, Minecraft SELF·FRIEND 표시 |
 | 3. 시간표 공유 | 1 | 1 | 공개 범위, 친구별 예외, 친구 시간표, 공통 공강·같이 듣는 수업 |
 | 4. 친구 초대 | 1 | 1 | 택시파티·공개방 초대, FriendHub 초대 탭, 공통 선택 sheet |
 | 5. 알림·탈퇴 정리 | 1 | 1 | 요청·수락·거절·초대 알림, FCM·인박스·SSE·이동, 최종 cleanup |
 
-기존 완료 이력을 포함하면 Backend는 #78·#79·#80 이후 5개, Frontend는 #22·#23 이후 5개의 구현 PR을 추가하는 계획이다. 관리자 친구 관계망 UI는 V1 제외 범위이므로 Admin PR은 만들지 않는다.
+기존 완료 이력을 포함하면 Backend #78~#83·Frontend #22~#25가 1·2단계를 전달했다. 이후 시간표 공유, 친구 초대, 알림·탈퇴 정리에 Backend와 Frontend 각각 3개의 구현 PR을 추가한다. 관리자 친구 관계망 UI는 V1 제외 범위이므로 Admin PR은 만들지 않는다.
 
-### 15.1 1단계: Core 출시 준비
+### 15.1 1단계: Core 출시 준비 (완료)
 
 Backend는 가입 완료 판정, ACTIVE 닉네임 정책, 완료 회원만 FriendProfile·코드 provisioning, 검색 기본값·최소 길이, 관계 상태 enum과 운영 데이터 정리 절차를 하나의 PR로 구현한다. Frontend는 회원가입·프로필 오류 처리와 PR #23 수동 QA 보완을 하나의 PR로 구현한다.
 
@@ -801,14 +790,13 @@ Backend는 가입 완료 판정, ACTIVE 닉네임 정책, 완료 회원만 Frien
 - 미완료 회원의 사전 배포 FriendProfile과 ACTIVE 코드는 이 일회성 cleanup에서 완전히 삭제한다. 정상 완료 회원이 재발급·탈퇴한 코드는 기존 RETIRED 영구 미재사용 정책을 유지한다.
 - 친구 알림 런타임은 이 단계에 포함하지 않는다.
 
-### 15.2 2단계: 친구 화면 완성
+### 15.2 2단계: 친구 화면 완성 (완료)
 
-- QR 생성·인앱 scanner·iOS/Android 카메라 권한과 실제 기기 검증
-- friendPublicId 기반 기존 MEMBER 신고 처리 위임과 친구 상세 신고 UX
+- QR 생성·플랫폼 기본 scanner·iOS 카메라 권한과 실제 기기 검증
 - 친구 목록의 Minecraft 대표 SELF·전체 계정 수 요약
 - 친구 상세의 SELF 부모·모든 FRIEND 자식 계층
 
-QR, 신고, Minecraft는 FriendAdd·FriendRow·FriendDetail의 남은 기본 화면을 완성한다는 하나의 사용자 목표로 묶는다. Backend PR에는 신고와 Minecraft 안전 projection을, Frontend PR에는 세 화면 범위와 네이티브 설정을 담되 각각 별도 커밋으로 나눈다.
+QR과 Minecraft는 FriendAdd·FriendRow·FriendDetail의 남은 기본 화면을 완성한다는 하나의 사용자 목표로 묶는다. Backend PR에는 Minecraft 안전 projection을, Frontend PR에는 QR·계정 표시·네이티브 설정을 담되 각각 별도 커밋으로 나눈다.
 
 ### 15.3 3단계: 시간표 공유
 
@@ -868,7 +856,6 @@ Academic 공개 projection과 개인정보 노출 계약, 복잡한 시간표 UI
 - FriendInviteSheet transport 오류 선택 유지와 eligible 재조회 후 자동 해제
 - FriendSettings privacy GET loading·disabled 상태, PATCH 최종값 반영과 실패 원복
 - 내 친구 코드 action sheet의 표시·복사·공유·재발급 확인과 FriendAdd 이동
-- friendPublicId 기반 친구 신고 접수와 신고 후 관계 유지
 - Minecraft SELF·FRIEND grouping
 - 차단·친구 해제 후 화면 이탈
 - accessibility label과 expanded state
@@ -947,30 +934,23 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 
 ---
 
-## 19. 현재 1단계 구현 경계
+## 19. 1·2단계 완료 후 다음 구현 경계
 
-현재 Core 출시 준비 Frontend PR에서 허용되는 변경:
+Core 출시 준비와 친구 화면 완성은 #24·#25에서 완료했다. 다음 구현은 시간표 공유 단계의 별도 승인 후에만 시작한다.
 
-- 회원가입·프로필 편집의 예약·중복 닉네임 오류 표시와 관련 테스트
-- `src/features/friend`의 검색·요청 상태·설정·상세·키보드·motion QA 보완
-- PR #23 이후 사용자가 직접 수정한 FriendAdd style·alert 변경
-- 변경된 Backend 계약의 DTO·mapper·repository 연동
-- 이 구현 계획 문서
+현재 별도 승인이 필요한 남은 변경:
 
-현재 Frontend PR에서 허용되지 않는 변경:
-
-- package.json·lockfile과 Android·iOS QR 카메라 설정
-- 시간표 공유·Minecraft projection·친구 신고·택시·공개방 초대 런타임 코드
+- 시간표 공유·택시·공개방 초대 런타임 코드
 - 친구·초대 인박스·FCM·SSE와 알림 이동 런타임 코드
 
-2~5단계는 앞 단계의 Backend 계약·배포와 별도 단계 착수 확인 후 진행한다. 새로운 정책이나 기존 공통 UI로 표현하기 어려운 선택이 발견되면 임의로 확장하지 않고 사용자 승인을 받는다.
+3~5단계는 앞 단계의 Backend 계약·배포와 별도 단계 착수 확인 후 진행한다. 새로운 정책이나 기존 공통 UI로 표현하기 어려운 선택이 발견되면 임의로 확장하지 않고 사용자 승인을 받는다.
 
 ---
 
 ## 20. 문서 검토 체크리스트
 
-- [x] Backend #78·#79·#80과 Frontend #22·#23의 완료 범위가 후속 단계와 구분되어 있다.
-- [x] 승인 V1이 5단계·저장소별 단계당 최대 1개 PR 계획으로 정리되어 있다.
+- [x] Backend #78·#79·#80·#81·#82·#83과 Frontend #22·#23·#24·#25의 완료 범위가 후속 단계와 구분되어 있다.
+- [x] 승인 V1의 1·2단계 완료와 남은 3단계·저장소별 단계당 최대 1개 PR 계획이 구분되어 있다.
 - [x] 프로필 완료 회원만 FriendProfile·코드를 갖고 미완료 회원 데이터는 출시 전 정리하는 gate가 반영되어 있다.
 - [x] 검색 기본 true·1글자·검색 버튼 실행과 관계 상태별 행동이 반영되어 있다.
 - [x] ACTIVE 닉네임 중복·예약어 정책과 기존 중복 유지가 반영되어 있다.
@@ -983,7 +963,7 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 - [x] 시간표 anchor, 화면 하단 accordion, 즐겨찾기 정렬이 명시되어 있다.
 - [x] PRIVATE, BUSY_ONLY, DETAILS와 재공유 금지가 명시되어 있다.
 - [x] 공통 공강과 같이 듣는 수업 규칙이 명시되어 있다.
-- [x] QR native dependency가 구현 전 확인 항목으로 분리되어 있다.
+- [x] QR native dependency·iOS 16.0·플랫폼별 카메라 권한 동작이 구현 기준으로 확정되어 있다.
 - [x] 기존 디자인 시스템과 feature-first 공통화 원칙이 명시되어 있다.
 - [x] 자동 검증과 실제 기기 QA가 구분되어 있다.
 - [x] Firebase UID 대신 friendPublicId를 사용하는 경계가 명시되어 있다.
@@ -992,7 +972,7 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 - [x] FriendHub `+`에서 내 코드·QR과 친구 추가에 모두 도달할 수 있다.
 - [x] 닉네임 검색은 페이지당 20건의 cursor 계약과 안정 정렬을 사용한다.
 - [x] 공통 공강은 야간 수업을 포함한 1~15교시를 계산한다.
-- [x] 저장 알림의 DTO·model·mapper 경계와 친구 신고 공개 식별자 흐름이 명시되어 있다.
+- [x] 친구 Minecraft projection의 DTO·model·mapper 경계와 내부 식별자 미노출이 명시되어 있다.
 - [x] FriendDetail 초대의 initialFriendPublicId와 부적격 fallback이 명시되어 있다.
 - [x] 확정 batch outcome과 transport 오류의 선택 유지 정책이 구분되어 있다.
 - [x] nicknameSearchable은 서버 GET 완료 후 표시하고 PATCH 최종값을 사용한다.
@@ -1012,11 +992,10 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 | 2026-08-18 | 택시·공개방은 같은 FriendInviteSheet UX를 재사용 |
 | 2026-08-18 | QR은 URL 딥링크 없이 versioned friend code payload와 인앱 scanner 사용 |
 | 2026-08-18 | 친구 기능 외부 공개 식별자 field는 friendPublicId로 통일 |
-| 2026-08-18 | FriendHub `+`는 내 친구 코드와 친구 추가를 고르는 action sheet를 열고 내 코드는 같은 sheet에서 관리 |
+| 2026-08-18 | FriendHub `+`는 FriendAdd로 이동하고 내 친구 코드·QR은 같은 화면에서 관리 |
 | 2026-08-18 | 닉네임 검색 20건은 전체 상한이 아니라 cursor 페이지 크기이며 닉네임·friendPublicId 순으로 안정 정렬 |
 | 2026-08-18 | 공통 공강은 야간 수업을 포함한 월~금 1~15교시로 확정 |
 | 2026-08-18 | 다중 초대는 수신자별 부분 성공 결과를 사용하고 차단 등 민감 사유는 NOT_ELIGIBLE로 통합 |
-| 2026-08-18 | 친구 신고는 friendPublicId 전용 경로로 기존 신고 처리에 위임하고 저장 알림 식별자는 DTO·mapper 경계를 통과 |
 | 2026-08-18 | FriendDetail의 친구 시간표 보기는 targetFriendPublicId로 해당 accordion을 한 번 자동 전개 |
 | 2026-08-18 | action badge는 받은 PENDING 요청·초대만 합산하고 보낸 요청은 제외 |
 | 2026-08-18 | FriendDetail 초대는 initialFriendPublicId를 자동 선택하고 부적격이면 민감 사유 없는 일반 안내를 표시 |
@@ -1028,6 +1007,9 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 | 2026-08-21 | 승인 V1은 Core 출시 준비, 친구 화면 완성, 시간표 공유, 친구 초대, 알림·탈퇴 정리의 5단계로 진행 |
 | 2026-08-21 | 각 단계는 저장소당 최대 1개 PR로 만들고 런타임·테스트·문서는 목적별 커밋으로 분리 |
 | 2026-08-21 | 닉네임 검색은 프로필 완료·검색 허용 회원을 대상으로 1글자부터 검색 버튼으로만 실행 |
+| 2026-08-21 | 친구 전용 신고 진입은 구현 범위와 후속 계획에서 제거 |
+| 2026-08-21 | QR은 iOS 16.0 이상 플랫폼 기본 scanner를 사용하며 Android 앱 CAMERA permission은 추가하지 않음 |
 | 2026-08-21 | 검색·preview는 REQUESTABLE·INCOMING_PENDING·OUTGOING_PENDING·ALREADY_FRIEND 상태로 행동을 구분 |
 | 2026-08-21 | 검색 허용 toggle은 낙관적으로 반영하고 실패 시 마지막 서버 확인 값으로 원복 |
 | 2026-08-21 | FRIEND_DECLINED 알림은 5단계에서 원 요청자에게 제공하고 요청 탭으로 이동 |
+| 2026-08-22 | Core 출시 준비(#81·#24)와 친구 화면 완성(#83·#25)을 완료 이력으로 고정하고 다음 구현 단위를 시간표 공유로 전환 |

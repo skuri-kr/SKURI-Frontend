@@ -14,6 +14,7 @@ import {useScreenView} from '@/shared/hooks/useScreenView';
 import {RepositoryError} from '@/shared/lib/errors';
 
 import {FriendAvatar} from '../components/FriendAvatar';
+import {FriendMinecraftAccountTree} from '../components/FriendMinecraftAccountTree';
 import {useFriendDetailData} from '../hooks/useFriendDetailData';
 
 const getErrorMessage = (error: unknown, fallback: string) => error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -27,7 +28,20 @@ export const FriendDetailScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
   const route = useRoute<any>();
   const {friendId} = route.params as CampusStackParamList['FriendDetail'];
-  const {blockFriend, error, friend, loading, mutating, reload, removeFriend, updateFavorite} = useFriendDetailData(friendId);
+  const {
+    blockFriend,
+    error,
+    friend,
+    loading,
+    minecraftAccounts,
+    minecraftAccountsError,
+    minecraftAccountsLoading,
+    mutating,
+    reload,
+    reloadMinecraftAccounts,
+    removeFriend,
+    updateFavorite,
+  } = useFriendDetailData(friendId);
 
   const showMutationError = React.useCallback(
     (actionError: unknown, fallback: string) => {
@@ -117,6 +131,44 @@ export const FriendDetailScreen = () => {
             <Text style={styles.nickname}>{friend.nickname}</Text>
             <Text style={styles.department}>{friend.department || '학과 정보가 없어요'}</Text>
           </View>
+          <View style={styles.minecraftSection}>
+            <Text style={styles.minecraftTitle}>마인크래프트 계정</Text>
+            {minecraftAccountsLoading ? (
+              <StateCard
+                description="친구의 등록 계정을 확인하고 있습니다."
+                icon={<ActivityIndicator color={COLORS.brand.primary} />}
+                title="마인크래프트 계정을 불러오는 중"
+              />
+            ) : null}
+            {!minecraftAccountsLoading && minecraftAccountsError ? (
+              <StateCard
+                actionLabel="다시 시도"
+                description={minecraftAccountsError}
+                icon={<Icon color={COLORS.accent.orange} name="alert-circle-outline" size={28} />}
+                onPressAction={() => {
+                  reloadMinecraftAccounts().catch(() => undefined);
+                }}
+                title="마인크래프트 계정을 불러오지 못했습니다"
+              />
+            ) : null}
+            {!minecraftAccountsLoading && !minecraftAccountsError && minecraftAccounts?.selfAccounts.length === 0 ? (
+              <StateCard
+                description="아직 등록한 마인크래프트 대표 계정이 없어요."
+                icon={<Icon color={COLORS.brand.primary} name="game-controller-outline" size={28} />}
+                title="등록된 계정이 없어요"
+              />
+            ) : null}
+            {!minecraftAccountsLoading && !minecraftAccountsError ? (
+              <View style={styles.minecraftAccountList}>
+                {minecraftAccounts?.selfAccounts.map(account => (
+                  <FriendMinecraftAccountTree
+                    account={account}
+                    key={`${account.gameName}-${account.edition}`}
+                  />
+                ))}
+              </View>
+            ) : null}
+          </View>
           <SettingsSection style={styles.section} title="친구 관리">
             <SettingsRow accessoryType="chevron" disabled={mutating} iconBackgroundColor={COLORS.accent.yellowSoft} iconColor={COLORS.accent.yellowStrong} iconName="star-outline" onPress={handleFavorite} showDivider title={friend.favorite ? '즐겨찾기 해제' : '즐겨찾기에 추가'} />
             <SettingsRow accessoryType="chevron" disabled={mutating} iconBackgroundColor={COLORS.accent.orangeSoft} iconColor={COLORS.accent.orange} iconName="person-remove-outline" onPress={handleRemove} showDivider title="친구 끊기" />
@@ -136,6 +188,9 @@ const styles = StyleSheet.create({
   profileCard: {alignItems: 'center', backgroundColor: COLORS.background.surface, borderRadius: 16, paddingVertical: SPACING.xxl},
   nickname: {color: COLORS.text.primary, fontSize: 20, fontWeight: '800', lineHeight: 28, marginTop: SPACING.md},
   department: {color: COLORS.text.muted, fontSize: 13, lineHeight: 20, marginTop: 2},
+  minecraftSection: {marginTop: SPACING.xl},
+  minecraftTitle: {color: COLORS.text.primary, fontSize: 15, fontWeight: '800', lineHeight: 22, marginBottom: SPACING.sm, paddingHorizontal: SPACING.xs},
+  minecraftAccountList: {gap: SPACING.sm},
   section: {marginTop: SPACING.xl},
   note: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: SPACING.xl, paddingHorizontal: SPACING.md, textAlign: 'center'},
 });

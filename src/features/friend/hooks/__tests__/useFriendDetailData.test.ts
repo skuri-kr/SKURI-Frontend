@@ -35,6 +35,7 @@ const createRepository = () => ({
     nickname: '가람',
     photoUrl: null,
   }),
+  getFriendMinecraftAccounts: jest.fn().mockResolvedValue({selfAccounts: []}),
   getFriendRequests: jest.fn(),
   getFriends: jest.fn(),
   getInboxCounts: jest.fn(),
@@ -78,6 +79,86 @@ describe('useFriendDetailData', () => {
     expect(repository.updateFavorite).toHaveBeenCalledTimes(1);
     expect(repository.updateFavorite).toHaveBeenCalledWith('friend-1', true);
     expect(result.current.friend?.favorite).toBe(true);
+  });
+
+  it('마인크래프트 조회가 지연돼도 친구 기본 정보를 먼저 표시한다', async () => {
+    const repository = createRepository();
+    const minecraftAccountsDeferred = createDeferred<{selfAccounts: []}>();
+    repository.getFriendMinecraftAccounts.mockReturnValue(minecraftAccountsDeferred.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendDetailData('friend-1'));
+
+    await waitFor(() => {
+      expect(result.current.friend?.id).toBe('friend-1');
+      expect(result.current.loading).toBe(false);
+      expect(result.current.minecraftAccountsLoading).toBe(true);
+    });
+
+    await act(async () => {
+      minecraftAccountsDeferred.resolve({selfAccounts: []});
+    });
+
+    await waitFor(() => {
+      expect(result.current.minecraftAccountsLoading).toBe(false);
+    });
+  });
+
+  it('이전 마인크래프트 조회가 늦게 끝나도 재시도 결과를 덮어쓰지 않는다', async () => {
+    const repository = createRepository();
+    const initialFriendDeferred = createDeferred<never>();
+    const firstMinecraftDeferred = createDeferred<{selfAccounts: []}>();
+    const retryMinecraftDeferred = createDeferred<{selfAccounts: []}>();
+    repository.getFriend
+      .mockReturnValueOnce(initialFriendDeferred.promise)
+      .mockResolvedValueOnce({
+        department: null,
+        favorite: false,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      });
+    repository.getFriendMinecraftAccounts
+      .mockReturnValueOnce(firstMinecraftDeferred.promise)
+      .mockReturnValueOnce(retryMinecraftDeferred.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendDetailData('friend-1'));
+
+    await act(async () => {
+      initialFriendDeferred.reject(new Error('friend unavailable'));
+    });
+    await waitFor(() => {
+      expect(result.current.error).toBe('friend unavailable');
+    });
+
+    await act(async () => {
+      await result.current.reload();
+    });
+    await waitFor(() => {
+      expect(repository.getFriendMinecraftAccounts).toHaveBeenCalledTimes(2);
+    });
+
+    await act(async () => {
+      retryMinecraftDeferred.resolve({selfAccounts: []});
+    });
+    await waitFor(() => {
+      expect(result.current.minecraftAccounts).toEqual({selfAccounts: []});
+      expect(result.current.minecraftAccountsError).toBeUndefined();
+      expect(result.current.minecraftAccountsLoading).toBe(false);
+    });
+
+    await act(async () => {
+      firstMinecraftDeferred.reject(new Error('stale unavailable'));
+    });
+
+    expect(result.current.minecraftAccounts).toEqual({selfAccounts: []});
+    expect(result.current.minecraftAccountsError).toBeUndefined();
+    expect(result.current.minecraftAccountsLoading).toBe(false);
   });
 
   it('즐겨찾기를 즉시 반영하고 저장에 실패하면 이전 상태로 되돌린다', async () => {

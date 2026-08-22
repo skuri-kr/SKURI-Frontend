@@ -3,6 +3,7 @@ import type {
   FriendCode,
   FriendCodePreview,
   FriendInboxCounts,
+  FriendMinecraftAccounts,
   FriendPrivacy,
   FriendRequestDirection,
   FriendRequestMutation,
@@ -19,6 +20,7 @@ export interface IFriendRepository {
   declineFriendRequest(requestId: string): Promise<void>;
   getBlocks(): Promise<FriendBlock[]>;
   getFriend(friendPublicId: string): Promise<FriendSummary>;
+  getFriendMinecraftAccounts(friendPublicId: string): Promise<FriendMinecraftAccounts>;
   getFriendRequests(params: {
     cursor?: string | null;
     direction: FriendRequestDirection;
