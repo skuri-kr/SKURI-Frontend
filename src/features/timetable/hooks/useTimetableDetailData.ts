@@ -663,7 +663,9 @@ const buildScreenViewData = ({
           toneId: course.toneId,
         })),
     },
+    courses,
     selectedCourse: buildSelectedCourseDetail(selectedCourse),
+    semesterId: record.id,
     semesterLabel: record.label,
     totalCreditsLabel: `총 ${courses.reduce((sum, course) => sum + course.credits, 0)}학점`,
     todayView: {
