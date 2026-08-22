@@ -317,6 +317,81 @@ describe('FriendAddScreen', () => {
     );
   });
 
+  it('후행 문자가 있는 친구 QR은 미리보기하지 않는다', async () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true)};
+    const previewFriendCode = jest.fn();
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseFriendAddData.mockReturnValue(createFriendAddData({previewFriendCode}));
+    mockedDataScanner.scanBarcode.mockResolvedValue({
+      format: 'qr',
+      value: 'skuri-friend:v1:SKR-7K4M-9Q2D-anything',
+    });
+    const alertSpy = jest.spyOn(Alert, 'alert');
+
+    const view = render(<FriendAddScreen />);
+    fireEvent.press(view.getByLabelText('친구 QR 코드 스캔'));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith(
+        'QR 코드 확인',
+        '스쿠리 친구 QR 코드가 아니에요. 친구가 공유한 QR 코드를 다시 스캔해주세요.',
+      );
+    });
+    expect(previewFriendCode).not.toHaveBeenCalled();
+  });
+
+  it('잘못된 친구 QR을 스캔하면 이전 친구 코드 미리보기를 무효화한다', async () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true)};
+    const invalidateFriendCodePreview = jest.fn();
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseFriendAddData.mockReturnValue(createFriendAddData({invalidateFriendCodePreview}));
+    mockedDataScanner.scanBarcode.mockResolvedValue({
+      format: 'qr',
+      value: 'not-a-skuri-friend-qr',
+    });
+
+    const view = render(<FriendAddScreen />);
+    fireEvent.press(view.getByLabelText('친구 QR 코드 스캔'));
+
+    await waitFor(() => {
+      expect(invalidateFriendCodePreview).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('QR 미리보기 실패 시 화면을 벗어났다면 알림을 표시하지 않는다', async () => {
+    const previewDeferred = (() => {
+      let reject!: (reason?: unknown) => void;
+      const promise = new Promise<never>((_, rejectPromise) => {
+        reject = rejectPromise;
+      });
+      return {promise, reject};
+    })();
+    const navigation = {
+      goBack: jest.fn(),
+      isFocused: jest.fn().mockReturnValueOnce(true).mockReturnValue(false),
+    };
+    const previewFriendCode = jest.fn().mockReturnValue(previewDeferred.promise);
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseFriendAddData.mockReturnValue(createFriendAddData({previewFriendCode}));
+    mockedDataScanner.scanBarcode.mockResolvedValue({
+      format: 'qr',
+      value: 'skuri-friend:v1:SKR-7K4M-9Q2D',
+    });
+    const alertSpy = jest.spyOn(Alert, 'alert');
+
+    const view = render(<FriendAddScreen />);
+    fireEvent.press(view.getByLabelText('친구 QR 코드 스캔'));
+
+    await waitFor(() => {
+      expect(previewFriendCode).toHaveBeenCalledWith('SKR-7K4M-9Q2D');
+    });
+    await act(async () => {
+      previewDeferred.reject(new Error('network unavailable'));
+    });
+
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+
   it('대기 중인 친구 요청을 보낸 뒤 요청 목록으로 이동할 수 있다', async () => {
     const navigation = {
       goBack: jest.fn(),
