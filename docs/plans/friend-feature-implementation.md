@@ -1,7 +1,7 @@
 # SKURI 친구 기능 모바일 구현 계획
 
-> 문서 상태: Friend 관계 Core, Core 출시 준비, 친구 화면 완성, 시간표 공유 전달 완료. 4단계 친구 초대는 구현 PR 진행 중이며, 알림·탈퇴 정리는 후속 단계다.
-> 기준일: 2026-08-23
+> 문서 상태: Friend 관계 Core, Core 출시 준비, 친구 화면 완성, 시간표 공유 전달 완료. 4단계 친구 초대는 Backend [#85](https://github.com/skuri-kr/SKURI-Backend/pull/85)·Frontend [#27](https://github.com/skuri-kr/SKURI-Frontend/pull/27) 리뷰 중이며, 알림·탈퇴 정리는 후속 단계다.
+> 기준일: 2026-08-24
 > 정책 기준: SKURI-Backend docs/features/friends.md
 > 구현 게이트: 승인된 V1의 1·2·3단계 전달이 완료됐고, 4단계 친구 초대 구현 승인을 받아 Backend·Frontend를 저장소당 1개 PR로 진행한다.
 
@@ -35,7 +35,7 @@ PR #23 병합 후 실제 기기·시뮬레이터 수동 QA에서 발견된 가�
 
 남은 구현 단계:
 
-1. 친구 초대: 택시파티와 공개 채팅방 초대 (구현 PR 진행 중)
+1. 친구 초대: 택시파티와 공개 채팅방 초대 (Backend #85·Frontend #27 리뷰 중)
 2. 알림·탈퇴 정리: 친구·초대 알림, badge·이동, 최종 cleanup (후속)
 
 시간표 공유는 [Backend #84](https://github.com/skuri-kr/SKURI-Backend/pull/84)와 [Frontend #26](https://github.com/skuri-kr/SKURI-Frontend/pull/26)에서 구현·테스트·문서 정합성 점검과 리뷰 보완까지 마쳐 전달 완료로 기록한다. 실제 기기 QA는 아직 완료로 표시하지 않는다.
@@ -801,7 +801,7 @@ API client / DTO / Mapper
 | 4. 친구 초대 | 1 | 1 | 택시파티·공개방 초대, FriendHub 초대 탭, 공통 선택 sheet |
 | 5. 알림·탈퇴 정리 | 1 | 1 | 요청·수락·거절·초대 알림, FCM·인박스·SSE·이동, 최종 cleanup |
 
-기존 완료 이력을 포함하면 Backend #78~#83·Frontend #22~#25가 1·2단계를 전달했다. 시간표 공유는 Backend #84·Frontend #26에서 구현을 완료했다. 4단계 친구 초대는 현재 Backend와 Frontend에서 각각 1개 PR로 진행하고, 이후 5단계 알림·탈퇴 정리에 각각 1개 PR을 추가한다. 관리자 친구 관계망 UI는 V1 제외 범위이므로 Admin PR은 만들지 않는다.
+기존 완료 이력을 포함하면 Backend #78~#83·Frontend #22~#25가 1·2단계를 전달했다. 시간표 공유는 Backend #84·Frontend #26에서 구현을 완료했다. 4단계 친구 초대는 Backend #85·Frontend #27에서 리뷰 중이며, 이후 5단계 알림·탈퇴 정리에 저장소별 1개 PR을 추가한다. 관리자 친구 관계망 UI는 V1 제외 범위이므로 Admin PR은 만들지 않는다.
 
 ### 15.1 1단계: Core 출시 준비 (완료)
 
@@ -830,7 +830,7 @@ Backend는 `PRIVATE` 기본값·친구별 예외·친구 시간표 projection과
 
 Academic 공개 projection과 개인정보 노출 계약, 복잡한 시간표 UI를 함께 검증해야 하므로 다른 단계와 합치지 않는다.
 
-### 15.4 4단계: 친구 초대 (구현 PR 진행 중)
+### 15.4 4단계: 친구 초대 (Backend #85·Frontend #27 리뷰 중)
 
 - TaxiParty 참가자 전원의 친구 초대와 마지막 좌석 동시 수락
 - 공개 non-PARTY 채팅방 초대와 입장 자격·7일 만료
@@ -959,7 +959,7 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 
 ## 19. 4단계 구현 진행과 다음 구현 경계
 
-Core 출시 준비와 친구 화면 완성은 #24·#25에서, 시간표 공유는 Backend #84·Frontend #26에서 전달을 완료했다. 친구 초대는 별도 승인을 받아 Backend `feat/friend-invitations`와 Frontend `agent/friend-invitations`에서 구현 중이다.
+Core 출시 준비와 친구 화면 완성은 #24·#25에서, 시간표 공유는 Backend #84·Frontend #26에서 전달을 완료했다. 친구 초대는 Backend [#85](https://github.com/skuri-kr/SKURI-Backend/pull/85)와 Frontend [#27](https://github.com/skuri-kr/SKURI-Frontend/pull/27)에서 리뷰 중이다.
 
 4단계에 포함된 현재 변경:
 
@@ -1051,3 +1051,4 @@ Core 출시 준비와 친구 화면 완성은 #24·#25에서, 시간표 공유�
 | 2026-08-23 | 시간표 공유 Backend #84·Frontend #26의 리뷰 보완과 문서 정합성 점검을 마쳐 3단계 전달 완료로 전환 |
 | 2026-08-23 | FriendHub 친구 행에서는 Minecraft 정보를 모두 숨기고 친구 상세 최하단에서만 SELF·FRIEND 계층을 표시하도록 변경 |
 | 2026-08-23 | 4단계 친구 초대 구현 승인을 받아 택시·공개방 batch 초대, 공통 sheet, FriendHub 초대 탭을 저장소당 1개 PR로 진행 |
+| 2026-08-24 | 4단계 친구 초대를 Backend #85·Frontend #27로 생성하고 알림·탈퇴 정리를 다음 단계로 유지 |
