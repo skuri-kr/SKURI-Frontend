@@ -16,6 +16,14 @@ jest.mock('@/app/data-freshness/dataInvalidation', () => ({
 const mockedUseRepository = jest.mocked(useFriendInvitationRepository);
 const mockedInvalidateData = jest.mocked(invalidateData);
 
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(promiseResolve => {
+    resolve = promiseResolve;
+  });
+  return {promise, resolve};
+};
+
 const partyInvitation = {
   createdAt: '2026-08-23T12:00:00',
   expiresAt: null,
@@ -65,7 +73,12 @@ const createRepository = () => ({
   getFriendMinecraftAccounts: jest.fn(),
   getFriendRequests: jest.fn(),
   getFriends: jest.fn(),
-  getInboxCounts: jest.fn(),
+  getInboxCounts: jest.fn().mockResolvedValue({
+    chatRoomInvitationCount: 0,
+    incomingRequestCount: 0,
+    partyInvitationCount: 1,
+    totalActionCount: 1,
+  }),
   getMyCode: jest.fn(),
   getMyPrivacy: jest.fn(),
   getPartyInvitationEligibleFriends: jest.fn(),
@@ -123,5 +136,58 @@ describe('useFriendInvitationsData', () => {
     expect(result.current.pendingCount).toBe(0);
     expect(result.current.invitations).toEqual([chatInvitation]);
     expect(mockedInvalidateData).toHaveBeenCalled();
+  });
+
+  it('일부 목록 조회가 실패해도 서버 inbox count를 badge에 사용한다', async () => {
+    const repository = createRepository();
+    repository.getReceivedPartyInvitations.mockRejectedValue(
+      new Error('party unavailable'),
+    );
+    repository.getInboxCounts.mockResolvedValue({
+      chatRoomInvitationCount: 2,
+      incomingRequestCount: 0,
+      partyInvitationCount: 3,
+      totalActionCount: 5,
+    });
+    mockedUseRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendInvitationRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendInvitationsData());
+
+    await waitFor(() => expect(result.current.hasLoaded).toBe(true));
+    expect(result.current.partyError).toBe('party unavailable');
+    expect(result.current.pendingCount).toBe(5);
+  });
+
+  it('처리 성공 전에 시작한 새로고침 응답은 카드를 복원하지 않는다', async () => {
+    const repository = createRepository();
+    mockedUseRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendInvitationRepository>,
+    );
+    const {result} = renderHook(() => useFriendInvitationsData());
+    await waitFor(() => expect(result.current.hasLoaded).toBe(true));
+
+    const stalePartyResult = deferred<typeof partyInvitation[]>();
+    repository.getReceivedPartyInvitations.mockReturnValueOnce(
+      stalePartyResult.promise,
+    );
+
+    let reloadPromise!: Promise<void>;
+    act(() => {
+      reloadPromise = result.current.reload();
+    });
+    await waitFor(() => expect(result.current.loading).toBe(true));
+
+    await act(async () => {
+      await result.current.acceptInvitation(partyInvitation);
+    });
+    await act(async () => {
+      stalePartyResult.resolve([partyInvitation]);
+      await reloadPromise;
+    });
+
+    expect(result.current.invitations).toEqual([chatInvitation]);
+    expect(result.current.pendingCount).toBe(0);
   });
 });
