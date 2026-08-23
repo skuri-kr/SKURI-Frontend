@@ -1,6 +1,9 @@
 import React from 'react';
 
-import {useInvalidationVersion} from '@/app/data-freshness/dataInvalidation';
+import {
+  invalidateData,
+  useInvalidationVersion,
+} from '@/app/data-freshness/dataInvalidation';
 import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {useFriendRepository, useTimetableRepository} from '@/di';
 
@@ -43,14 +46,20 @@ export const useFriendTimetableData = (semesterId?: string) => {
     () => new Set(),
   );
   const cacheRef = React.useRef(new Map<string, FriendTimetable>());
+  const friendsRequestRef = React.useRef(0);
   const timetableRequestRef = React.useRef(0);
   const selectedFriendIdRef = React.useRef<string | undefined>(undefined);
   const updatingFavoriteIdsRef = React.useRef(new Set<string>());
 
   const loadFriends = React.useCallback(async () => {
+    const requestId = friendsRequestRef.current + 1;
+    friendsRequestRef.current = requestId;
     try {
       setFriendsError(undefined);
       const nextFriends = sortFriends(await friendRepository.getFriends());
+      if (requestId !== friendsRequestRef.current) {
+        return;
+      }
       setFriends(nextFriends);
       setHasLoadedFriends(true);
       setSelectedFriendId(current => {
@@ -66,7 +75,11 @@ export const useFriendTimetableData = (semesterId?: string) => {
         return undefined;
       });
     } catch (error) {
-      setFriendsError(getErrorMessage(error, '친구 목록을 불러오지 못했습니다.'));
+      if (requestId === friendsRequestRef.current) {
+        setFriendsError(
+          getErrorMessage(error, '친구 목록을 불러오지 못했습니다.'),
+        );
+      }
     }
   }, [friendRepository]);
 
@@ -76,16 +89,17 @@ export const useFriendTimetableData = (semesterId?: string) => {
         return;
       }
 
+      const requestId = timetableRequestRef.current + 1;
+      timetableRequestRef.current = requestId;
       const cacheKey = `${friendId}:${semesterId}`;
       const cached = cacheRef.current.get(cacheKey);
       if (cached && !options?.force) {
         setSelectedTimetable(cached);
         setTimetableError(undefined);
+        setLoadingTimetable(false);
         return;
       }
 
-      const requestId = timetableRequestRef.current + 1;
-      timetableRequestRef.current = requestId;
       setLoadingTimetable(true);
       setTimetableError(undefined);
       setSelectedTimetable(undefined);
@@ -152,6 +166,7 @@ export const useFriendTimetableData = (semesterId?: string) => {
 
       try {
         await friendRepository.updateFavorite(friend.id, favorite);
+        invalidateData(FRIEND_HUB_INVALIDATION_KEY);
       } catch (error) {
         setFriends(current =>
           sortFriends(

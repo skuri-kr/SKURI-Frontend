@@ -1,5 +1,7 @@
 import React from 'react';
 
+import {useInvalidationVersion} from '@/app/data-freshness/dataInvalidation';
+import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {useFriendRepository} from '@/di';
 
 import type {FriendMinecraftAccounts, FriendSummary} from '../model/friend';
@@ -9,6 +11,9 @@ const getErrorMessage = (error: unknown, fallback: string) =>
 
 export const useFriendDetailData = (friendId: string) => {
   const friendRepository = useFriendRepository();
+  const friendHubInvalidationVersion = useInvalidationVersion(
+    FRIEND_HUB_INVALIDATION_KEY,
+  );
   const [friend, setFriend] = React.useState<FriendSummary>();
   const [minecraftAccounts, setMinecraftAccounts] = React.useState<FriendMinecraftAccounts>();
   const [minecraftAccountsError, setMinecraftAccountsError] = React.useState<string>();
@@ -58,7 +63,7 @@ export const useFriendDetailData = (friendId: string) => {
 
   React.useEffect(() => {
     reload().catch(() => undefined);
-  }, [reload]);
+  }, [friendHubInvalidationVersion, reload]);
 
   const updateFavorite = React.useCallback(async () => {
     if (!friend || mutationInFlightRef.current) {
