@@ -327,6 +327,83 @@ describe('useTimetableDetailData add course options', () => {
     expect(result.current.data?.semesterId).toBe('2026-1');
   });
 
+  it('다른 학기 전환 후 시작한 강의 추가가 전환 요청을 취소하지 않는다', async () => {
+    const previousSemesterRecord: TimetableSemesterRecord = {
+      ...semesterRecord,
+      id: '2026-1',
+      label: '2026-1학기',
+    };
+    const catalogCourse = {
+      code: 'CS101',
+      credits: 3,
+      department: '컴퓨터공학과',
+      id: 'course-1',
+      isOnline: false,
+      locationLabel: '성결관 101호',
+      name: '자료구조',
+      professor: '김교수',
+      schedules: [{day: 'mon' as const, endPeriod: 2, startPeriod: 1}],
+      toneId: 'green' as const,
+    };
+    const pendingSelection = createDeferred<TimetableSemesterRecord | null>();
+    const repository = createRepository();
+    repository.listSemesterRecords.mockResolvedValue([
+      semesterRecord,
+      previousSemesterRecord,
+    ]);
+    repository.getSemesterRecord
+      .mockResolvedValueOnce(semesterRecord)
+      .mockReturnValueOnce(pendingSelection.promise);
+    repository.searchCatalogCourses.mockResolvedValue({
+      hasNext: false,
+      items: [catalogCourse],
+      page: 0,
+    });
+    repository.addCatalogCourse.mockResolvedValue({
+      ...semesterRecord,
+      courses: [catalogCourse],
+    });
+    mockedUseTimetableRepository.mockReturnValue(
+      repository as ReturnType<typeof useTimetableRepository>,
+    );
+
+    const {result} = renderHook(() => useTimetableDetailData());
+    await waitFor(() => {
+      expect(result.current.data?.semesterId).toBe('2026-2');
+    });
+    act(() => {
+      result.current.openAddSheet();
+    });
+    await waitFor(() => {
+      expect(
+        result.current.data?.addCourseSheet.search.items.some(
+          course => course.courseId === 'course-1',
+        ),
+      ).toBe(true);
+    });
+
+    let selectPromise!: Promise<void>;
+    act(() => {
+      selectPromise = result.current.selectSemester('2026-1');
+    });
+    await waitFor(() => {
+      expect(repository.getSemesterRecord).toHaveBeenCalledTimes(2);
+    });
+
+    await act(async () => {
+      await result.current.addCatalogCourse('course-1');
+    });
+    await act(async () => {
+      pendingSelection.resolve(previousSemesterRecord);
+      await selectPromise;
+    });
+
+    expect(repository.addCatalogCourse).toHaveBeenCalledWith(
+      expect.objectContaining({semesterId: '2026-2'}),
+    );
+    expect(result.current.data?.semesterId).toBe('2026-1');
+  });
+
   it('강의 삭제 응답이 진행 중인 다른 학기 전환을 취소하지 않는다', async () => {
     const previousSemesterRecord: TimetableSemesterRecord = {
       ...semesterRecord,
