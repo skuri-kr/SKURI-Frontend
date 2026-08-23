@@ -36,58 +36,9 @@ import {useScreenView} from '@/shared/hooks/useScreenView';
 import {FriendRequestCard} from '../components/FriendRequestCard';
 import {FriendRow} from '../components/FriendRow';
 import {useFriendHubData} from '../hooks/useFriendHubData';
+import {getDuplicateFriendProfileIds} from '../model/friendDisambiguation';
 
 type FriendHubTab = 'friends' | 'requests';
-
-const getDuplicateRequestFriendIds = (
-  requests: ReadonlyArray<{
-    friend: {department: string | null; id: string; nickname: string};
-  }>,
-) => {
-  const counts = new Map<string, number>();
-  requests.forEach(request => {
-    const key = JSON.stringify([
-      request.friend.nickname,
-      request.friend.department,
-    ]);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  });
-
-  return new Set(
-    requests
-      .filter(request => {
-        const key = JSON.stringify([
-          request.friend.nickname,
-          request.friend.department,
-        ]);
-        return counts.get(key)! > 1;
-      })
-      .map(request => request.friend.id),
-  );
-};
-
-const getDuplicateFriendIds = (
-  friends: ReadonlyArray<{
-    department: string | null;
-    id: string;
-    nickname: string;
-  }>,
-) => {
-  const counts = new Map<string, number>();
-  friends.forEach(friend => {
-    const key = JSON.stringify([friend.nickname, friend.department]);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  });
-
-  return new Set(
-    friends
-      .filter(friend => {
-        const key = JSON.stringify([friend.nickname, friend.department]);
-        return counts.get(key)! > 1;
-      })
-      .map(friend => friend.id),
-  );
-};
 
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -151,11 +102,13 @@ export const FriendHubScreen = () => {
   }, [friendHubInvalidationVersion, isFocused, reload]);
 
   const duplicateRequestFriendIds = React.useMemo(
-    () => getDuplicateRequestFriendIds([...receivedRequests, ...sentRequests]),
+    () => getDuplicateFriendProfileIds(
+      [...receivedRequests, ...sentRequests].map(request => request.friend),
+    ),
     [receivedRequests, sentRequests],
   );
   const duplicateFriendIds = React.useMemo(
-    () => getDuplicateFriendIds(friends),
+    () => getDuplicateFriendProfileIds(friends),
     [friends],
   );
   const requestTabLabel =

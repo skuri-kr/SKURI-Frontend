@@ -26,6 +26,7 @@ import {useScreenView} from '@/shared/hooks/useScreenView';
 import {FriendAvatar} from '../components/FriendAvatar';
 import {useFriendSettingsData} from '../hooks/useFriendSettingsData';
 import {useTimetableSharingSettingsData} from '../hooks/useTimetableSharingSettingsData';
+import {getDuplicateFriendProfileIds} from '../model/friendDisambiguation';
 import {TimetableSharingScopeSheet} from '@/features/timetable/components/TimetableSharingScopeSheet';
 import type {TimetableShareScope} from '@/features/timetable/model/timetableDomain';
 
@@ -43,29 +44,6 @@ const getTimetableScopeLabel = (scope?: TimetableShareScope) => {
     default:
       return '기본값 사용';
   }
-};
-
-const getDuplicateBlockIds = (
-  blocks: ReadonlyArray<{
-    department: string | null;
-    id: string;
-    nickname: string;
-  }>,
-) => {
-  const counts = new Map<string, number>();
-  blocks.forEach(block => {
-    const key = JSON.stringify([block.nickname, block.department]);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  });
-
-  return new Set(
-    blocks
-      .filter(block => {
-        const key = JSON.stringify([block.nickname, block.department]);
-        return counts.get(key)! > 1;
-      })
-      .map(block => block.id),
-  );
 };
 
 interface ErrorBannerProps {
@@ -125,8 +103,12 @@ export const FriendSettingsScreen = () => {
     updateFriendScope,
   } = useTimetableSharingSettingsData();
   const duplicateBlockIds = React.useMemo(
-    () => getDuplicateBlockIds(blocks),
+    () => getDuplicateFriendProfileIds(blocks),
     [blocks],
+  );
+  const duplicateSharingFriendIds = React.useMemo(
+    () => getDuplicateFriendProfileIds(sharingFriends),
+    [sharingFriends],
   );
 
   const handleUnblock = React.useCallback(
@@ -305,8 +287,11 @@ export const FriendSettingsScreen = () => {
                   const overrideScope = getFriendScope(friend.id);
                   const effectiveScope =
                     overrideScope ?? sharingSettings.defaultScope;
+                  const showIdentifier = duplicateSharingFriendIds.has(friend.id);
+                  const identifier = friend.id.slice(-6).toUpperCase();
                   return (
                     <SettingsRow
+                      accessibilityLabel={`${friend.nickname} 시간표 공개 범위 변경${showIdentifier ? `, 식별 코드 ${identifier}` : ''}`}
                       accessoryType="chevron"
                       disabled={savingSharing}
                       iconBackgroundColor={COLORS.background.subtle}
@@ -315,7 +300,8 @@ export const FriendSettingsScreen = () => {
                       key={friend.id}
                       onPress={() => setScopeTarget({friendId: friend.id})}
                       showDivider={index < sharingFriends.length - 1}
-                      subtitle={`${getTimetableScopeLabel(effectiveScope)} · ${overrideScope ? '개별 설정' : '기본값 적용'} · ${friend.department || '학과 정보 없음'}`}
+                      subtitle={`${getTimetableScopeLabel(effectiveScope)} · ${overrideScope ? '개별 설정' : '기본값 적용'} · ${friend.department || '학과 정보 없음'}${showIdentifier ? ` · 식별 코드 · ${identifier}` : ''}`}
+                      subtitleNumberOfLines={showIdentifier ? 2 : 1}
                       title={friend.nickname}
                       titleWeight="700"
                     />
