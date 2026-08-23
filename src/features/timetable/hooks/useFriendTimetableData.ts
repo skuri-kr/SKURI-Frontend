@@ -40,6 +40,8 @@ export const useFriendTimetableData = (semesterId?: string) => {
   const [selectedFriendId, setSelectedFriendId] = React.useState<string>();
   const [selectedTimetable, setSelectedTimetable] =
     React.useState<FriendTimetable>();
+  const [selectedTimetableKey, setSelectedTimetableKey] =
+    React.useState<string>();
   const [timetableError, setTimetableError] = React.useState<string>();
   const [loadingTimetable, setLoadingTimetable] = React.useState(false);
   const [updatingFavoriteIds, setUpdatingFavoriteIds] = React.useState<Set<string>>(
@@ -70,6 +72,7 @@ export const useFriendTimetableData = (semesterId?: string) => {
         timetableRequestRef.current += 1;
         selectedFriendIdRef.current = undefined;
         setSelectedTimetable(undefined);
+        setSelectedTimetableKey(undefined);
         setTimetableError(undefined);
         setLoadingTimetable(false);
         return undefined;
@@ -92,9 +95,13 @@ export const useFriendTimetableData = (semesterId?: string) => {
       const requestId = timetableRequestRef.current + 1;
       timetableRequestRef.current = requestId;
       const cacheKey = `${friendId}:${semesterId}`;
+      if (options?.force) {
+        cacheRef.current.delete(cacheKey);
+      }
       const cached = cacheRef.current.get(cacheKey);
       if (cached && !options?.force) {
         setSelectedTimetable(cached);
+        setSelectedTimetableKey(cacheKey);
         setTimetableError(undefined);
         setLoadingTimetable(false);
         return;
@@ -103,6 +110,7 @@ export const useFriendTimetableData = (semesterId?: string) => {
       setLoadingTimetable(true);
       setTimetableError(undefined);
       setSelectedTimetable(undefined);
+      setSelectedTimetableKey(undefined);
 
       try {
         const timetable = await timetableRepository.getFriendTimetable({
@@ -114,6 +122,7 @@ export const useFriendTimetableData = (semesterId?: string) => {
         }
         cacheRef.current.set(cacheKey, timetable);
         setSelectedTimetable(timetable);
+        setSelectedTimetableKey(cacheKey);
       } catch (error) {
         if (requestId === timetableRequestRef.current) {
           setTimetableError(
@@ -136,6 +145,7 @@ export const useFriendTimetableData = (semesterId?: string) => {
         selectedFriendIdRef.current = undefined;
         setSelectedFriendId(undefined);
         setSelectedTimetable(undefined);
+        setSelectedTimetableKey(undefined);
         setTimetableError(undefined);
         setLoadingTimetable(false);
         return;
@@ -145,6 +155,7 @@ export const useFriendTimetableData = (semesterId?: string) => {
       selectedFriendIdRef.current = friendId;
       setSelectedFriendId(friendId);
       setSelectedTimetable(undefined);
+      setSelectedTimetableKey(undefined);
       setTimetableError(undefined);
       setLoadingTimetable(Boolean(semesterId));
     },
@@ -208,6 +219,15 @@ export const useFriendTimetableData = (semesterId?: string) => {
     loadFriendTimetable(selectedFriendId).catch(() => undefined);
   }, [loadFriendTimetable, selectedFriendId]);
 
+  const currentTimetableKey =
+    selectedFriendId && semesterId
+      ? `${selectedFriendId}:${semesterId}`
+      : undefined;
+  const visibleSelectedTimetable =
+    selectedTimetableKey === currentTimetableKey
+      ? selectedTimetable
+      : undefined;
+
   return {
     friends,
     friendsError,
@@ -220,7 +240,7 @@ export const useFriendTimetableData = (semesterId?: string) => {
         ? loadFriendTimetable(selectedFriendId, {force: true})
         : Promise.resolve(),
     selectedFriendId,
-    selectedTimetable,
+    selectedTimetable: visibleSelectedTimetable,
     selectFriend,
     timetableError,
     updateFavorite,
