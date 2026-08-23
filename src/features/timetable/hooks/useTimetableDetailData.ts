@@ -1046,6 +1046,25 @@ export const useTimetableDetailData = (
     setRecord(nextRecord);
   }, []);
 
+  const supersedeSemesterLoad = React.useCallback(() => {
+    semesterLoadVersionRef.current += 1;
+    setLoading(false);
+  }, []);
+
+  const applyAuthoritativeRecord = React.useCallback(
+    (nextRecord: TimetableSemesterRecord | null) => {
+      supersedeSemesterLoad();
+      setRecord(nextRecord);
+      setError(null);
+    },
+    [supersedeSemesterLoad],
+  );
+
+  const isCurrentSemester = React.useCallback(
+    (semesterId: string) => selectedSemesterIdRef.current === semesterId,
+    [],
+  );
+
   const visibleCatalogCourses = React.useMemo(() => {
     if (!currentSearchKey || searchResultKey !== currentSearchKey) {
       return [];
@@ -1090,11 +1109,13 @@ export const useTimetableDetailData = (
       }
 
       const previousRecord = record;
+      const mutationSemesterId = selectedSemesterId;
       const optimisticCourse: TimetableCourseRecord = {
         ...targetCourse,
         toneId: selectedToneId,
       };
 
+      supersedeSemesterLoad();
       refreshRecord({
         ...previousRecord,
         courses: [...previousRecord.courses, optimisticCourse],
@@ -1102,7 +1123,7 @@ export const useTimetableDetailData = (
       closeAddSheet();
 
       setTimetableCourseTone(
-        selectedSemesterId,
+        mutationSemesterId,
         courseId,
         selectedToneId,
       ).catch(toneError => {
@@ -1112,28 +1133,34 @@ export const useTimetableDetailData = (
       try {
         const nextRecord = await timetableRepository.addCatalogCourse({
           courseId,
-          semesterId: selectedSemesterId,
+          semesterId: mutationSemesterId,
           toneId: selectedToneId,
         });
 
         if (!nextRecord) {
-          await loadSemester(selectedSemesterId);
+          if (isCurrentSemester(mutationSemesterId)) {
+            await loadSemester(mutationSemesterId);
+          }
           invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
           return;
         }
 
-        refreshRecord({
-          ...nextRecord,
-          label: previousRecord.label,
-          courses: nextRecord.courses.map(course =>
-            course.id === courseId
-              ? {...course, toneId: selectedToneId}
-              : course,
-          ),
-        });
+        if (isCurrentSemester(mutationSemesterId)) {
+          applyAuthoritativeRecord({
+            ...nextRecord,
+            label: previousRecord.label,
+            courses: nextRecord.courses.map(course =>
+              course.id === courseId
+                ? {...course, toneId: selectedToneId}
+                : course,
+            ),
+          });
+        }
         invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
       } catch (addError) {
-        refreshRecord(previousRecord);
+        if (isCurrentSemester(mutationSemesterId)) {
+          refreshRecord(previousRecord);
+        }
 
         if (isAlreadyExistsError(addError)) {
           Alert.alert(
@@ -1143,7 +1170,9 @@ export const useTimetableDetailData = (
           return;
         }
 
-        loadSemester(selectedSemesterId).catch(() => undefined);
+        if (isCurrentSemester(mutationSemesterId)) {
+          loadSemester(mutationSemesterId).catch(() => undefined);
+        }
         Alert.alert(
           '강의를 추가하지 못했습니다',
           '잠시 후 다시 시도해주세요.',
@@ -1151,12 +1180,15 @@ export const useTimetableDetailData = (
       }
     },
     [
+      applyAuthoritativeRecord,
       closeAddSheet,
+      isCurrentSemester,
       loadSemester,
       record,
       refreshRecord,
       selectedSemesterId,
       selectedToneId,
+      supersedeSemesterLoad,
       timetableRepository,
       visibleCatalogCourses,
     ],
@@ -1203,14 +1235,18 @@ export const useTimetableDetailData = (
       return;
     }
 
+    const mutationSemesterId = selectedSemesterId;
     const previousCourseIds = new Set(record.courses.map(course => course.id));
+    supersedeSemesterLoad();
     const nextRecord = await timetableRepository.addManualCourse({
       draft: manualDraft,
-      semesterId: selectedSemesterId,
+      semesterId: mutationSemesterId,
     });
 
     if (!nextRecord) {
-      await loadSemester(selectedSemesterId);
+      if (isCurrentSemester(mutationSemesterId)) {
+        await loadSemester(mutationSemesterId);
+      }
       invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
       closeAddSheet();
       return;
@@ -1223,7 +1259,7 @@ export const useTimetableDetailData = (
     if (nextRecord && addedCourse) {
       try {
         await setTimetableCourseTone(
-          selectedSemesterId,
+          mutationSemesterId,
           addedCourse.id,
           manualDraft.toneId,
         );
@@ -1237,29 +1273,35 @@ export const useTimetableDetailData = (
           : course,
       );
 
-      refreshRecord({
-        ...nextRecord,
-        label: record.label,
-        courses: nextCourses,
-      });
+      if (isCurrentSemester(mutationSemesterId)) {
+        applyAuthoritativeRecord({
+          ...nextRecord,
+          label: record.label,
+          courses: nextCourses,
+        });
+      }
       invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
       closeAddSheet();
       return;
     }
 
-    refreshRecord({
-      ...nextRecord,
-      label: record.label,
-    });
+    if (isCurrentSemester(mutationSemesterId)) {
+      applyAuthoritativeRecord({
+        ...nextRecord,
+        label: record.label,
+      });
+    }
     invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
     closeAddSheet();
   }, [
+    applyAuthoritativeRecord,
     closeAddSheet,
+    isCurrentSemester,
     loadSemester,
     manualDraft,
     record,
-    refreshRecord,
     selectedSemesterId,
+    supersedeSemesterLoad,
     timetableRepository,
   ]);
 
@@ -1290,7 +1332,9 @@ export const useTimetableDetailData = (
         style: 'destructive',
         onPress: async () => {
           const previousRecord = record;
+          const mutationSemesterId = selectedSemesterId;
 
+          supersedeSemesterLoad();
           refreshRecord({
             ...previousRecord,
             courses: previousRecord.courses.filter(
@@ -1301,31 +1345,35 @@ export const useTimetableDetailData = (
           try {
             const nextRecord = await timetableRepository.removeCourse({
               courseId: removedCourseId,
-              semesterId: selectedSemesterId,
+              semesterId: mutationSemesterId,
             });
 
             try {
               await removeTimetableCourseTone(
-                selectedSemesterId,
+                mutationSemesterId,
                 removedCourseId,
               );
             } catch (toneError) {
               console.warn('시간표 색상을 삭제하지 못했습니다.', toneError);
             }
 
-            if (nextRecord) {
-              refreshRecord({
-                ...nextRecord,
-                label: previousRecord.label,
-              });
-            } else {
-              await loadSemester(selectedSemesterId);
+            if (isCurrentSemester(mutationSemesterId)) {
+              if (nextRecord) {
+                applyAuthoritativeRecord({
+                  ...nextRecord,
+                  label: previousRecord.label,
+                });
+              } else {
+                await loadSemester(mutationSemesterId);
+              }
             }
 
             invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
           } catch (removeError) {
-            refreshRecord(previousRecord);
-            setSelectedCourseId(removedCourseId);
+            if (isCurrentSemester(mutationSemesterId)) {
+              refreshRecord(previousRecord);
+              setSelectedCourseId(removedCourseId);
+            }
             Alert.alert(
               '강의를 삭제하지 못했습니다',
               removeError instanceof RepositoryError
@@ -1337,11 +1385,14 @@ export const useTimetableDetailData = (
       },
     ]);
   }, [
+    applyAuthoritativeRecord,
+    isCurrentSemester,
     loadSemester,
     record,
     refreshRecord,
     selectedCourseId,
     selectedSemesterId,
+    supersedeSemesterLoad,
     timetableRepository,
   ]);
 
