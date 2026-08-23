@@ -51,4 +51,21 @@ describe('FriendRow', () => {
 
     expect(onPress).not.toHaveBeenCalled();
   });
+
+  it('마인크래프트 계정 정보는 표시하지 않는다', () => {
+    const view = render(
+      <FriendRow
+        friend={{
+          ...friend,
+          minecraftAccountCount: 3,
+          primaryMinecraftGameName: 'Steve',
+        }}
+        onPress={jest.fn()}
+        onPressFavorite={jest.fn()}
+      />,
+    );
+
+    expect(view.queryByText('마인크래프트 계정 3개')).toBeNull();
+    expect(view.queryByText(/Steve/)).toBeNull();
+  });
 });

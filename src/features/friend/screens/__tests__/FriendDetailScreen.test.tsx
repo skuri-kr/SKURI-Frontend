@@ -1,5 +1,5 @@
 import React from 'react';
-import {Alert} from 'react-native';
+import {Alert, Text as RNText} from 'react-native';
 import {act, fireEvent, render, waitFor} from '@testing-library/react-native';
 
 import {useNavigation, useRoute} from '@react-navigation/native';
@@ -83,6 +83,20 @@ const createFriendDetailData = (overrides: Partial<ReturnType<typeof useFriendDe
 describe('FriendDetailScreen', () => {
   beforeEach(() => {
     jest.resetAllMocks();
+  });
+
+  it('마인크래프트 계정은 친구 관리 기능보다 아래에 표시한다', () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true), navigate: jest.fn()};
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseRoute.mockReturnValue({params: {friendId: 'friend-1'}} as ReturnType<typeof useRoute>);
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData());
+
+    const view = render(<FriendDetailScreen />);
+    const visibleTexts = view.UNSAFE_getAllByType(RNText).map(node => node.props.children);
+
+    expect(visibleTexts.indexOf('마인크래프트 계정')).toBeGreaterThan(
+      visibleTexts.indexOf('차단하기'),
+    );
   });
 
   it('기존 친구 정보를 유지한 재조회 실패를 배너로 알리고 재시도할 수 있다', async () => {
