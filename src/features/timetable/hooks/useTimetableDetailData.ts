@@ -1073,15 +1073,22 @@ export const useTimetableDetailData = (
     [],
   );
 
-  const applyAuthoritativeRecord = React.useCallback(
-    (semesterId: string, nextRecord: TimetableSemesterRecord | null) => {
+  const supersedeSemesterLoadForMutation = React.useCallback(
+    (semesterId: string) => {
       if (!hasPendingDifferentSemesterLoad(semesterId)) {
         supersedeSemesterLoad();
       }
+    },
+    [hasPendingDifferentSemesterLoad, supersedeSemesterLoad],
+  );
+
+  const applyAuthoritativeRecord = React.useCallback(
+    (semesterId: string, nextRecord: TimetableSemesterRecord | null) => {
+      supersedeSemesterLoadForMutation(semesterId);
       setRecord(nextRecord);
       setError(null);
     },
-    [hasPendingDifferentSemesterLoad, supersedeSemesterLoad],
+    [supersedeSemesterLoadForMutation],
   );
 
   const isCurrentSemester = React.useCallback(
@@ -1139,7 +1146,7 @@ export const useTimetableDetailData = (
         toneId: selectedToneId,
       };
 
-      supersedeSemesterLoad();
+      supersedeSemesterLoadForMutation(mutationSemesterId);
       refreshRecord({
         ...previousRecord,
         courses: [...previousRecord.courses, optimisticCourse],
@@ -1222,7 +1229,7 @@ export const useTimetableDetailData = (
       refreshRecord,
       selectedSemesterId,
       selectedToneId,
-      supersedeSemesterLoad,
+      supersedeSemesterLoadForMutation,
       timetableRepository,
       visibleCatalogCourses,
     ],
@@ -1271,7 +1278,7 @@ export const useTimetableDetailData = (
 
     const mutationSemesterId = selectedSemesterId;
     const previousCourseIds = new Set(record.courses.map(course => course.id));
-    supersedeSemesterLoad();
+    supersedeSemesterLoadForMutation(mutationSemesterId);
     const nextRecord = await timetableRepository.addManualCourse({
       draft: manualDraft,
       semesterId: mutationSemesterId,
@@ -1345,7 +1352,7 @@ export const useTimetableDetailData = (
     manualDraft,
     record,
     selectedSemesterId,
-    supersedeSemesterLoad,
+    supersedeSemesterLoadForMutation,
     timetableRepository,
   ]);
 
@@ -1378,7 +1385,7 @@ export const useTimetableDetailData = (
           const previousRecord = record;
           const mutationSemesterId = selectedSemesterId;
 
-          supersedeSemesterLoad();
+          supersedeSemesterLoadForMutation(mutationSemesterId);
           refreshRecord({
             ...previousRecord,
             courses: previousRecord.courses.filter(
@@ -1440,7 +1447,7 @@ export const useTimetableDetailData = (
     refreshRecord,
     selectedCourseId,
     selectedSemesterId,
-    supersedeSemesterLoad,
+    supersedeSemesterLoadForMutation,
     timetableRepository,
   ]);
 
