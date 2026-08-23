@@ -133,8 +133,10 @@ export const TimetableDetailScreen = () => {
       return;
     }
 
-    autoOpenedFriendRef.current = targetFriendPublicId;
-    const frame = requestAnimationFrame(scrollToFriendTimetable);
+    const frame = requestAnimationFrame(() => {
+      scrollToFriendTimetable();
+      autoOpenedFriendRef.current = targetFriendPublicId;
+    });
     return () => cancelAnimationFrame(frame);
   }, [friendSectionTop, route.params?.targetFriendPublicId, scrollToFriendTimetable]);
 
@@ -339,6 +341,7 @@ export const TimetableDetailScreen = () => {
           {data ? (
             <View
               onLayout={event => setFriendSectionTop(event.nativeEvent.layout.y)}
+              testID="friend-timetable-section-container"
               style={styles.friendTimetableContainer}>
               <View style={styles.friendTimetableDivider} />
               <FriendTimetableSection
