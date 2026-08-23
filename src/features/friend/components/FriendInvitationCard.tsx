@@ -36,6 +36,20 @@ const EXPIRY_REASON_LABELS: Record<FriendInvitationExpiryReason, string> = {
   TARGET_UNAVAILABLE: '대상이 종료되거나 이용할 수 없어졌어요.',
 };
 
+const PARTY_STATUS_LABELS = {
+  ARRIVED: '도착 완료',
+  CLOSED: '모집 마감',
+  ENDED: '종료',
+  OPEN: '모집 중',
+} as const;
+
+const DEADLINE_FORMATTER = new Intl.DateTimeFormat('ko-KR', {
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  month: 'numeric',
+});
+
 const getTargetLabel = (invitation: FriendInvitation) => {
   if (!invitation.target) {
     return '더 이상 확인할 수 없는 대상';
@@ -48,6 +62,25 @@ const getTargetLabel = (invitation: FriendInvitation) => {
   return invitation.target.name;
 };
 
+const getTargetMeta = (invitation: FriendInvitation) => {
+  if (!invitation.target) {
+    return null;
+  }
+
+  if (invitation.target.type === 'PARTY') {
+    return `${PARTY_STATUS_LABELS[invitation.target.status]} · ${invitation.target.currentMembers}/${invitation.target.maxMembers}명`;
+  }
+
+  if (!invitation.expiresAt) {
+    return null;
+  }
+
+  const deadline = new Date(invitation.expiresAt);
+  return Number.isNaN(deadline.getTime())
+    ? null
+    : `${DEADLINE_FORMATTER.format(deadline)}까지 수락`;
+};
+
 export const FriendInvitationCard = ({
   invitation,
   loading,
@@ -57,9 +90,13 @@ export const FriendInvitationCard = ({
 }: FriendInvitationCardProps) => {
   const expired = invitation.status === 'EXPIRED';
   const inviterName = invitation.inviter?.nickname ?? '알 수 없는 친구';
-  const expiryMessage = invitation.expiryReason
-    ? EXPIRY_REASON_LABELS[invitation.expiryReason]
-    : '초대가 만료되었어요.';
+  const expiryMessage =
+    (invitation.expiryReason
+      ? (EXPIRY_REASON_LABELS as Partial<Record<string, string>>)[
+          invitation.expiryReason
+        ]
+      : undefined) ?? '초대가 만료되었어요.';
+  const targetMeta = getTargetMeta(invitation);
 
   return (
     <View style={styles.card}>
@@ -83,7 +120,12 @@ export const FriendInvitationCard = ({
           name={invitation.type === 'PARTY' ? 'car-outline' : 'chatbubbles-outline'}
           size={19}
         />
-        <Text style={styles.targetLabel}>{getTargetLabel(invitation)}</Text>
+        <View style={styles.targetText}>
+          <Text style={styles.targetLabel}>{getTargetLabel(invitation)}</Text>
+          {!expired && targetMeta ? (
+            <Text style={styles.targetMeta}>{targetMeta}</Text>
+          ) : null}
+        </View>
       </View>
 
       {invitation.type === 'PARTY' && !expired ? (
@@ -151,5 +193,7 @@ const styles = StyleSheet.create({
   helperText: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: SPACING.sm},
   inviterName: {color: COLORS.text.primary, fontSize: 15, fontWeight: '800', lineHeight: 21},
   targetLabel: {color: COLORS.text.primary, flex: 1, fontSize: 14, fontWeight: '700', lineHeight: 20},
+  targetMeta: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: 2},
   targetRow: {alignItems: 'center', backgroundColor: COLORS.background.subtle, borderRadius: RADIUS.md, flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md, padding: SPACING.md},
+  targetText: {flex: 1},
 });

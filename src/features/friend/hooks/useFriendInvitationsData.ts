@@ -6,7 +6,6 @@ import {useFriendInvitationRepository} from '@/di';
 
 import type {FriendInvitation} from '../model/friend';
 
-type InvitationType = FriendInvitation['type'];
 type AsyncResult<T> = {error: unknown; ok: false} | {ok: true; value: T};
 
 const settle = <T,>(operation: () => Promise<T>): Promise<AsyncResult<T>> =>
@@ -35,25 +34,36 @@ export const useFriendInvitationsData = () => {
   >([]);
   const [partyError, setPartyError] = React.useState<string>();
   const [chatError, setChatError] = React.useState<string>();
+  const [pendingCount, setPendingCount] = React.useState<number>();
   const [hasLoaded, setHasLoaded] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [mutatingIds, setMutatingIds] = React.useState<Set<string>>(
     () => new Set(),
   );
   const mutatingIdsRef = React.useRef(new Set<string>());
+  const listStateVersionRef = React.useRef(0);
+  const reloadVersionRef = React.useRef(0);
 
   const reload = React.useCallback(async () => {
+    const requestVersion = reloadVersionRef.current + 1;
+    reloadVersionRef.current = requestVersion;
+    const listStateVersion = listStateVersionRef.current;
+    const isCurrent = () =>
+      requestVersion === reloadVersionRef.current &&
+      listStateVersion === listStateVersionRef.current;
+
     setLoading(true);
     setPartyError(undefined);
     setChatError(undefined);
-    const [partyResult, chatResult] = await Promise.all([
+    const [partyResult, chatResult, countsResult] = await Promise.all([
       settle(() => repository.getReceivedPartyInvitations()),
       settle(() => repository.getReceivedChatRoomInvitations()),
+      settle(() => repository.getInboxCounts()),
     ]);
 
-    if (partyResult.ok) {
+    if (partyResult.ok && isCurrent()) {
       setPartyInvitations(partyResult.value);
-    } else {
+    } else if (!partyResult.ok && isCurrent()) {
       setPartyError(
         getErrorMessage(
           partyResult.error,
@@ -62,9 +72,9 @@ export const useFriendInvitationsData = () => {
       );
     }
 
-    if (chatResult.ok) {
+    if (chatResult.ok && isCurrent()) {
       setChatInvitations(chatResult.value);
-    } else {
+    } else if (!chatResult.ok && isCurrent()) {
       setChatError(
         getErrorMessage(
           chatResult.error,
@@ -73,8 +83,22 @@ export const useFriendInvitationsData = () => {
       );
     }
 
-    setHasLoaded(true);
-    setLoading(false);
+    if (isCurrent()) {
+      if (countsResult.ok) {
+        setPendingCount(
+          countsResult.value.partyInvitationCount +
+            countsResult.value.chatRoomInvitationCount,
+        );
+      } else if (partyResult.ok && chatResult.ok) {
+        setPendingCount(
+          [...partyResult.value, ...chatResult.value].filter(
+            invitation => invitation.status === 'PENDING',
+          ).length,
+        );
+      }
+      setHasLoaded(true);
+      setLoading(false);
+    }
   }, [repository]);
 
   React.useEffect(() => {
@@ -97,14 +121,23 @@ export const useFriendInvitationsData = () => {
   }, []);
 
   const removeInvitation = React.useCallback(
-    (invitationId: string, type: InvitationType) => {
+    (invitation: FriendInvitation) => {
+      listStateVersionRef.current += 1;
+      reloadVersionRef.current += 1;
+      setLoading(false);
+      const {id: invitationId, type} = invitation;
       if (type === 'PARTY') {
         setPartyInvitations(current =>
-          current.filter(invitation => invitation.id !== invitationId),
+          current.filter(item => item.id !== invitationId),
         );
       } else {
         setChatInvitations(current =>
-          current.filter(invitation => invitation.id !== invitationId),
+          current.filter(item => item.id !== invitationId),
+        );
+      }
+      if (invitation.status === 'PENDING') {
+        setPendingCount(current =>
+          current === undefined ? current : Math.max(0, current - 1),
         );
       }
       invalidateData(FRIEND_INBOX_COUNTS_INVALIDATION_KEY);
@@ -123,7 +156,7 @@ export const useFriendInvitationsData = () => {
           invitation.type === 'PARTY'
             ? await repository.acceptPartyInvitation(invitation.id)
             : await repository.acceptChatRoomInvitation(invitation.id);
-        removeInvitation(invitation.id, invitation.type);
+        removeInvitation(invitation);
         return mutation;
       } catch (error) {
         reload().catch(() => undefined);
@@ -146,7 +179,7 @@ export const useFriendInvitationsData = () => {
         } else {
           await repository.declineChatRoomInvitation(invitation.id);
         }
-        removeInvitation(invitation.id, invitation.type);
+        removeInvitation(invitation);
       } catch (error) {
         reload().catch(() => undefined);
         throw error;
@@ -168,7 +201,7 @@ export const useFriendInvitationsData = () => {
         } else {
           await repository.deleteChatRoomInvitation(invitation.id);
         }
-        removeInvitation(invitation.id, invitation.type);
+        removeInvitation(invitation);
       } finally {
         endMutation(invitation.id);
       }
@@ -179,11 +212,6 @@ export const useFriendInvitationsData = () => {
     () => sortInvitations([...partyInvitations, ...chatInvitations]),
     [chatInvitations, partyInvitations],
   );
-  const pendingCount = React.useMemo(
-    () => invitations.filter(invitation => invitation.status === 'PENDING').length,
-    [invitations],
-  );
-
   return {
     acceptInvitation,
     chatError,

@@ -1,10 +1,12 @@
 import React from 'react';
 import {
   BottomSheetBackdrop,
+  BottomSheetFooter,
   BottomSheetModal,
   BottomSheetScrollView,
   BottomSheetTextInput,
   type BottomSheetBackdropProps,
+  type BottomSheetFooterProps,
   type BottomSheetScrollViewMethods,
 } from '@gorhom/bottom-sheet';
 import {
@@ -50,6 +52,7 @@ interface FriendInviteSheetProps {
 }
 
 const ROW_HEIGHT = 68;
+const FOOTER_HEIGHT = 76;
 const NAME_COLLATOR = new Intl.Collator('ko');
 
 const getErrorMessage = (error: unknown, fallback: string) =>
@@ -103,6 +106,8 @@ export const FriendInviteSheet = ({
   const modalRef = React.useRef<BottomSheetModal>(null);
   const scrollRef = React.useRef<BottomSheetScrollViewMethods>(null);
   const initialSelectionAppliedRef = React.useRef(false);
+  const activeContextKeyRef = React.useRef<string | undefined>(undefined);
+  const loadVersionRef = React.useRef(0);
   const [eligible, setEligible] =
     React.useState<FriendInvitationEligibleFriends | null>(null);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(
@@ -116,12 +121,24 @@ export const FriendInviteSheet = ({
     React.useState(false);
   const contextTargetId = context?.targetId;
   const contextType = context?.type;
+  const contextKey =
+    contextTargetId && contextType
+      ? `${contextType}:${contextTargetId}`
+      : undefined;
+  activeContextKeyRef.current = visible ? contextKey : undefined;
 
   const loadEligible = React.useCallback(
     async ({preserveSelection = false}: {preserveSelection?: boolean} = {}) => {
       if (!contextTargetId || !contextType) {
         return;
       }
+
+      const requestContextKey = `${contextType}:${contextTargetId}`;
+      const requestVersion = loadVersionRef.current + 1;
+      loadVersionRef.current = requestVersion;
+      const isCurrentRequest = () =>
+        activeContextKeyRef.current === requestContextKey &&
+        loadVersionRef.current === requestVersion;
 
       setLoading(true);
       setError(undefined);
@@ -132,6 +149,9 @@ export const FriendInviteSheet = ({
             : await repository.getChatRoomInvitationEligibleFriends(
                 contextTargetId,
               );
+        if (!isCurrentRequest()) {
+          return;
+        }
         const sortedFriends = sortCandidates(nextEligible.friends);
         setEligible({...nextEligible, friends: sortedFriends});
         const eligibleIds = new Set(sortedFriends.map(friend => friend.id));
@@ -160,19 +180,25 @@ export const FriendInviteSheet = ({
           initialSelectionAppliedRef.current = true;
           if (targetIndex >= 0) {
             requestAnimationFrame(() => {
-              scrollRef.current?.scrollTo({
-                animated: true,
-                y: Math.max(0, targetIndex * ROW_HEIGHT),
-              });
+              if (isCurrentRequest()) {
+                scrollRef.current?.scrollTo({
+                  animated: true,
+                  y: Math.max(0, targetIndex * ROW_HEIGHT),
+                });
+              }
             });
           }
         }
       } catch (loadError) {
-        setError(
-          getErrorMessage(loadError, '초대할 친구 목록을 불러오지 못했습니다.'),
-        );
+        if (isCurrentRequest()) {
+          setError(
+            getErrorMessage(loadError, '초대할 친구 목록을 불러오지 못했습니다.'),
+          );
+        }
       } finally {
-        setLoading(false);
+        if (isCurrentRequest()) {
+          setLoading(false);
+        }
       }
     }, [contextTargetId, contextType, initialFriendPublicId, repository]);
 
@@ -183,18 +209,24 @@ export const FriendInviteSheet = ({
     }
 
     if (visible && contextTargetId && contextType) {
+      activeContextKeyRef.current = `${contextType}:${contextTargetId}`;
+      loadVersionRef.current += 1;
       initialSelectionAppliedRef.current = false;
       setQuery('');
       setInitialFriendUnavailable(false);
       setEligible(null);
       setSelectedIds(new Set());
+      setSending(false);
       modal.present();
       loadEligible().catch(() => undefined);
       return;
     }
 
+    activeContextKeyRef.current = undefined;
+    loadVersionRef.current += 1;
+    setSending(false);
     modal.dismiss();
-  }, [contextTargetId, contextType, loadEligible, visible]);
+  }, [contextKey, contextTargetId, contextType, loadEligible, visible]);
 
   const renderBackdrop = React.useCallback(
     (props: BottomSheetBackdropProps) => (
@@ -254,10 +286,19 @@ export const FriendInviteSheet = ({
   }, [eligible]);
 
   const handleSend = React.useCallback(async () => {
-    if (!contextTargetId || !contextType || selectedIds.size === 0 || sending) {
+    if (
+      !contextKey ||
+      !contextTargetId ||
+      !contextType ||
+      selectedIds.size === 0 ||
+      sending
+    ) {
       return;
     }
 
+    const requestContextKey = contextKey;
+    const isCurrentContext = () =>
+      activeContextKeyRef.current === requestContextKey;
     const friendIds = [...selectedIds];
     setSending(true);
     try {
@@ -265,19 +306,27 @@ export const FriendInviteSheet = ({
         contextType === 'PARTY'
           ? await repository.createPartyInvitations(contextTargetId, friendIds)
           : await repository.createChatRoomInvitations(contextTargetId, friendIds);
+      if (!isCurrentContext()) {
+        return;
+      }
       setSelectedIds(new Set());
       Alert.alert('친구 초대 결과', buildOutcomeMessage(results));
       await loadEligible();
     } catch (sendError) {
+      if (!isCurrentContext()) {
+        return;
+      }
       Alert.alert(
         '초대 전송 실패',
         `${getErrorMessage(sendError, '친구 초대를 전송하지 못했습니다.')}\n\n최신 상태를 확인한 뒤 선택을 유지했습니다.`,
       );
       await loadEligible({preserveSelection: true});
     } finally {
-      setSending(false);
+      if (isCurrentContext()) {
+        setSending(false);
+      }
     }
-  }, [contextTargetId, contextType, loadEligible, repository, selectedIds, sending]);
+  }, [contextKey, contextTargetId, contextType, loadEligible, repository, selectedIds, sending]);
 
   const unavailableCount = eligible
     ? eligible.alreadyMemberCount +
@@ -285,6 +334,25 @@ export const FriendInviteSheet = ({
       eligible.notEligibleCount
     : 0;
   const targetName = eligible?.targetName ?? context?.targetName ?? '';
+
+  const renderFooter = React.useCallback(
+    (props: BottomSheetFooterProps) => (
+      <BottomSheetFooter
+        {...props}
+        bottomInset={insets.bottom}
+        style={styles.footer}>
+        <Button
+          disabled={selectedIds.size === 0 || loading}
+          loading={sending}
+          onPress={() => {
+            handleSend().catch(() => undefined);
+          }}
+          title={`${selectedIds.size}명 초대하기`}
+        />
+      </BottomSheetFooter>
+    ),
+    [handleSend, insets.bottom, loading, selectedIds.size, sending],
+  );
 
   return (
     <BottomSheetModal
@@ -294,6 +362,7 @@ export const FriendInviteSheet = ({
       enableDynamicSizing
       enableOverDrag={false}
       enablePanDownToClose
+      footerComponent={renderFooter}
       handleIndicatorStyle={styles.handleIndicator}
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"
@@ -305,7 +374,7 @@ export const FriendInviteSheet = ({
       <BottomSheetScrollView
         contentContainerStyle={[
           styles.content,
-          {paddingBottom: insets.bottom + SPACING.xl},
+          {paddingBottom: FOOTER_HEIGHT + insets.bottom + SPACING.xl},
         ]}
         keyboardShouldPersistTaps="handled"
         ref={scrollRef}
@@ -424,15 +493,6 @@ export const FriendInviteSheet = ({
           </TouchableOpacity>
         ) : null}
 
-        <Button
-          disabled={selectedIds.size === 0 || loading}
-          loading={sending}
-          onPress={() => {
-            handleSend().catch(() => undefined);
-          }}
-          style={styles.sendButton}
-          title={`${selectedIds.size}명 초대하기`}
-        />
       </BottomSheetScrollView>
     </BottomSheetModal>
   );
@@ -473,6 +533,13 @@ const styles = StyleSheet.create({
   },
   friendRowSelected: {backgroundColor: COLORS.brand.primaryTint, borderColor: COLORS.brand.primary},
   friendText: {flex: 1},
+  footer: {
+    backgroundColor: COLORS.background.surface,
+    borderTopColor: COLORS.border.subtle,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+  },
   guideCard: {
     alignItems: 'flex-start',
     backgroundColor: COLORS.accent.blueSoft,
@@ -499,7 +566,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
   },
   searchInput: {color: COLORS.text.primary, flex: 1, fontSize: 15, height: 46, paddingVertical: 0},
-  sendButton: {marginTop: SPACING.lg},
   sheet: {...SHADOWS.raised},
   targetName: {color: COLORS.text.secondary, fontSize: 14, lineHeight: 20, marginTop: 2},
   title: {color: COLORS.text.primary, fontSize: 20, fontWeight: '800', lineHeight: 28},
