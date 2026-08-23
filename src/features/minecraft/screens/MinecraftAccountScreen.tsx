@@ -30,6 +30,7 @@ import {
   RADIUS,
   SHADOWS,
   SPACING,
+  TYPOGRAPHY,
 } from '@/shared/design-system/tokens';
 import {useScreenView} from '@/shared/hooks/useScreenView';
 
@@ -377,10 +378,14 @@ export const MinecraftAccountScreen = () => {
                               tone={
                                 account.edition === 'JE' ? 'blue' : 'purple'
                               }
+                              badgeStyle={{paddingVertical: 2, paddingHorizontal: 8, minHeight: 0}}
+                              textStyle={{...TYPOGRAPHY.caption2, fontWeight: '600'}}
                             />
                             <ToneBadge
                               label={isFriend ? '친구 계정' : '대표 계정'}
                               tone={isFriend ? 'orange' : 'green'}
+                              badgeStyle={{paddingVertical: 2, paddingHorizontal: 8, minHeight: 0}}
+                              textStyle={{...TYPOGRAPHY.caption2, fontWeight: '600'}}
                             />
                           </View>
 
