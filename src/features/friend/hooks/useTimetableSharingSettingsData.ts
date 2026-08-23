@@ -42,7 +42,8 @@ export const useTimetableSharingSettingsData = () => {
   const [settingsError, setSettingsError] = React.useState<string>();
   const savingRef = React.useRef(false);
   const pendingReloadRef = React.useRef(false);
-  const stateVersionRef = React.useRef(0);
+  const friendsVersionRef = React.useRef(0);
+  const settingsVersionRef = React.useRef(0);
 
   const reload = React.useCallback(async () => {
     if (savingRef.current) {
@@ -50,8 +51,10 @@ export const useTimetableSharingSettingsData = () => {
       return;
     }
 
-    const loadVersion = stateVersionRef.current + 1;
-    stateVersionRef.current = loadVersion;
+    const settingsLoadVersion = settingsVersionRef.current + 1;
+    const friendsLoadVersion = friendsVersionRef.current + 1;
+    settingsVersionRef.current = settingsLoadVersion;
+    friendsVersionRef.current = friendsLoadVersion;
     setLoadingSettings(true);
     setLoadingFriends(true);
     setSettingsError(undefined);
@@ -59,12 +62,12 @@ export const useTimetableSharingSettingsData = () => {
     const settingsRequest = timetableRepository.getMySharingSettings()
       .then(
         nextSettings => {
-          if (loadVersion === stateVersionRef.current) {
+          if (settingsLoadVersion === settingsVersionRef.current) {
             setSettings(nextSettings);
           }
         },
         error => {
-          if (loadVersion === stateVersionRef.current) {
+          if (settingsLoadVersion === settingsVersionRef.current) {
             setSettingsError(
               getErrorMessage(
                 error,
@@ -75,19 +78,19 @@ export const useTimetableSharingSettingsData = () => {
         },
       )
       .finally(() => {
-        if (loadVersion === stateVersionRef.current) {
+        if (settingsLoadVersion === settingsVersionRef.current) {
           setLoadingSettings(false);
         }
       });
     const friendsRequest = friendRepository.getFriends()
       .then(
         nextFriends => {
-          if (loadVersion === stateVersionRef.current) {
+          if (friendsLoadVersion === friendsVersionRef.current) {
             setFriends(sortFriends(nextFriends));
           }
         },
         error => {
-          if (loadVersion === stateVersionRef.current) {
+          if (friendsLoadVersion === friendsVersionRef.current) {
             setFriendsError(
               getErrorMessage(error, '친구 목록을 불러오지 못했습니다.'),
             );
@@ -95,7 +98,7 @@ export const useTimetableSharingSettingsData = () => {
         },
       )
       .finally(() => {
-        if (loadVersion === stateVersionRef.current) {
+        if (friendsLoadVersion === friendsVersionRef.current) {
           setLoadingFriends(false);
         }
       });
@@ -107,10 +110,9 @@ export const useTimetableSharingSettingsData = () => {
     reload().catch(() => undefined);
   }, [friendHubInvalidationVersion, reload]);
 
-  const supersedeReload = React.useCallback(() => {
-    stateVersionRef.current += 1;
+  const supersedeSettingsReload = React.useCallback(() => {
+    settingsVersionRef.current += 1;
     setLoadingSettings(false);
-    setLoadingFriends(false);
   }, []);
 
   const finishSavingAndReplayReload = React.useCallback(async () => {
@@ -133,7 +135,7 @@ export const useTimetableSharingSettingsData = () => {
 
       const previous = settings;
       savingRef.current = true;
-      supersedeReload();
+      supersedeSettingsReload();
       setSaving(true);
       setSettingsError(undefined);
       setSettings(current => current ? {...current, defaultScope: scope} : current);
@@ -150,7 +152,7 @@ export const useTimetableSharingSettingsData = () => {
     [
       finishSavingAndReplayReload,
       settings,
-      supersedeReload,
+      supersedeSettingsReload,
       timetableRepository,
     ],
   );
@@ -170,7 +172,7 @@ export const useTimetableSharingSettingsData = () => {
         overrides: scope ? [...overrides, {friendId, scope}] : overrides,
       };
       savingRef.current = true;
-      supersedeReload();
+      supersedeSettingsReload();
       setSaving(true);
       setSettingsError(undefined);
       setSettings(nextSettings);
@@ -190,7 +192,7 @@ export const useTimetableSharingSettingsData = () => {
     [
       finishSavingAndReplayReload,
       settings,
-      supersedeReload,
+      supersedeSettingsReload,
       timetableRepository,
     ],
   );
