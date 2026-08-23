@@ -370,6 +370,31 @@ export const FriendTimetableSection = React.forwardRef<
         />
       ) : null}
 
+      {friendsError && friends.length > 0 ? (
+        <View
+          accessibilityLiveRegion="polite"
+          style={styles.refreshErrorBanner}>
+          <Icon
+            color={COLORS.accent.orange}
+            name="alert-circle-outline"
+            size={18}
+          />
+          <Text numberOfLines={2} style={styles.refreshErrorLabel}>
+            {friendsError}
+          </Text>
+          <TouchableOpacity
+            accessibilityLabel="친구 목록 다시 불러오기"
+            accessibilityRole="button"
+            activeOpacity={0.82}
+            onPress={() => {
+              reloadFriends().catch(() => undefined);
+            }}
+            style={styles.refreshRetryButton}>
+            <Text style={styles.refreshRetryLabel}>다시 시도</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       {hasLoadedFriends && friends.length === 0 ? (
         <StateCard
           description="친구를 추가하면 같은 학기의 시간표를 여기서 확인할 수 있어요."
@@ -609,6 +634,10 @@ const styles = StyleSheet.create({
   countLabel: {color: COLORS.text.muted, fontSize: 12, lineHeight: 16, marginTop: 1},
   settingsButton: {alignItems: 'center', backgroundColor: COLORS.brand.primaryTint, borderRadius: RADIUS.pill, flexDirection: 'row', gap: 4, minHeight: 32, paddingHorizontal: SPACING.sm},
   settingsButtonLabel: {color: COLORS.brand.primaryStrong, fontSize: 12, fontWeight: '700'},
+  refreshErrorBanner: {alignItems: 'center', backgroundColor: COLORS.background.surface, borderColor: COLORS.accent.orange, borderRadius: RADIUS.md, borderWidth: 1, flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.sm, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm},
+  refreshErrorLabel: {color: COLORS.text.secondary, flex: 1, fontSize: 12, lineHeight: 17},
+  refreshRetryButton: {alignItems: 'center', minHeight: 32, justifyContent: 'center', paddingHorizontal: SPACING.sm},
+  refreshRetryLabel: {color: COLORS.brand.primaryStrong, fontSize: 12, fontWeight: '700'},
   listCard: {backgroundColor: COLORS.background.surface, borderRadius: RADIUS.lg, overflow: 'hidden', ...SHADOWS.card},
   rowDivider: {borderBottomColor: COLORS.border.subtle, borderBottomWidth: 1},
   friendRow: {alignItems: 'center', flexDirection: 'row', minHeight: 72, paddingLeft: SPACING.lg, paddingRight: SPACING.xs},

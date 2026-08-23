@@ -1,4 +1,5 @@
 import React from 'react';
+import {BottomSheetScrollView} from '@gorhom/bottom-sheet';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 
@@ -60,50 +61,58 @@ export const TimetableSharingScopeSheet = ({
 
   return (
     <TimetableBottomSheet
+      contentMode="scrollable"
       onClose={onClose}
       snapPoints={allowDefault ? ['62%'] : ['54%']}
       visible={visible}>
-      <Text style={styles.title}>공개 범위 선택</Text>
-      <Text style={styles.description}>
-        공개 범위는 친구에게 보이는 내 시간표에만 적용돼요.
-      </Text>
-      <View style={styles.optionList}>
-        {options.map(option => {
-          const isDefault = option.id === undefined;
-          const selected = isDefault
-            ? currentScope === undefined
-            : option.id === currentScope;
-          return (
-            <TouchableOpacity
-              accessibilityLabel={option.title}
-              accessibilityRole="button"
-              accessibilityState={{selected}}
-              activeOpacity={0.82}
-              key={option.title}
-              onPress={() => onSelect(option.id)}
-              style={[
-                styles.option,
-                selected ? styles.optionSelected : undefined,
-              ]}>
-              <View style={styles.iconWrap}>
-                <Icon color={COLORS.brand.primaryStrong} name={option.iconName} size={19} />
-              </View>
-              <View style={styles.optionText}>
-                <Text style={styles.optionTitle}>{option.title}</Text>
-                <Text style={styles.optionDescription}>{option.description}</Text>
-              </View>
-              {selected ? (
-                <Icon color={COLORS.brand.primaryStrong} name="checkmark-circle" size={20} />
-              ) : null}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <BottomSheetScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        style={styles.scrollable}>
+        <Text style={styles.title}>공개 범위 선택</Text>
+        <Text style={styles.description}>
+          공개 범위는 친구에게 보이는 내 시간표에만 적용돼요.
+        </Text>
+        <View style={styles.optionList}>
+          {options.map(option => {
+            const isDefault = option.id === undefined;
+            const selected = isDefault
+              ? currentScope === undefined
+              : option.id === currentScope;
+            return (
+              <TouchableOpacity
+                accessibilityLabel={option.title}
+                accessibilityRole="button"
+                accessibilityState={{selected}}
+                activeOpacity={0.82}
+                key={option.title}
+                onPress={() => onSelect(option.id)}
+                style={[
+                  styles.option,
+                  selected ? styles.optionSelected : undefined,
+                ]}>
+                <View style={styles.iconWrap}>
+                  <Icon color={COLORS.brand.primaryStrong} name={option.iconName} size={19} />
+                </View>
+                <View style={styles.optionText}>
+                  <Text style={styles.optionTitle}>{option.title}</Text>
+                  <Text style={styles.optionDescription}>{option.description}</Text>
+                </View>
+                {selected ? (
+                  <Icon color={COLORS.brand.primaryStrong} name="checkmark-circle" size={20} />
+                ) : null}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </BottomSheetScrollView>
     </TimetableBottomSheet>
   );
 };
 
 const styles = StyleSheet.create({
+  scrollable: {flex: 1},
+  scrollContent: {paddingBottom: SPACING.xl},
   title: {color: COLORS.text.primary, fontSize: 18, fontWeight: '800', lineHeight: 26, marginTop: SPACING.sm},
   description: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: SPACING.xs},
   optionList: {gap: SPACING.sm, marginTop: SPACING.lg},
