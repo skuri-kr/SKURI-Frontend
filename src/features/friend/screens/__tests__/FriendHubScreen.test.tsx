@@ -180,6 +180,28 @@ describe('FriendHubScreen', () => {
     expect(view.getByText('친구 0 요청 20+ 초대 0')).toBeTruthy();
   });
 
+  it('신뢰할 수 있는 초대 수가 없으면 undefined 대신 기본 탭 이름을 표시한다', () => {
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation: jest.fn(),
+      chatError: 'chat unavailable',
+      declineInvitation: jest.fn(),
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: 'party unavailable',
+      pendingCount: undefined,
+      reload: jest.fn().mockResolvedValue(undefined),
+    });
+
+    const view = render(<FriendHubScreen />);
+
+    expect(view.getByText('친구 0 요청 0 초대')).toBeTruthy();
+    expect(view.queryByText(/undefined/)).toBeNull();
+  });
+
   it('화면을 떠난 뒤 즐겨찾기 저장이 실패해도 오류를 표시하지 않는다', async () => {
     const navigation = {
       goBack: jest.fn(),

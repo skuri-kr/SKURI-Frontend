@@ -6,6 +6,7 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 
 import {invalidateData} from '@/app/data-freshness/dataInvalidation';
 import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
+import {useChatRooms} from '@/features/chat/hooks/useChatRooms';
 import {RepositoryError, RepositoryErrorCode} from '@/shared/lib/errors';
 
 import {useFriendDetailData} from '../../hooks/useFriendDetailData';
@@ -62,7 +63,7 @@ jest.mock('@/features/taxi/hooks/useMyParty', () => ({
 }));
 
 jest.mock('@/features/chat/hooks/useChatRooms', () => ({
-  useChatRooms: () => ({chatRooms: []}),
+  useChatRooms: jest.fn(),
 }));
 
 jest.mock('../../hooks/useFriendDetailData', () => ({
@@ -72,6 +73,7 @@ jest.mock('../../hooks/useFriendDetailData', () => ({
 const mockedUseNavigation = jest.mocked(useNavigation);
 const mockedUseRoute = jest.mocked(useRoute);
 const mockedUseFriendDetailData = jest.mocked(useFriendDetailData);
+const mockedUseChatRooms = jest.mocked(useChatRooms);
 const mockedInvalidateData = jest.mocked(invalidateData);
 
 const createFriendDetailData = (overrides: Partial<ReturnType<typeof useFriendDetailData>> = {}) => ({
@@ -99,6 +101,12 @@ const createFriendDetailData = (overrides: Partial<ReturnType<typeof useFriendDe
 describe('FriendDetailScreen', () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    mockedUseChatRooms.mockReturnValue({
+      chatRooms: [],
+      error: null,
+      loading: false,
+      refresh: jest.fn(),
+    });
   });
 
   it('마인크래프트 계정은 친구 관리 기능보다 아래에 표시한다', () => {
@@ -113,6 +121,7 @@ describe('FriendDetailScreen', () => {
     expect(visibleTexts.indexOf('마인크래프트 계정')).toBeGreaterThan(
       visibleTexts.indexOf('차단하기'),
     );
+    expect(mockedUseChatRooms).toHaveBeenCalledWith('all', {joinedOnly: true});
   });
 
   it('기존 친구 정보를 유지한 재조회 실패를 배너로 알리고 재시도할 수 있다', async () => {

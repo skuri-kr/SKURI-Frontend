@@ -1,5 +1,6 @@
 import React from 'react';
-import {act, render, waitFor} from '@testing-library/react-native';
+import {Alert} from 'react-native';
+import {act, fireEvent, render, waitFor} from '@testing-library/react-native';
 
 import {useFriendInvitationRepository} from '@/di';
 
@@ -129,6 +130,10 @@ const eligible = (
 });
 
 describe('FriendInviteSheet', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('이전 대상의 늦은 조회 응답을 새 대상 목록에 적용하지 않는다', async () => {
     const staleParty = deferred<FriendInvitationEligibleFriends>();
     const repository = {
@@ -168,5 +173,171 @@ describe('FriendInviteSheet', () => {
 
     expect(view.queryByText('이전 파티 친구')).toBeNull();
     expect(view.getByText('채팅 친구')).toBeTruthy();
+  });
+
+  it('같은 대상을 다시 열어도 이전 세션의 발송 응답을 적용하지 않는다', async () => {
+    const staleSend =
+      deferred<
+        Array<{friendId: string; invitationId: string; outcome: 'SENT'}>
+      >();
+    const repository = {
+      createChatRoomInvitations: jest.fn(),
+      createPartyInvitations: jest.fn().mockReturnValue(staleSend.promise),
+      getChatRoomInvitationEligibleFriends: jest.fn(),
+      getPartyInvitationEligibleFriends: jest
+        .fn()
+        .mockResolvedValue(eligible('party-1', '택시파티', '가람')),
+    };
+    mockedUseRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useFriendInvitationRepository>,
+    );
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const onClose = jest.fn();
+    const context = {targetId: 'party-1', type: 'PARTY' as const};
+    const view = render(
+      <FriendInviteSheet context={context} onClose={onClose} visible />,
+    );
+
+    await waitFor(() => expect(view.getByText('가람')).toBeTruthy());
+    fireEvent.press(view.getByText('가람'));
+    fireEvent.press(view.getByText('1명 초대하기'));
+    await waitFor(() =>
+      expect(repository.createPartyInvitations).toHaveBeenCalledTimes(1),
+    );
+
+    view.rerender(
+      <FriendInviteSheet context={context} onClose={onClose} visible={false} />,
+    );
+    view.rerender(
+      <FriendInviteSheet context={context} onClose={onClose} visible />,
+    );
+    await waitFor(() =>
+      expect(
+        repository.getPartyInvitationEligibleFriends,
+      ).toHaveBeenCalledTimes(2),
+    );
+    fireEvent.press(view.getByText('가람'));
+
+    await act(async () => {
+      staleSend.resolve([
+        {
+          friendId: 'friend-party-1',
+          invitationId: 'invitation-1',
+          outcome: 'SENT',
+        },
+      ]);
+      await staleSend.promise;
+    });
+
+    expect(view.getByText('1명 초대하기')).toBeTruthy();
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(repository.getPartyInvitationEligibleFriends).toHaveBeenCalledTimes(
+      2,
+    );
+  });
+
+  it('혼합 발송 결과에 친구 이름과 일반화된 결과를 표시한다', async () => {
+    const mixedEligible: FriendInvitationEligibleFriends = {
+      ...eligible('party-1', '택시파티', '가람'),
+      friends: [
+        {
+          department: '컴퓨터공학과',
+          favorite: false,
+          id: 'friend-1',
+          nickname: '가람',
+          photoUrl: null,
+        },
+        {
+          department: '컴퓨터공학과',
+          favorite: false,
+          id: 'friend-2',
+          nickname: '나래',
+          photoUrl: null,
+        },
+      ],
+    };
+    const repository = {
+      createChatRoomInvitations: jest.fn(),
+      createPartyInvitations: jest.fn().mockResolvedValue([
+        {friendId: 'friend-1', invitationId: 'invitation-1', outcome: 'SENT'},
+        {friendId: 'friend-2', invitationId: null, outcome: 'NOT_ELIGIBLE'},
+      ]),
+      getChatRoomInvitationEligibleFriends: jest.fn(),
+      getPartyInvitationEligibleFriends: jest
+        .fn()
+        .mockResolvedValue(mixedEligible),
+    };
+    mockedUseRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useFriendInvitationRepository>,
+    );
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const view = render(
+      <FriendInviteSheet
+        context={{targetId: 'party-1', type: 'PARTY'}}
+        onClose={jest.fn()}
+        visible
+      />,
+    );
+
+    await waitFor(() => expect(view.getByText('가람')).toBeTruthy());
+    fireEvent.press(view.getByText('가람'));
+    fireEvent.press(view.getByText('나래'));
+    fireEvent.press(view.getByText('2명 초대하기'));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith(
+        '친구 초대 결과',
+        '초대할 수 없음: 나래\n전송 완료: 가람',
+      );
+    });
+  });
+
+  it('발송 실패 후 최신 목록 확인도 실패하면 재전송을 막는다', async () => {
+    const repository = {
+      createChatRoomInvitations: jest.fn(),
+      createPartyInvitations: jest.fn().mockRejectedValue(new Error('timeout')),
+      getChatRoomInvitationEligibleFriends: jest.fn(),
+      getPartyInvitationEligibleFriends: jest
+        .fn()
+        .mockResolvedValueOnce(eligible('party-1', '택시파티', '가람'))
+        .mockRejectedValueOnce(new Error('refresh failed'))
+        .mockResolvedValueOnce(eligible('party-1', '택시파티', '가람')),
+    };
+    mockedUseRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useFriendInvitationRepository>,
+    );
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const view = render(
+      <FriendInviteSheet
+        context={{targetId: 'party-1', type: 'PARTY'}}
+        onClose={jest.fn()}
+        visible
+      />,
+    );
+
+    await waitFor(() => expect(view.getByText('가람')).toBeTruthy());
+    fireEvent.press(view.getByText('가람'));
+    fireEvent.press(view.getByText('1명 초대하기'));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith(
+        '초대 전송 실패',
+        expect.stringContaining('목록을 다시 불러온 뒤 재시도해 주세요.'),
+      );
+    });
+    fireEvent.press(view.getByText('1명 초대하기'));
+
+    expect(repository.createPartyInvitations).toHaveBeenCalledTimes(1);
+
+    fireEvent.press(view.getByText('목록 다시 불러오기'));
+    await waitFor(() =>
+      expect(repository.getPartyInvitationEligibleFriends).toHaveBeenCalledTimes(
+        3,
+      ),
+    );
+    fireEvent.press(view.getByText('1명 초대하기'));
+    await waitFor(() =>
+      expect(repository.createPartyInvitations).toHaveBeenCalledTimes(2),
+    );
   });
 });
