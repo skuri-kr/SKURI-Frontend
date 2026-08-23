@@ -732,6 +732,13 @@ export const useTimetableDetailData = (
   const [showNightClasses, setShowNightClasses] = React.useState(false);
   const searchRequestIdRef = React.useRef(0);
   const semesterLoadVersionRef = React.useRef(0);
+  const semesterLoadTargetRef = React.useRef<
+    | {
+        semesterId?: string;
+        version: number;
+      }
+    | undefined
+  >(undefined);
   const selectedSemesterIdRef = React.useRef<string | undefined>(undefined);
   const currentSearchKey = selectedSemesterId
     ? buildCatalogSearchKey(selectedSemesterId, query, catalogFilters)
@@ -740,6 +747,10 @@ export const useTimetableDetailData = (
   const loadSemester = React.useCallback(async (semesterId?: string) => {
     const loadVersion = semesterLoadVersionRef.current + 1;
     semesterLoadVersionRef.current = loadVersion;
+    semesterLoadTargetRef.current = {
+      semesterId: semesterId ?? selectedSemesterIdRef.current,
+      version: loadVersion,
+    };
     setLoading(true);
     setError(null);
 
@@ -759,6 +770,10 @@ export const useTimetableDetailData = (
         : undefined;
 
       setSemesterOptions(options);
+      semesterLoadTargetRef.current = {
+        semesterId: nextSemesterId,
+        version: loadVersion,
+      };
 
       if (!nextSemesterId) {
         selectedSemesterIdRef.current = undefined;
@@ -791,6 +806,7 @@ export const useTimetableDetailData = (
       }
     } finally {
       if (loadVersion === semesterLoadVersionRef.current) {
+        semesterLoadTargetRef.current = undefined;
         setLoading(false);
       }
     }
@@ -1045,16 +1061,27 @@ export const useTimetableDetailData = (
 
   const supersedeSemesterLoad = React.useCallback(() => {
     semesterLoadVersionRef.current += 1;
+    semesterLoadTargetRef.current = undefined;
     setLoading(false);
   }, []);
 
+  const hasPendingDifferentSemesterLoad = React.useCallback(
+    (semesterId: string) => {
+      const pendingSemesterId = semesterLoadTargetRef.current?.semesterId;
+      return pendingSemesterId !== undefined && pendingSemesterId !== semesterId;
+    },
+    [],
+  );
+
   const applyAuthoritativeRecord = React.useCallback(
-    (nextRecord: TimetableSemesterRecord | null) => {
-      supersedeSemesterLoad();
+    (semesterId: string, nextRecord: TimetableSemesterRecord | null) => {
+      if (!hasPendingDifferentSemesterLoad(semesterId)) {
+        supersedeSemesterLoad();
+      }
       setRecord(nextRecord);
       setError(null);
     },
-    [supersedeSemesterLoad],
+    [hasPendingDifferentSemesterLoad, supersedeSemesterLoad],
   );
 
   const isCurrentSemester = React.useCallback(
@@ -1135,7 +1162,10 @@ export const useTimetableDetailData = (
         });
 
         if (!nextRecord) {
-          if (isCurrentSemester(mutationSemesterId)) {
+          if (
+            isCurrentSemester(mutationSemesterId)
+            && !hasPendingDifferentSemesterLoad(mutationSemesterId)
+          ) {
             await loadSemester(mutationSemesterId);
           }
           invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
@@ -1143,15 +1173,18 @@ export const useTimetableDetailData = (
         }
 
         if (isCurrentSemester(mutationSemesterId)) {
-          applyAuthoritativeRecord({
-            ...nextRecord,
-            label: previousRecord.label,
-            courses: nextRecord.courses.map(course =>
-              course.id === courseId
-                ? {...course, toneId: selectedToneId}
-                : course,
-            ),
-          });
+          applyAuthoritativeRecord(
+            mutationSemesterId,
+            {
+              ...nextRecord,
+              label: previousRecord.label,
+              courses: nextRecord.courses.map(course =>
+                course.id === courseId
+                  ? {...course, toneId: selectedToneId}
+                  : course,
+              ),
+            },
+          );
         }
         invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
       } catch (addError) {
@@ -1167,7 +1200,10 @@ export const useTimetableDetailData = (
           return;
         }
 
-        if (isCurrentSemester(mutationSemesterId)) {
+        if (
+          isCurrentSemester(mutationSemesterId)
+          && !hasPendingDifferentSemesterLoad(mutationSemesterId)
+        ) {
           loadSemester(mutationSemesterId).catch(() => undefined);
         }
         Alert.alert(
@@ -1179,6 +1215,7 @@ export const useTimetableDetailData = (
     [
       applyAuthoritativeRecord,
       closeAddSheet,
+      hasPendingDifferentSemesterLoad,
       isCurrentSemester,
       loadSemester,
       record,
@@ -1241,7 +1278,10 @@ export const useTimetableDetailData = (
     });
 
     if (!nextRecord) {
-      if (isCurrentSemester(mutationSemesterId)) {
+      if (
+        isCurrentSemester(mutationSemesterId)
+        && !hasPendingDifferentSemesterLoad(mutationSemesterId)
+      ) {
         await loadSemester(mutationSemesterId);
       }
       invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
@@ -1271,11 +1311,14 @@ export const useTimetableDetailData = (
       );
 
       if (isCurrentSemester(mutationSemesterId)) {
-        applyAuthoritativeRecord({
-          ...nextRecord,
-          label: record.label,
-          courses: nextCourses,
-        });
+        applyAuthoritativeRecord(
+          mutationSemesterId,
+          {
+            ...nextRecord,
+            label: record.label,
+            courses: nextCourses,
+          },
+        );
       }
       invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
       closeAddSheet();
@@ -1283,16 +1326,20 @@ export const useTimetableDetailData = (
     }
 
     if (isCurrentSemester(mutationSemesterId)) {
-      applyAuthoritativeRecord({
-        ...nextRecord,
-        label: record.label,
-      });
+      applyAuthoritativeRecord(
+        mutationSemesterId,
+        {
+          ...nextRecord,
+          label: record.label,
+        },
+      );
     }
     invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
     closeAddSheet();
   }, [
     applyAuthoritativeRecord,
     closeAddSheet,
+    hasPendingDifferentSemesterLoad,
     isCurrentSemester,
     loadSemester,
     manualDraft,
@@ -1356,11 +1403,14 @@ export const useTimetableDetailData = (
 
             if (isCurrentSemester(mutationSemesterId)) {
               if (nextRecord) {
-                applyAuthoritativeRecord({
-                  ...nextRecord,
-                  label: previousRecord.label,
-                });
-              } else {
+                applyAuthoritativeRecord(
+                  mutationSemesterId,
+                  {
+                    ...nextRecord,
+                    label: previousRecord.label,
+                  },
+                );
+              } else if (!hasPendingDifferentSemesterLoad(mutationSemesterId)) {
                 await loadSemester(mutationSemesterId);
               }
             }
@@ -1383,6 +1433,7 @@ export const useTimetableDetailData = (
     ]);
   }, [
     applyAuthoritativeRecord,
+    hasPendingDifferentSemesterLoad,
     isCurrentSemester,
     loadSemester,
     record,
