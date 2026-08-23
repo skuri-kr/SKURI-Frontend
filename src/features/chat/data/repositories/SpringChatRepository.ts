@@ -1060,9 +1060,7 @@ export class SpringChatRepository implements IChatRepository {
     });
 
     this.reconcileRoomCache(subscription.filter, nextRoomIds);
-    subscription.callbacks.onData(
-      this.resolveRoomsForFilter(subscription.filter),
-    );
+    this.publishLists();
     this.publishNotifications();
     this.publishStates();
   }
