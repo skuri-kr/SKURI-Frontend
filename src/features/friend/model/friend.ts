@@ -92,4 +92,90 @@ export interface FriendInboxCounts {
   totalActionCount: number;
 }
 
+export interface FriendInvitationCandidate {
+  department: string | null;
+  favorite: boolean;
+  id: string;
+  nickname: string;
+  photoUrl: string | null;
+}
+
+export type FriendInvitationOutcome =
+  | 'SENT'
+  | 'ALREADY_PENDING'
+  | 'ALREADY_MEMBER'
+  | 'NOT_ELIGIBLE';
+
+export interface FriendInvitationSendResult {
+  friendId: string;
+  invitationId: string | null;
+  outcome: FriendInvitationOutcome;
+}
+
+export interface FriendInvitationEligibleFriends {
+  alreadyMemberCount: number;
+  alreadyPendingCount: number;
+  expiresInDays: number | null;
+  friends: FriendInvitationCandidate[];
+  notEligibleCount: number;
+  remainingCapacity: number | null;
+  targetId: string;
+  targetName: string;
+}
+
+export type FriendInvitationStatus = 'PENDING' | 'EXPIRED';
+
+export type FriendInvitationExpiryReason =
+  | 'INVITATION_TIMEOUT'
+  | 'TARGET_UNAVAILABLE'
+  | 'CAPACITY_FULL'
+  | 'INVITER_LEFT'
+  | 'ALREADY_JOINED'
+  | 'RELATIONSHIP_UNAVAILABLE'
+  | 'ELIGIBILITY_CHANGED'
+  | 'MEMBER_WITHDRAWN';
+
+export interface FriendPartyInvitationTarget {
+  currentMembers: number;
+  departureName: string;
+  departureTime: string;
+  destinationName: string;
+  id: string;
+  maxMembers: number;
+  status: 'OPEN' | 'CLOSED' | 'ARRIVED' | 'ENDED';
+  type: 'PARTY';
+}
+
+export interface FriendChatRoomInvitationTarget {
+  id: string;
+  maxMembers: number | null;
+  memberCount: number;
+  name: string;
+  roomType: 'UNIVERSITY' | 'DEPARTMENT' | 'GAME' | 'CUSTOM' | 'PARTY';
+  type: 'CHAT_ROOM';
+}
+
+export type FriendInvitationTarget =
+  | FriendPartyInvitationTarget
+  | FriendChatRoomInvitationTarget;
+
+export interface FriendInvitation {
+  createdAt: string;
+  expiresAt: string | null;
+  expiryReason: FriendInvitationExpiryReason | null;
+  id: string;
+  inviter: FriendInvitationCandidate | null;
+  respondedAt: string | null;
+  status: FriendInvitationStatus;
+  target: FriendInvitationTarget | null;
+  type: 'PARTY' | 'CHAT_ROOM';
+}
+
+export interface FriendInvitationMutation {
+  invitationId: string;
+  status: 'ACCEPTED' | 'DECLINED';
+  targetId: string;
+  type: 'PARTY' | 'CHAT_ROOM';
+}
+
 export type FriendRequestDirection = 'RECEIVED' | 'SENT';

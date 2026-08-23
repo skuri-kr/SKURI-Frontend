@@ -1,6 +1,10 @@
 import {httpClient, type ApiSuccessResponse} from '@/shared/api';
 
 import type {
+  ChatRoomInvitationEligibleFriendsResponseDto,
+  ChatRoomInvitationMutationResponseDto,
+  ChatRoomInvitationReceivedResponseDto,
+  CreateFriendInvitationsRequestDto,
   CreateFriendRequestRequestDto,
   CreateMemberBlockRequestDto,
   FriendBlockResponseDto,
@@ -14,6 +18,10 @@ import type {
   FriendRequestPageResponseDto,
   FriendSearchPageResponseDto,
   FriendSummaryResponseDto,
+  FriendInvitationBatchResponseDto,
+  PartyInvitationEligibleFriendsResponseDto,
+  PartyInvitationMutationResponseDto,
+  PartyInvitationReceivedResponseDto,
   UpdateFriendFavoriteRequestDto,
   UpdateFriendPrivacyRequestDto,
 } from '../dto/friendDto';
@@ -153,6 +161,88 @@ export class FriendApiClient {
       ApiSuccessResponse<FriendPrivacyResponseDto>,
       UpdateFriendPrivacyRequestDto
     >('/v1/friends/me/privacy', data);
+  }
+
+  getPartyInvitationEligibleFriends(partyId: string) {
+    return httpClient.get<
+      ApiSuccessResponse<PartyInvitationEligibleFriendsResponseDto>
+    >(`/v1/parties/${encodeURIComponent(partyId)}/invitations/eligible-friends`);
+  }
+
+  createPartyInvitations(
+    partyId: string,
+    data: CreateFriendInvitationsRequestDto,
+  ) {
+    return httpClient.post<
+      ApiSuccessResponse<FriendInvitationBatchResponseDto>,
+      CreateFriendInvitationsRequestDto
+    >(`/v1/parties/${encodeURIComponent(partyId)}/invitations`, data);
+  }
+
+  getReceivedPartyInvitations() {
+    return httpClient.get<
+      ApiSuccessResponse<PartyInvitationReceivedResponseDto[]>
+    >('/v1/party-invitations/received');
+  }
+
+  acceptPartyInvitation(invitationId: string) {
+    return httpClient.post<
+      ApiSuccessResponse<PartyInvitationMutationResponseDto>
+    >(`/v1/party-invitations/${encodeURIComponent(invitationId)}/accept`);
+  }
+
+  declinePartyInvitation(invitationId: string) {
+    return httpClient.post<
+      ApiSuccessResponse<PartyInvitationMutationResponseDto>
+    >(`/v1/party-invitations/${encodeURIComponent(invitationId)}/decline`);
+  }
+
+  deletePartyInvitation(invitationId: string) {
+    return httpClient.delete<void>(
+      `/v1/party-invitations/${encodeURIComponent(invitationId)}`,
+    );
+  }
+
+  getChatRoomInvitationEligibleFriends(chatRoomId: string) {
+    return httpClient.get<
+      ApiSuccessResponse<ChatRoomInvitationEligibleFriendsResponseDto>
+    >(
+      `/v1/chat-rooms/${encodeURIComponent(chatRoomId)}/invitations/eligible-friends`,
+    );
+  }
+
+  createChatRoomInvitations(
+    chatRoomId: string,
+    data: CreateFriendInvitationsRequestDto,
+  ) {
+    return httpClient.post<
+      ApiSuccessResponse<FriendInvitationBatchResponseDto>,
+      CreateFriendInvitationsRequestDto
+    >(`/v1/chat-rooms/${encodeURIComponent(chatRoomId)}/invitations`, data);
+  }
+
+  getReceivedChatRoomInvitations() {
+    return httpClient.get<
+      ApiSuccessResponse<ChatRoomInvitationReceivedResponseDto[]>
+    >('/v1/chat-room-invitations/received');
+  }
+
+  acceptChatRoomInvitation(invitationId: string) {
+    return httpClient.post<
+      ApiSuccessResponse<ChatRoomInvitationMutationResponseDto>
+    >(`/v1/chat-room-invitations/${encodeURIComponent(invitationId)}/accept`);
+  }
+
+  declineChatRoomInvitation(invitationId: string) {
+    return httpClient.post<
+      ApiSuccessResponse<ChatRoomInvitationMutationResponseDto>
+    >(`/v1/chat-room-invitations/${encodeURIComponent(invitationId)}/decline`);
+  }
+
+  deleteChatRoomInvitation(invitationId: string) {
+    return httpClient.delete<void>(
+      `/v1/chat-room-invitations/${encodeURIComponent(invitationId)}`,
+    );
   }
 }
 

@@ -1,4 +1,7 @@
 import type {
+  ChatRoomInvitationEligibleFriendsResponseDto,
+  ChatRoomInvitationMutationResponseDto,
+  ChatRoomInvitationReceivedResponseDto,
   FriendBlockResponseDto,
   FriendCodePreviewResponseDto,
   FriendCodeResponseDto,
@@ -11,6 +14,10 @@ import type {
   FriendSearchPageResponseDto,
   FriendSearchResultResponseDto,
   FriendSummaryResponseDto,
+  FriendInvitationSendResultResponseDto,
+  PartyInvitationEligibleFriendsResponseDto,
+  PartyInvitationMutationResponseDto,
+  PartyInvitationReceivedResponseDto,
 } from '../dto/friendDto';
 import type {
   FriendBlock,
@@ -25,6 +32,11 @@ import type {
   FriendSearchPage,
   FriendSearchResult,
   FriendSummary,
+  FriendInvitation,
+  FriendInvitationCandidate,
+  FriendInvitationEligibleFriends,
+  FriendInvitationMutation,
+  FriendInvitationSendResult,
 } from '../../model/friend';
 
 export const mapFriendSummaryDto = (
@@ -122,4 +134,120 @@ export const mapFriendInboxCountsDto = (
   incomingRequestCount: dto.incomingRequestCount,
   partyInvitationCount: dto.partyInvitationCount,
   totalActionCount: dto.totalActionCount,
+});
+
+export const mapFriendInvitationCandidateDto = (
+  dto: {
+    department: string | null;
+    favorite: boolean;
+    friendPublicId: string;
+    nickname: string;
+    photoUrl: string | null;
+  },
+): FriendInvitationCandidate => ({
+  department: dto.department,
+  favorite: dto.favorite,
+  id: dto.friendPublicId,
+  nickname: dto.nickname,
+  photoUrl: dto.photoUrl,
+});
+
+export const mapPartyInvitationEligibleFriendsDto = (
+  dto: PartyInvitationEligibleFriendsResponseDto,
+): FriendInvitationEligibleFriends => ({
+  alreadyMemberCount: dto.alreadyMemberCount,
+  alreadyPendingCount: dto.alreadyPendingCount,
+  expiresInDays: null,
+  friends: dto.friends.map(mapFriendInvitationCandidateDto),
+  notEligibleCount: dto.notEligibleCount,
+  remainingCapacity: dto.remainingCapacity,
+  targetId: dto.partyId,
+  targetName: dto.targetName,
+});
+
+export const mapChatRoomInvitationEligibleFriendsDto = (
+  dto: ChatRoomInvitationEligibleFriendsResponseDto,
+): FriendInvitationEligibleFriends => ({
+  alreadyMemberCount: dto.alreadyMemberCount,
+  alreadyPendingCount: dto.alreadyPendingCount,
+  expiresInDays: dto.expiresInDays,
+  friends: dto.friends.map(mapFriendInvitationCandidateDto),
+  notEligibleCount: dto.notEligibleCount,
+  remainingCapacity: dto.remainingCapacity,
+  targetId: dto.chatRoomId,
+  targetName: dto.targetName,
+});
+
+export const mapFriendInvitationSendResultDto = (
+  dto: FriendInvitationSendResultResponseDto,
+): FriendInvitationSendResult => ({
+  friendId: dto.friendPublicId,
+  invitationId: dto.invitationId,
+  outcome: dto.outcome,
+});
+
+export const mapPartyInvitationDto = (
+  dto: PartyInvitationReceivedResponseDto,
+): FriendInvitation => ({
+  createdAt: dto.createdAt,
+  expiresAt: null,
+  expiryReason: dto.expiryReason,
+  id: dto.invitationId,
+  inviter: dto.inviter ? mapFriendInvitationCandidateDto(dto.inviter) : null,
+  respondedAt: dto.respondedAt,
+  status: dto.status,
+  target: dto.target
+    ? {
+        currentMembers: dto.target.currentMembers,
+        departureName: dto.target.departureName,
+        departureTime: dto.target.departureTime,
+        destinationName: dto.target.destinationName,
+        id: dto.target.partyId,
+        maxMembers: dto.target.maxMembers,
+        status: dto.target.status,
+        type: 'PARTY',
+      }
+    : null,
+  type: 'PARTY',
+});
+
+export const mapChatRoomInvitationDto = (
+  dto: ChatRoomInvitationReceivedResponseDto,
+): FriendInvitation => ({
+  createdAt: dto.createdAt,
+  expiresAt: dto.expiresAt,
+  expiryReason: dto.expiryReason,
+  id: dto.invitationId,
+  inviter: dto.inviter ? mapFriendInvitationCandidateDto(dto.inviter) : null,
+  respondedAt: dto.respondedAt,
+  status: dto.status,
+  target: dto.target
+    ? {
+        id: dto.target.chatRoomId,
+        maxMembers: dto.target.maxMembers,
+        memberCount: dto.target.memberCount,
+        name: dto.target.name,
+        roomType: dto.target.type,
+        type: 'CHAT_ROOM',
+      }
+    : null,
+  type: 'CHAT_ROOM',
+});
+
+export const mapPartyInvitationMutationDto = (
+  dto: PartyInvitationMutationResponseDto,
+): FriendInvitationMutation => ({
+  invitationId: dto.invitationId,
+  status: dto.status,
+  targetId: dto.partyId,
+  type: 'PARTY',
+});
+
+export const mapChatRoomInvitationMutationDto = (
+  dto: ChatRoomInvitationMutationResponseDto,
+): FriendInvitationMutation => ({
+  invitationId: dto.invitationId,
+  status: dto.status,
+  targetId: dto.chatRoomId,
+  type: 'CHAT_ROOM',
 });

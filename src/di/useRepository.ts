@@ -15,6 +15,7 @@ import type {
   ICafeteriaRepository,
   IChatRepository,
   IFriendRepository,
+  IFriendInvitationRepository,
   IInquiryFormRepository,
   ILegalDocumentRepository,
   IMemberDirectoryRepository,
@@ -66,6 +67,11 @@ export function useChatRepository(): IChatRepository {
 export function useFriendRepository(): IFriendRepository {
   const {friendRepository} = useRepositories();
   return friendRepository;
+}
+
+export function useFriendInvitationRepository(): IFriendInvitationRepository {
+  const {friendRepository} = useRepositories();
+  return friendRepository as IFriendInvitationRepository;
 }
 
 /**
