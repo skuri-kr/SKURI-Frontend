@@ -49,6 +49,12 @@ const chatInvitation = {
   type: 'CHAT_ROOM' as const,
 };
 
+const secondPartyInvitation = {
+  ...partyInvitation,
+  createdAt: '2026-08-23T12:30:00',
+  id: 'party-invitation-2',
+};
+
 const createRepository = () => ({
   acceptChatRoomInvitation: jest.fn(),
   acceptFriendRequest: jest.fn(),
@@ -207,6 +213,74 @@ describe('useFriendInvitationsData', () => {
 
     expect(result.current.mutatingIds.has(partyInvitation.id)).toBe(false);
     expect(result.current.invitations).toContainEqual(partyInvitation);
+  });
+
+  it('다른 초대 성공이 진행 중인 목록 보정을 무효화하면 새 보정을 시작한다', async () => {
+    const repository = createRepository();
+    const firstError = new RepositoryError(
+      RepositoryErrorCode.NETWORK_ERROR,
+      'accept response unavailable',
+    );
+    const secondError = new RepositoryError(
+      RepositoryErrorCode.TIMEOUT,
+      'accept reconciliation unavailable',
+    );
+    repository.getReceivedPartyInvitations.mockResolvedValue([
+      secondPartyInvitation,
+      partyInvitation,
+    ]);
+    repository.acceptPartyInvitation
+      .mockRejectedValueOnce(firstError)
+      .mockRejectedValueOnce(secondError)
+      .mockResolvedValueOnce({
+        invitationId: secondPartyInvitation.id,
+        status: 'ACCEPTED',
+        targetId: 'party-2',
+        type: 'PARTY',
+      });
+    repository.getInboxCounts.mockResolvedValue({
+      chatRoomInvitationCount: 0,
+      incomingRequestCount: 0,
+      partyInvitationCount: 2,
+      totalActionCount: 2,
+    });
+    mockedUseRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendInvitationRepository>,
+    );
+    const {result} = renderHook(() => useFriendInvitationsData());
+    await waitFor(() => expect(result.current.hasLoaded).toBe(true));
+
+    const stalePartyReload = deferred<typeof partyInvitation[]>();
+    repository.getReceivedPartyInvitations
+      .mockReturnValueOnce(stalePartyReload.promise)
+      .mockResolvedValueOnce([]);
+
+    let firstAcceptance!: Promise<unknown>;
+    act(() => {
+      firstAcceptance = result.current
+        .acceptInvitation(partyInvitation)
+        .catch(error => error);
+    });
+    await waitFor(() =>
+      expect(repository.getReceivedPartyInvitations).toHaveBeenCalledTimes(2),
+    );
+
+    await act(async () => {
+      await result.current.acceptInvitation(secondPartyInvitation);
+    });
+
+    await waitFor(() =>
+      expect(repository.getReceivedPartyInvitations).toHaveBeenCalledTimes(3),
+    );
+    await waitFor(() =>
+      expect(result.current.mutatingIds.has(partyInvitation.id)).toBe(false),
+    );
+
+    await act(async () => {
+      stalePartyReload.resolve([partyInvitation]);
+      expect(await firstAcceptance).toBe(secondError);
+    });
+    expect(result.current.mutatingIds.has(partyInvitation.id)).toBe(false);
   });
 
   it('일부 목록 조회가 실패해도 서버 inbox count를 badge에 사용한다', async () => {
