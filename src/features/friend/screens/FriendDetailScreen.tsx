@@ -37,7 +37,7 @@ export const FriendDetailScreen = () => {
   const route = useRoute<any>();
   const {friendId} = route.params as CampusStackParamList['FriendDetail'];
   const {myParty} = useMyParty();
-  const {chatRooms} = useChatRooms('all');
+  const {chatRooms} = useChatRooms('all', {joinedOnly: true});
   const [inviteContext, setInviteContext] =
     React.useState<FriendInviteContext | null>(null);
   const [chatTargetSheetVisible, setChatTargetSheetVisible] =
