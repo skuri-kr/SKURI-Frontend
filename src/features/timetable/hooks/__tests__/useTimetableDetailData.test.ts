@@ -1,20 +1,27 @@
 import {act, renderHook, waitFor} from '@testing-library/react-native';
+import {Alert} from 'react-native';
 
 import {useTimetableRepository} from '@/di';
 
 import {useTimetableDetailData} from '../useTimetableDetailData';
 import type {TimetableSemesterRecord} from '../../model/timetableDomain';
+import {
+  removeTimetableCourseTone,
+  setTimetableCourseTone,
+} from '../../services/timetableToneStorage';
 
 jest.mock('@/di', () => ({
   useTimetableRepository: jest.fn(),
 }));
 
 jest.mock('../../services/timetableToneStorage', () => ({
-  removeTimetableCourseTone: jest.fn(),
-  setTimetableCourseTone: jest.fn(),
+  removeTimetableCourseTone: jest.fn().mockResolvedValue(undefined),
+  setTimetableCourseTone: jest.fn().mockResolvedValue(undefined),
 }));
 
 const mockedUseTimetableRepository = jest.mocked(useTimetableRepository);
+const mockedRemoveTimetableCourseTone = jest.mocked(removeTimetableCourseTone);
+const mockedSetTimetableCourseTone = jest.mocked(setTimetableCourseTone);
 
 const semesterRecord: TimetableSemesterRecord = {
   catalogCourses: [],
@@ -76,6 +83,8 @@ const createRepository = () => ({
 describe('useTimetableDetailData add course options', () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    mockedRemoveTimetableCourseTone.mockResolvedValue(undefined);
+    mockedSetTimetableCourseTone.mockResolvedValue(undefined);
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
@@ -230,6 +239,150 @@ describe('useTimetableDetailData add course options', () => {
       staleReload.resolve(semesterRecord);
       await reloadPromise;
     });
+    expect(result.current.data?.semesterId).toBe('2026-1');
+  });
+
+  it('강의 추가 응답이 진행 중인 다른 학기 전환을 취소하지 않는다', async () => {
+    const previousSemesterRecord: TimetableSemesterRecord = {
+      ...semesterRecord,
+      id: '2026-1',
+      label: '2026-1학기',
+    };
+    const catalogCourse = {
+      code: 'CS101',
+      credits: 3,
+      department: '컴퓨터공학과',
+      id: 'course-1',
+      isOnline: false,
+      locationLabel: '성결관 101호',
+      name: '자료구조',
+      professor: '김교수',
+      schedules: [{day: 'mon' as const, endPeriod: 2, startPeriod: 1}],
+      toneId: 'green' as const,
+    };
+    const recordAfterAdd: TimetableSemesterRecord = {
+      ...semesterRecord,
+      courses: [catalogCourse],
+    };
+    const pendingAdd = createDeferred<TimetableSemesterRecord | null>();
+    const pendingSelection = createDeferred<TimetableSemesterRecord | null>();
+    const repository = createRepository();
+    repository.listSemesterRecords.mockResolvedValue([
+      semesterRecord,
+      previousSemesterRecord,
+    ]);
+    repository.getSemesterRecord
+      .mockResolvedValueOnce(semesterRecord)
+      .mockReturnValueOnce(pendingSelection.promise);
+    repository.searchCatalogCourses.mockResolvedValue({
+      hasNext: false,
+      items: [catalogCourse],
+      page: 0,
+    });
+    repository.addCatalogCourse.mockReturnValue(pendingAdd.promise);
+    mockedUseTimetableRepository.mockReturnValue(
+      repository as ReturnType<typeof useTimetableRepository>,
+    );
+
+    const {result} = renderHook(() => useTimetableDetailData());
+    await waitFor(() => {
+      expect(result.current.data?.semesterId).toBe('2026-2');
+    });
+    act(() => {
+      result.current.openAddSheet();
+    });
+    await waitFor(() => {
+      expect(
+        result.current.data?.addCourseSheet.search.items.some(
+          course => course.courseId === 'course-1',
+        ),
+      ).toBe(true);
+    });
+
+    let addPromise!: Promise<void>;
+    act(() => {
+      addPromise = result.current.addCatalogCourse('course-1');
+    });
+    await waitFor(() => {
+      expect(repository.addCatalogCourse).toHaveBeenCalledTimes(1);
+    });
+
+    let selectPromise!: Promise<void>;
+    act(() => {
+      selectPromise = result.current.selectSemester('2026-1');
+    });
+    await waitFor(() => {
+      expect(repository.getSemesterRecord).toHaveBeenCalledTimes(2);
+    });
+
+    await act(async () => {
+      pendingAdd.resolve(recordAfterAdd);
+      await addPromise;
+    });
+    await act(async () => {
+      pendingSelection.resolve(previousSemesterRecord);
+      await selectPromise;
+    });
+
+    expect(result.current.data?.semesterId).toBe('2026-1');
+  });
+
+  it('강의 삭제 응답이 진행 중인 다른 학기 전환을 취소하지 않는다', async () => {
+    const previousSemesterRecord: TimetableSemesterRecord = {
+      ...semesterRecord,
+      id: '2026-1',
+      label: '2026-1학기',
+    };
+    const pendingRemove = createDeferred<TimetableSemesterRecord | null>();
+    const pendingSelection = createDeferred<TimetableSemesterRecord | null>();
+    const repository = createRepository();
+    repository.listSemesterRecords.mockResolvedValue([
+      semesterRecordWithManualCourse,
+      previousSemesterRecord,
+    ]);
+    repository.getSemesterRecord
+      .mockResolvedValueOnce(semesterRecordWithManualCourse)
+      .mockReturnValueOnce(pendingSelection.promise);
+    repository.removeCourse.mockReturnValue(pendingRemove.promise);
+    mockedUseTimetableRepository.mockReturnValue(
+      repository as ReturnType<typeof useTimetableRepository>,
+    );
+    jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => {
+      const destructiveAction = buttons?.find(button => button.style === 'destructive');
+      destructiveAction?.onPress?.();
+    });
+
+    const {result} = renderHook(() => useTimetableDetailData());
+    await waitFor(() => {
+      expect(result.current.data?.semesterId).toBe('2026-2');
+    });
+    act(() => {
+      result.current.openCourseDetail('manual-1');
+    });
+    act(() => {
+      result.current.removeSelectedCourse();
+    });
+    await waitFor(() => {
+      expect(repository.removeCourse).toHaveBeenCalledTimes(1);
+    });
+
+    let selectPromise!: Promise<void>;
+    act(() => {
+      selectPromise = result.current.selectSemester('2026-1');
+    });
+    await waitFor(() => {
+      expect(repository.getSemesterRecord).toHaveBeenCalledTimes(2);
+    });
+
+    await act(async () => {
+      pendingRemove.resolve(semesterRecord);
+      await Promise.resolve();
+    });
+    await act(async () => {
+      pendingSelection.resolve(previousSemesterRecord);
+      await selectPromise;
+    });
+
     expect(result.current.data?.semesterId).toBe('2026-1');
   });
 
