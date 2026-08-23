@@ -83,6 +83,12 @@ export const useTimetableSharingSettingsData = () => {
     reload().catch(() => undefined);
   }, [friendHubInvalidationVersion, reload]);
 
+  const supersedeReload = React.useCallback(() => {
+    stateVersionRef.current += 1;
+    setLoadingSettings(false);
+    setLoadingFriends(false);
+  }, []);
+
   const updateDefaultScope = React.useCallback(
     async (scope: TimetableShareScope) => {
       if (!settings || savingRef.current) {
@@ -91,7 +97,7 @@ export const useTimetableSharingSettingsData = () => {
 
       const previous = settings;
       savingRef.current = true;
-      stateVersionRef.current += 1;
+      supersedeReload();
       setSaving(true);
       setSettingsError(undefined);
       setSettings(current => current ? {...current, defaultScope: scope} : current);
@@ -106,7 +112,7 @@ export const useTimetableSharingSettingsData = () => {
         setSaving(false);
       }
     },
-    [settings, timetableRepository],
+    [settings, supersedeReload, timetableRepository],
   );
 
   const updateFriendScope = React.useCallback(
@@ -124,7 +130,7 @@ export const useTimetableSharingSettingsData = () => {
         overrides: scope ? [...overrides, {friendId, scope}] : overrides,
       };
       savingRef.current = true;
-      stateVersionRef.current += 1;
+      supersedeReload();
       setSaving(true);
       setSettingsError(undefined);
       setSettings(nextSettings);
@@ -142,7 +148,7 @@ export const useTimetableSharingSettingsData = () => {
         setSaving(false);
       }
     },
-    [settings, timetableRepository],
+    [settings, supersedeReload, timetableRepository],
   );
 
   const getFriendScope = React.useCallback(
