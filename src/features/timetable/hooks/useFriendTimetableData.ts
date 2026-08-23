@@ -141,10 +141,14 @@ export const useFriendTimetableData = (semesterId?: string) => {
         return;
       }
 
+      timetableRequestRef.current += 1;
       selectedFriendIdRef.current = friendId;
       setSelectedFriendId(friendId);
+      setSelectedTimetable(undefined);
+      setTimetableError(undefined);
+      setLoadingTimetable(Boolean(semesterId));
     },
-    [selectedFriendId],
+    [selectedFriendId, semesterId],
   );
 
   const updateFavorite = React.useCallback(
