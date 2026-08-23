@@ -41,10 +41,12 @@ export const useTimetableSharingSettingsData = () => {
   const [saving, setSaving] = React.useState(false);
   const [settingsError, setSettingsError] = React.useState<string>();
   const savingRef = React.useRef(false);
+  const pendingReloadRef = React.useRef(false);
   const stateVersionRef = React.useRef(0);
 
   const reload = React.useCallback(async () => {
     if (savingRef.current) {
+      pendingReloadRef.current = true;
       return;
     }
 
@@ -111,6 +113,18 @@ export const useTimetableSharingSettingsData = () => {
     setLoadingFriends(false);
   }, []);
 
+  const finishSavingAndReplayReload = React.useCallback(async () => {
+    savingRef.current = false;
+    setSaving(false);
+
+    if (!pendingReloadRef.current) {
+      return;
+    }
+
+    pendingReloadRef.current = false;
+    await reload();
+  }, [reload]);
+
   const updateDefaultScope = React.useCallback(
     async (scope: TimetableShareScope) => {
       if (!settings || savingRef.current) {
@@ -130,11 +144,15 @@ export const useTimetableSharingSettingsData = () => {
         setSettings(previous);
         throw saveError;
       } finally {
-        savingRef.current = false;
-        setSaving(false);
+        await finishSavingAndReplayReload();
       }
     },
-    [settings, supersedeReload, timetableRepository],
+    [
+      finishSavingAndReplayReload,
+      settings,
+      supersedeReload,
+      timetableRepository,
+    ],
   );
 
   const updateFriendScope = React.useCallback(
@@ -166,11 +184,15 @@ export const useTimetableSharingSettingsData = () => {
         setSettings(previous);
         throw saveError;
       } finally {
-        savingRef.current = false;
-        setSaving(false);
+        await finishSavingAndReplayReload();
       }
     },
-    [settings, supersedeReload, timetableRepository],
+    [
+      finishSavingAndReplayReload,
+      settings,
+      supersedeReload,
+      timetableRepository,
+    ],
   );
 
   const getFriendScope = React.useCallback(
