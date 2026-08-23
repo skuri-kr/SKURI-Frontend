@@ -215,8 +215,7 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 - 행 전체를 누르면 FriendDetail로 이동한다.
 - 우측 별 버튼은 행 navigation과 이벤트를 분리한다.
 - 같은 화면에 닉네임과 학과가 모두 같은 친구가 둘 이상 있을 때만 `friendPublicId` 마지막 6자리를 `식별 코드 · ABC123`으로 표시한다. 그 외에는 식별 코드를 노출하지 않는다.
-- 마인크래프트 계정이 있으면 대표 SELF 게임명 외 N개를 표시한다.
-- 계정이 없으면 빈 보조 문구를 과도하게 강조하지 않는다.
+- FriendHub 친구 행에는 마인크래프트 계정명·개수 등 Minecraft 정보를 표시하지 않는다. Minecraft 정보는 친구 상세에서만 제공하고, 상세 화면에서도 핵심 친구 관리 기능보다 아래인 콘텐츠 최하단에 배치한다.
 - 친구 목록 새로고침은 pull-to-refresh를 제공한다.
 - 초기 목록은 가벼운 요약 DTO만 사용한다.
 
@@ -815,10 +814,10 @@ Backend는 가입 완료 판정, ACTIVE 닉네임 정책, 완료 회원만 Frien
 ### 15.2 2단계: 친구 화면 완성 (완료)
 
 - QR 생성·플랫폼 기본 scanner·iOS 카메라 권한과 실제 기기 검증
-- 친구 목록의 Minecraft 대표 SELF·전체 계정 수 요약
+- 친구 목록에서는 Minecraft 정보를 미노출하고 친구 상세 최하단에서만 SELF·FRIEND 계층 표시
 - 친구 상세의 SELF 부모·모든 FRIEND 자식 계층
 
-QR과 Minecraft는 FriendAdd·FriendRow·FriendDetail의 남은 기본 화면을 완성한다는 하나의 사용자 목표로 묶는다. Backend PR에는 Minecraft 안전 projection을, Frontend PR에는 QR·계정 표시·네이티브 설정을 담되 각각 별도 커밋으로 나눈다.
+QR과 Minecraft는 FriendAdd·FriendDetail의 남은 기본 화면을 완성한다는 하나의 사용자 목표로 묶는다. Backend PR에는 Minecraft 안전 projection을, Frontend PR에는 QR·상세 계정 표시·네이티브 설정을 담되 각각 별도 커밋으로 나눈다.
 
 ### 15.3 3단계: 시간표 공유 (전달 완료)
 
@@ -1013,7 +1012,7 @@ Core 출시 준비와 친구 화면 완성은 #24·#25에서, 시간표 공유�
 | 2026-08-18 | FriendHub 주 진입점은 마이페이지로 확정 |
 | 2026-08-18 | 친구 시간표는 상단 보조 anchor와 화면 최하단 단일-open accordion으로 확정 |
 | 2026-08-18 | 시간표 친구 목록에서도 즐겨찾기를 변경하며 모든 친구를 표시 |
-| 2026-08-18 | 친구 목록은 Minecraft 요약, 친구 상세는 SELF·FRIEND 전체 계층 표시 |
+| 2026-08-18 | 친구 목록은 Minecraft 요약, 친구 상세는 SELF·FRIEND 전체 계층 표시로 결정했으나, 친구 목록 요약은 2026-08-23 후속 결정으로 폐기 |
 | 2026-08-18 | 택시·공개방은 같은 FriendInviteSheet UX를 재사용 |
 | 2026-08-18 | QR은 URL 딥링크 없이 versioned friend code payload와 인앱 scanner 사용 |
 | 2026-08-18 | 친구 기능 외부 공개 식별자 field는 friendPublicId로 통일 |
@@ -1047,3 +1046,4 @@ Core 출시 준비와 친구 화면 완성은 #24·#25에서, 시간표 공유�
 | 2026-08-23 | 시간표 공유 리뷰 보완: mutation 시작 뒤에도 학기 전환을 유지하고, 친구 target은 전개·스크롤 후 소비하며, 비활성 화면 알림 억제와 공유 설정·친구 목록의 독립 요청 세대를 확정 |
 | 2026-08-23 | 시간표 공유 리뷰 보완: 공개 범위 변경·친구 제거 시 해당 친구의 전체 학기 cache를 폐기하고, pull-to-refresh는 접힌 친구 cache까지 갱신하도록 확정 |
 | 2026-08-23 | 시간표 공유 Backend #84·Frontend #26의 리뷰 보완과 문서 정합성 점검을 마쳐 3단계 전달 완료로 전환 |
+| 2026-08-23 | FriendHub 친구 행에서는 Minecraft 정보를 모두 숨기고 친구 상세 최하단에서만 SELF·FRIEND 계층을 표시하도록 변경 |
