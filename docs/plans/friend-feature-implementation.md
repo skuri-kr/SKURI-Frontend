@@ -1034,3 +1034,4 @@ Core 출시 준비와 친구 화면 완성은 #24·#25에서 병합됐고, 시�
 | 2026-08-22 | 시간표 공유 Backend·Frontend 구현은 각각 한 PR 범위에서 완료하고, 문서 정합성 점검 후 PR 검토·실기기 QA를 남은 gate로 분리 |
 | 2026-08-22 | 가입 완료는 ACTIVE·nickname·studentId·department의 null/공백 여부만으로 판단하고, 예약어는 신규 nickname 입력 검증에만 사용 |
 | 2026-08-22 | 시간표 공유 리뷰 보완: 독립 오류 상태, 열린 친구 cache pull-to-refresh, 별 변경 중복 방지, accordion container 폭, DETAILS 온라인 수업 목록과 nullable 교수 계약을 확정 |
+| 2026-08-23 | 시간표 공유 리뷰 보완: 최신 요청만 상태 반영, cache hit의 진행 중 요청 무효화, 설정 mutation의 reload supersede, 즐겨찾기 후 목록·상세 동기화, 기존 목록 유지 오류 안내, 공개 범위 sheet 스크롤을 확정 |
