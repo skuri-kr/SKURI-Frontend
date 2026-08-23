@@ -15,20 +15,6 @@ interface FriendRowProps {
   showIdentifier?: boolean;
 }
 
-const getMinecraftSummary = (friend: FriendSummary) => {
-  const minecraftAccountCount = friend.minecraftAccountCount ?? 0;
-
-  if (friend.primaryMinecraftGameName) {
-    return minecraftAccountCount > 1
-      ? `${friend.primaryMinecraftGameName} 외 ${minecraftAccountCount - 1}개`
-      : friend.primaryMinecraftGameName;
-  }
-
-  return minecraftAccountCount > 0
-    ? `마인크래프트 계정 ${minecraftAccountCount}개`
-    : undefined;
-};
-
 export const FriendRow = ({
   disabled = false,
   friend,
@@ -50,11 +36,6 @@ export const FriendRow = ({
         <Text numberOfLines={1} style={styles.department}>
           {friend.department || '학과 정보 없음'}
         </Text>
-        {getMinecraftSummary(friend) ? (
-          <Text numberOfLines={1} style={styles.minecraftSummary}>
-            {getMinecraftSummary(friend)}
-          </Text>
-        ) : null}
         {showIdentifier ? (
           <Text style={styles.identifier}>
             식별 코드 · {friend.id.slice(-6).toUpperCase()}
@@ -89,7 +70,6 @@ const styles = StyleSheet.create({
   content: {flex: 1, marginLeft: SPACING.md},
   name: {color: COLORS.text.primary, fontSize: 15, fontWeight: '700', lineHeight: 22},
   department: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: 2},
-  minecraftSummary: {color: COLORS.brand.primaryStrong, fontSize: 11, lineHeight: 16, marginTop: 1},
   identifier: {color: COLORS.text.tertiary, fontSize: 11, lineHeight: 16, marginTop: 2},
   favoriteButton: {alignItems: 'center', height: 44, justifyContent: 'center', width: 44},
 });
