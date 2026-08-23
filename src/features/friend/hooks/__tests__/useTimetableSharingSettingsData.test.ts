@@ -3,6 +3,7 @@ import {act, renderHook, waitFor} from '@testing-library/react-native';
 import {useFriendRepository, useTimetableRepository} from '@/di';
 
 import {useTimetableSharingSettingsData} from '../useTimetableSharingSettingsData';
+import type {FriendSummary} from '../../model/friend';
 
 jest.mock('@/di', () => ({
   useFriendRepository: jest.fn(),
@@ -170,12 +171,12 @@ describe('useTimetableSharingSettingsData', () => {
     expect(result.current.settings?.defaultScope).toBe('DETAILS');
   });
 
-  it('설정 변경이 진행 중인 새로고침을 대체하면 로딩 상태를 종료한다', async () => {
+  it('설정 변경 중에도 진행 중인 친구 목록 조회를 유지한다', async () => {
     const staleSettings = createDeferred<{
       defaultScope: 'PRIVATE';
       overrides: [];
     }>();
-    const staleFriends = createDeferred<[]>();
+    const staleFriends = createDeferred<FriendSummary[]>();
     const getMySharingSettings = jest
       .fn()
       .mockResolvedValueOnce({defaultScope: 'BUSY_ONLY', overrides: []})
@@ -211,15 +212,26 @@ describe('useTimetableSharingSettingsData', () => {
       await result.current.updateDefaultScope('DETAILS');
     });
     expect(result.current.loadingSettings).toBe(false);
-    expect(result.current.loadingFriends).toBe(false);
+    expect(result.current.loadingFriends).toBe(true);
     expect(result.current.settings?.defaultScope).toBe('DETAILS');
 
     await act(async () => {
       staleSettings.resolve({defaultScope: 'PRIVATE', overrides: []});
-      staleFriends.resolve([]);
+      staleFriends.resolve([
+        {
+          department: '컴퓨터공학과',
+          favorite: false,
+          id: 'friend-1',
+          minecraftAccountCount: 0,
+          nickname: '가람',
+          photoUrl: null,
+        },
+      ]);
       await staleReload;
     });
     expect(result.current.settings?.defaultScope).toBe('DETAILS');
+    expect(result.current.friends.map(friend => friend.id)).toEqual(['friend-1']);
+    expect(result.current.loadingFriends).toBe(false);
   });
 
   it('설정 저장 중 요청된 새로고침을 저장 완료 후 한 번 재실행한다', async () => {
