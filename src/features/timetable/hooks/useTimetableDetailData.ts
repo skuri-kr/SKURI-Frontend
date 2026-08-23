@@ -731,17 +731,26 @@ export const useTimetableDetailData = (
   const [searchResultKey, setSearchResultKey] = React.useState<string>();
   const [showNightClasses, setShowNightClasses] = React.useState(false);
   const searchRequestIdRef = React.useRef(0);
+  const semesterLoadVersionRef = React.useRef(0);
   const selectedSemesterIdRef = React.useRef<string | undefined>(undefined);
   const currentSearchKey = selectedSemesterId
     ? buildCatalogSearchKey(selectedSemesterId, query, catalogFilters)
     : undefined;
 
   const loadSemester = React.useCallback(async (semesterId?: string) => {
+    const loadVersion = semesterLoadVersionRef.current + 1;
+    semesterLoadVersionRef.current = loadVersion;
+    if (semesterId) {
+      selectedSemesterIdRef.current = semesterId;
+    }
     setLoading(true);
     setError(null);
 
     try {
       const semesters = await timetableRepository.listSemesterRecords();
+      if (loadVersion !== semesterLoadVersionRef.current) {
+        return;
+      }
       const options = semesters.map(semester => ({
         id: semester.id,
         label: semester.label,
@@ -766,6 +775,9 @@ export const useTimetableDetailData = (
         nextSemesterId,
         nextSemesterOption?.label ?? `${nextSemesterId}학기`,
       );
+      if (loadVersion !== semesterLoadVersionRef.current) {
+        return;
+      }
 
       selectedSemesterIdRef.current = nextSemesterId;
       setRecord(nextRecord ?? null);
@@ -776,10 +788,14 @@ export const useTimetableDetailData = (
         ) ?? false,
       );
     } catch (loadError) {
-      console.error(loadError);
-      setError('시간표를 불러오지 못했습니다.');
+      if (loadVersion === semesterLoadVersionRef.current) {
+        console.error(loadError);
+        setError('시간표를 불러오지 못했습니다.');
+      }
     } finally {
-      setLoading(false);
+      if (loadVersion === semesterLoadVersionRef.current) {
+        setLoading(false);
+      }
     }
   }, [timetableRepository]);
 
