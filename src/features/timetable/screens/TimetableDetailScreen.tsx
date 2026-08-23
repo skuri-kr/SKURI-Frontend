@@ -461,7 +461,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingBottom: SPACING.xxl,
+    paddingBottom: SPACING.xxl + 96,
     paddingTop: 16,
   },
   headerSurface: {
