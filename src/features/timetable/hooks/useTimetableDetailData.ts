@@ -740,9 +740,6 @@ export const useTimetableDetailData = (
   const loadSemester = React.useCallback(async (semesterId?: string) => {
     const loadVersion = semesterLoadVersionRef.current + 1;
     semesterLoadVersionRef.current = loadVersion;
-    if (semesterId) {
-      selectedSemesterIdRef.current = semesterId;
-    }
     setLoading(true);
     setError(null);
 
