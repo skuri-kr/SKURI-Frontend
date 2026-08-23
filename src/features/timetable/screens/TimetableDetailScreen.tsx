@@ -63,6 +63,7 @@ export const TimetableDetailScreen = () => {
   const [friendSectionTop, setFriendSectionTop] = React.useState<number>();
   const autoOpenedEditRef = React.useRef(false);
   const autoOpenedFriendRef = React.useRef<string | undefined>(undefined);
+  const handledInitialFriendRef = React.useRef<string | undefined>(undefined);
   const friendTimetableSectionRef =
     React.useRef<FriendTimetableSectionHandle>(null);
   const scrollViewRef = React.useRef<ScrollView>(null);
@@ -123,6 +124,21 @@ export const TimetableDetailScreen = () => {
     AccessibilityInfo.announceForAccessibility('친구 시간표로 이동했습니다.');
   }, [friendSectionTop]);
 
+  const consumeInitialFriendTarget = React.useCallback(
+    (targetFriendPublicId: string) => {
+      if (
+        route.params?.targetFriendPublicId !== targetFriendPublicId ||
+        autoOpenedFriendRef.current !== targetFriendPublicId ||
+        handledInitialFriendRef.current !== targetFriendPublicId
+      ) {
+        return;
+      }
+
+      navigation.setParams({targetFriendPublicId: undefined});
+    },
+    [navigation, route.params?.targetFriendPublicId],
+  );
+
   React.useEffect(() => {
     const targetFriendPublicId = route.params?.targetFriendPublicId;
     if (
@@ -136,13 +152,31 @@ export const TimetableDetailScreen = () => {
     const frame = requestAnimationFrame(() => {
       scrollToFriendTimetable();
       autoOpenedFriendRef.current = targetFriendPublicId;
+      consumeInitialFriendTarget(targetFriendPublicId);
     });
     return () => cancelAnimationFrame(frame);
-  }, [friendSectionTop, route.params?.targetFriendPublicId, scrollToFriendTimetable]);
+  }, [
+    consumeInitialFriendTarget,
+    friendSectionTop,
+    route.params?.targetFriendPublicId,
+    scrollToFriendTimetable,
+  ]);
+
+  const handleInitialFriendHandled = React.useCallback(() => {
+    const targetFriendPublicId = route.params?.targetFriendPublicId;
+    if (!targetFriendPublicId) {
+      return;
+    }
+
+    handledInitialFriendRef.current = targetFriendPublicId;
+    consumeInitialFriendTarget(targetFriendPublicId);
+  }, [consumeInitialFriendTarget, route.params?.targetFriendPublicId]);
 
   const handleInitialFriendUnavailable = React.useCallback(() => {
     navigation.setParams({targetFriendPublicId: undefined});
-    Alert.alert('친구 시간표', '더 이상 친구 시간표를 볼 수 없어요.');
+    if (navigation.isFocused()) {
+      Alert.alert('친구 시간표', '더 이상 친구 시간표를 볼 수 없어요.');
+    }
   }, [navigation]);
 
   const handleRefresh = React.useCallback(async () => {
@@ -346,9 +380,7 @@ export const TimetableDetailScreen = () => {
               <View style={styles.friendTimetableDivider} />
               <FriendTimetableSection
                 initialFriendId={route.params?.targetFriendPublicId}
-                onInitialFriendHandled={() => {
-                  navigation.setParams({targetFriendPublicId: undefined});
-                }}
+                onInitialFriendHandled={handleInitialFriendHandled}
                 onInitialFriendUnavailable={handleInitialFriendUnavailable}
                 onPressSettings={() => navigation.navigate('FriendSettings')}
                 ownCourses={data.courses}
