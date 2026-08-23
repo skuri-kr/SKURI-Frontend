@@ -49,6 +49,22 @@ jest.mock('../../components/FriendMinecraftAccountTree', () => ({
   FriendMinecraftAccountTree: () => null,
 }));
 
+jest.mock('../../components/FriendInviteSheet', () => ({
+  FriendInviteSheet: () => null,
+}));
+
+jest.mock('../../components/FriendInviteTargetSheet', () => ({
+  FriendInviteTargetSheet: () => null,
+}));
+
+jest.mock('@/features/taxi/hooks/useMyParty', () => ({
+  useMyParty: () => ({myParty: null}),
+}));
+
+jest.mock('@/features/chat/hooks/useChatRooms', () => ({
+  useChatRooms: () => ({chatRooms: []}),
+}));
+
 jest.mock('../../hooks/useFriendDetailData', () => ({
   useFriendDetailData: jest.fn(),
 }));

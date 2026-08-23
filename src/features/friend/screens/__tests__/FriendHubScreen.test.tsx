@@ -7,6 +7,7 @@ import {useIsFocused, useNavigation, useRoute} from '@react-navigation/native';
 import {useInvalidationVersion} from '@/app/data-freshness/dataInvalidation';
 
 import {useFriendHubData} from '../../hooks/useFriendHubData';
+import {useFriendInvitationsData} from '../../hooks/useFriendInvitationsData';
 import {FriendHubScreen} from '../FriendHubScreen';
 
 jest.mock('@react-navigation/native', () => ({
@@ -40,6 +41,11 @@ jest.mock('@/app/data-freshness/dataInvalidation', () => ({
   useInvalidationVersion: jest.fn(),
 }));
 
+jest.mock('@/app/navigation/services/appRouteNavigation', () => ({
+  navigateToCommunityChat: jest.fn(),
+  navigateToTaxiChat: jest.fn(),
+}));
+
 jest.mock('@/shared/design-system/components', () => ({
   SegmentedControl: ({items}: {items: Array<{label: string}>}) => {
     const {createElement} = require('react');
@@ -62,7 +68,12 @@ jest.mock('../../hooks/useFriendHubData', () => ({
   useFriendHubData: jest.fn(),
 }));
 
+jest.mock('../../hooks/useFriendInvitationsData', () => ({
+  useFriendInvitationsData: jest.fn(),
+}));
+
 const mockedUseFriendHubData = jest.mocked(useFriendHubData);
+const mockedUseFriendInvitationsData = jest.mocked(useFriendInvitationsData);
 const mockedUseInvalidationVersion = jest.mocked(useInvalidationVersion);
 const mockedUseIsFocused = jest.mocked(useIsFocused);
 const mockedUseNavigation = jest.mocked(useNavigation);
@@ -111,6 +122,19 @@ describe('FriendHubScreen', () => {
       setParams: jest.fn(),
     } as ReturnType<typeof useNavigation>);
     mockedUseRoute.mockReturnValue({params: {}} as ReturnType<typeof useRoute>);
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation: jest.fn(),
+      chatError: undefined,
+      declineInvitation: jest.fn(),
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 0,
+      reload: jest.fn().mockResolvedValue(undefined),
+    });
   });
 
   it('다른 친구 요청 조회가 진행 중이어도 친구 목록 실패를 즉시 표시한다', () => {
@@ -153,7 +177,7 @@ describe('FriendHubScreen', () => {
 
     const view = render(<FriendHubScreen />);
 
-    expect(view.getByText('친구 0 요청 20+')).toBeTruthy();
+    expect(view.getByText('친구 0 요청 20+ 초대 0')).toBeTruthy();
   });
 
   it('화면을 떠난 뒤 즐겨찾기 저장이 실패해도 오류를 표시하지 않는다', async () => {
