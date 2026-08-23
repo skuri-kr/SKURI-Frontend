@@ -14,6 +14,7 @@ import Animated from 'react-native-reanimated';
 
 import type {FriendSummary} from '@/features/friend/model/friend';
 import {FriendAvatar} from '@/features/friend/components/FriendAvatar';
+import {getDuplicateFriendProfileIds} from '@/features/friend/model/friendDisambiguation';
 import {StateCard} from '@/shared/design-system/components';
 import {enteringTransitions, exitingTransitions, layoutTransitions} from '@/shared/design-system/motion';
 import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
@@ -281,6 +282,10 @@ export const FriendTimetableSection = React.forwardRef<
   const handledInitialFriendRef = React.useRef<string | undefined>(undefined);
   const [commonFreeSheetVisible, setCommonFreeSheetVisible] =
     React.useState(false);
+  const duplicateFriendIds = React.useMemo(
+    () => getDuplicateFriendProfileIds(friends),
+    [friends],
+  );
   const selectedFriend = friends.find(friend => friend.id === selectedFriendId);
   const commonFreePeriods = React.useMemo(
     () =>
@@ -411,6 +416,11 @@ export const FriendTimetableSection = React.forwardRef<
           {friends.map((friend, index) => {
             const expanded = friend.id === selectedFriendId;
             const isUpdatingFavorite = updatingFavoriteIds.has(friend.id);
+            const showIdentifier = duplicateFriendIds.has(friend.id);
+            const identifier = friend.id.slice(-6).toUpperCase();
+            const accessibilityIdentifier = showIdentifier
+              ? `, 식별 코드 ${identifier}`
+              : '';
             return (
               <Animated.View
                 key={friend.id}
@@ -418,7 +428,7 @@ export const FriendTimetableSection = React.forwardRef<
                 style={index < friends.length - 1 ? styles.rowDivider : undefined}>
                 <View style={styles.friendRow}>
                   <TouchableOpacity
-                    accessibilityLabel={`${friend.nickname} 시간표 ${expanded ? '접기' : '보기'}`}
+                    accessibilityLabel={`${friend.nickname} 시간표 ${expanded ? '접기' : '보기'}${accessibilityIdentifier}`}
                     accessibilityRole="button"
                     accessibilityState={{expanded}}
                     activeOpacity={0.82}
@@ -432,6 +442,11 @@ export const FriendTimetableSection = React.forwardRef<
                       <Text numberOfLines={1} style={styles.friendDepartment}>
                         {friend.department || '학과 정보 없음'}
                       </Text>
+                      {showIdentifier ? (
+                        <Text style={styles.friendIdentifier}>
+                          식별 코드 · {identifier}
+                        </Text>
+                      ) : null}
                     </View>
                     <View style={styles.scopeBadge}>
                       <Text style={styles.scopeBadgeLabel}>
@@ -445,7 +460,7 @@ export const FriendTimetableSection = React.forwardRef<
                     />
                   </TouchableOpacity>
                   <TouchableOpacity
-                    accessibilityLabel={`${friend.nickname} 즐겨찾기 ${friend.favorite ? '해제' : '추가'}`}
+                    accessibilityLabel={`${friend.nickname} 즐겨찾기 ${friend.favorite ? '해제' : '추가'}${accessibilityIdentifier}`}
                     accessibilityRole="button"
                     accessibilityState={{disabled: isUpdatingFavorite}}
                     activeOpacity={0.82}
@@ -657,6 +672,7 @@ const styles = StyleSheet.create({
   friendText: {flex: 1, marginLeft: SPACING.md, marginRight: SPACING.xs},
   friendName: {color: COLORS.text.primary, fontSize: 15, fontWeight: '700', lineHeight: 21},
   friendDepartment: {color: COLORS.text.muted, fontSize: 12, lineHeight: 17, marginTop: 1},
+  friendIdentifier: {color: COLORS.text.tertiary, fontSize: 11, lineHeight: 16, marginTop: 1},
   scopeBadge: {backgroundColor: COLORS.background.subtle, borderRadius: RADIUS.pill, marginRight: SPACING.xs, paddingHorizontal: SPACING.sm, paddingVertical: 4},
   scopeBadgeLabel: {color: COLORS.text.secondary, fontSize: 10, fontWeight: '700', lineHeight: 14},
   favoriteButton: {alignItems: 'center', height: 44, justifyContent: 'center', width: 40},
