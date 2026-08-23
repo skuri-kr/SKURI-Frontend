@@ -37,7 +37,12 @@ export const FriendDetailScreen = () => {
   const route = useRoute<any>();
   const {friendId} = route.params as CampusStackParamList['FriendDetail'];
   const {myParty} = useMyParty();
-  const {chatRooms} = useChatRooms('all', {joinedOnly: true});
+  const {
+    chatRooms,
+    error: chatRoomsError,
+    loading: chatRoomsLoading,
+    refresh: refreshChatRooms,
+  } = useChatRooms('all', {joinedOnly: true});
   const [inviteContext, setInviteContext] =
     React.useState<FriendInviteContext | null>(null);
   const [chatTargetSheetVisible, setChatTargetSheetVisible] =
@@ -180,7 +185,7 @@ export const FriendDetailScreen = () => {
             <SettingsRow accessoryType="chevron" disabled={mutating} iconBackgroundColor={COLORS.accent.orangeSoft} iconColor={COLORS.accent.orange} iconName="person-remove-outline" onPress={handleRemove} showDivider title="친구 끊기" />
             <SettingsRow accessoryType="chevron" disabled={mutating} iconBackgroundColor={COLORS.accent.pinkSoft} iconColor={COLORS.status.danger} iconName="ban-outline" onPress={handleBlock} title="차단하기" />
           </SettingsSection>
-          {partyInviteContext || chatInviteContexts.length > 0 ? (
+          {partyInviteContext || chatInviteContexts.length > 0 || chatRoomsLoading || chatRoomsError ? (
             <SettingsSection style={styles.section} title="친구 초대">
               {partyInviteContext ? (
                 <SettingsRow
@@ -189,7 +194,7 @@ export const FriendDetailScreen = () => {
                   iconColor={COLORS.brand.primaryStrong}
                   iconName="car-outline"
                   onPress={() => setInviteContext(partyInviteContext)}
-                  showDivider={chatInviteContexts.length > 0}
+                  showDivider={chatInviteContexts.length > 0 || chatRoomsLoading || Boolean(chatRoomsError)}
                   title="택시파티에 초대"
                 />
               ) : null}
@@ -207,6 +212,26 @@ export const FriendDetailScreen = () => {
                     setChatTargetSheetVisible(true);
                   }}
                   title="공개 채팅방에 초대"
+                />
+              ) : null}
+              {chatRoomsLoading ? (
+                <StateCard
+                  description="참여 중인 공개 채팅방을 확인하고 있습니다."
+                  icon={<ActivityIndicator color={COLORS.brand.primary} />}
+                  style={styles.inviteTargetState}
+                  title="채팅방을 불러오는 중"
+                />
+              ) : null}
+              {!chatRoomsLoading && chatRoomsError ? (
+                <StateCard
+                  actionLabel="다시 시도"
+                  description={getErrorMessage(chatRoomsError, '참여 중인 공개 채팅방을 불러오지 못했습니다.')}
+                  icon={<Icon color={COLORS.accent.orange} name="alert-circle-outline" size={28} />}
+                  onPressAction={() => {
+                    refreshChatRooms().catch(() => undefined);
+                  }}
+                  style={styles.inviteTargetState}
+                  title="채팅방을 불러오지 못했습니다"
                 />
               ) : null}
             </SettingsSection>
@@ -280,5 +305,6 @@ const styles = StyleSheet.create({
   minecraftSection: {marginTop: SPACING.xl},
   minecraftTitle: {color: COLORS.text.primary, fontSize: 15, fontWeight: '800', lineHeight: 22, marginBottom: SPACING.sm, paddingHorizontal: SPACING.xs},
   minecraftAccountList: {gap: SPACING.sm},
+  inviteTargetState: {borderRadius: 0, borderWidth: 0, elevation: 0, shadowOpacity: 0},
   section: {marginTop: SPACING.xl},
 });

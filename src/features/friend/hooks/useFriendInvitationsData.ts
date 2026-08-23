@@ -3,6 +3,7 @@ import React from 'react';
 import {invalidateData} from '@/app/data-freshness/dataInvalidation';
 import {FRIEND_INBOX_COUNTS_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {useFriendInvitationRepository} from '@/di';
+import {RepositoryError} from '@/shared/lib/errors';
 
 import type {FriendInvitation} from '../model/friend';
 
@@ -24,6 +25,9 @@ const sortInvitations = (invitations: FriendInvitation[]) =>
       right.id.localeCompare(left.id),
   );
 
+const isUncertainMutationError = (error: unknown) =>
+  error instanceof RepositoryError && error.isRetryable();
+
 export const useFriendInvitationsData = () => {
   const repository = useFriendInvitationRepository();
   const [partyInvitations, setPartyInvitations] = React.useState<
@@ -41,8 +45,31 @@ export const useFriendInvitationsData = () => {
     () => new Set(),
   );
   const mutatingIdsRef = React.useRef(new Set<string>());
+  const pendingReconciliationRef = React.useRef(
+    new Map<string, FriendInvitation['type']>(),
+  );
   const listStateVersionRef = React.useRef(0);
   const reloadVersionRef = React.useRef(0);
+
+  const releaseReconciledMutations = React.useCallback(
+    (type: FriendInvitation['type']) => {
+      let changed = false;
+
+      pendingReconciliationRef.current.forEach((pendingType, invitationId) => {
+        if (pendingType !== type) {
+          return;
+        }
+
+        pendingReconciliationRef.current.delete(invitationId);
+        changed = mutatingIdsRef.current.delete(invitationId) || changed;
+      });
+
+      if (changed) {
+        setMutatingIds(new Set(mutatingIdsRef.current));
+      }
+    },
+    [],
+  );
 
   const reload = React.useCallback(async () => {
     const requestVersion = reloadVersionRef.current + 1;
@@ -63,6 +90,7 @@ export const useFriendInvitationsData = () => {
 
     if (partyResult.ok && isCurrent()) {
       setPartyInvitations(partyResult.value);
+      releaseReconciledMutations('PARTY');
     } else if (!partyResult.ok && isCurrent()) {
       setPartyError(
         getErrorMessage(
@@ -74,6 +102,7 @@ export const useFriendInvitationsData = () => {
 
     if (chatResult.ok && isCurrent()) {
       setChatInvitations(chatResult.value);
+      releaseReconciledMutations('CHAT_ROOM');
     } else if (!chatResult.ok && isCurrent()) {
       setChatError(
         getErrorMessage(
@@ -99,7 +128,7 @@ export const useFriendInvitationsData = () => {
       setHasLoaded(true);
       setLoading(false);
     }
-  }, [repository]);
+  }, [releaseReconciledMutations, repository]);
 
   React.useEffect(() => {
     reload().catch(() => undefined);
@@ -151,18 +180,46 @@ export const useFriendInvitationsData = () => {
         return null;
       }
 
+      let keepMutationLocked = false;
+      const submitAcceptance = () =>
+        invitation.type === 'PARTY'
+          ? repository.acceptPartyInvitation(invitation.id)
+          : repository.acceptChatRoomInvitation(invitation.id);
+
       try {
-        const mutation =
-          invitation.type === 'PARTY'
-            ? await repository.acceptPartyInvitation(invitation.id)
-            : await repository.acceptChatRoomInvitation(invitation.id);
+        const mutation = await submitAcceptance();
         removeInvitation(invitation);
         return mutation;
       } catch (error) {
-        reload().catch(() => undefined);
+        if (isUncertainMutationError(error)) {
+          try {
+            const reconciledMutation = await submitAcceptance();
+            removeInvitation(invitation);
+            return reconciledMutation;
+          } catch (reconciliationError) {
+            pendingReconciliationRef.current.set(
+              invitation.id,
+              invitation.type,
+            );
+            await reload();
+            keepMutationLocked = pendingReconciliationRef.current.has(
+              invitation.id,
+            );
+            throw reconciliationError;
+          }
+        }
+
+        pendingReconciliationRef.current.set(invitation.id, invitation.type);
+        await reload();
+        keepMutationLocked = pendingReconciliationRef.current.has(
+          invitation.id,
+        );
         throw error;
       } finally {
-        endMutation(invitation.id);
+        if (!keepMutationLocked) {
+          pendingReconciliationRef.current.delete(invitation.id);
+          endMutation(invitation.id);
+        }
       }
     }, [beginMutation, endMutation, reload, removeInvitation, repository],
   );

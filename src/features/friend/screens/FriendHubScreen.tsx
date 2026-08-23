@@ -238,6 +238,9 @@ export const FriendHubScreen = () => {
         if (!mutation) {
           return;
         }
+        if (!navigation.isFocused()) {
+          return;
+        }
         if (mutation.type === 'PARTY') {
           navigateToTaxiChat(mutation.targetId);
         } else {
@@ -247,7 +250,7 @@ export const FriendHubScreen = () => {
         showErrorAlert(acceptError, '초대를 수락하지 못했습니다. 최신 상태를 확인해 주세요.');
       }
     },
-    [acceptInvitation, showErrorAlert],
+    [acceptInvitation, navigation, showErrorAlert],
   );
 
   const handleDeclineInvitation = React.useCallback(
