@@ -395,8 +395,8 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 - 택시파티·공개방 대상이 정해지면 `FriendInviteSheet`에 현재 `friendPublicId`를 `initialFriendPublicId`로 전달한다.
 - 친구 시간표 보기는 `TimetableDetail`에 `targetFriendPublicId=friendPublicId`를 전달한다.
 - TimetableDetail은 자신의 시간표와 친구 요약 목록이 준비되면 친구 section으로 스크롤하고 해당 친구 accordion을 펼친다.
-- 대상 적용 후 `targetFriendPublicId`를 한 번 소비해 rerender·학기 변경·화면 복귀 시 자동 이동을 반복하지 않는다.
-- 친구 해제·차단으로 대상이 목록에 없으면 `더 이상 친구 시간표를 볼 수 없어요` 안내 후 친구 section의 기본 상태를 유지한다.
+- 대상 친구 accordion 전개와 친구 section scroll이 모두 끝난 뒤 `targetFriendPublicId`를 한 번 소비해 rerender·학기 변경·화면 복귀 시 자동 이동을 반복하지 않는다.
+- 친구 해제·차단으로 대상이 목록에 없으면 route target은 정리하되 TimetableDetail이 활성 화면일 때만 `더 이상 친구 시간표를 볼 수 없어요`를 안내하고 친구 section의 기본 상태를 유지한다.
 - 친구 끊기와 차단은 destructive confirmation을 사용한다.
 - 차단 설명에는 친구 관계와 소셜 공유가 함께 해제되며 공개 콘텐츠는 유지된다고 명시한다.
 
@@ -449,7 +449,7 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 6. 친구 시간표
 
 오늘 보기에서도 같은 최하단 친구 section을 제공한다.
-자신의 시간표 강의 추가·삭제 응답은 그보다 나중에 시작된 다른 학기 전환을 취소하지 않는다. 같은 학기에서 진행 중인 이전 조회만 mutation의 canonical 응답으로 대체한다.
+자신의 시간표 강의 추가·삭제 mutation은 시작·응답 시점 모두 진행 중인 다른 학기 전환을 취소하지 않는다. 같은 학기에서 진행 중인 이전 조회만 mutation의 canonical 응답으로 대체한다.
 
 ### 7.4 친구 accordion
 
@@ -527,6 +527,7 @@ DETAILS:
 FriendSettings에서 다음을 제공한다. FriendHub 헤더 설정 아이콘과 시간표 친구 section 제목 우측의 `공유 설정`이 같은 화면으로 이동한다.
 
 - 기본 공개 범위와 친구 목록은 서로 독립적으로 조회한다. 친구 목록 조회가 실패해도 기본 공개 범위의 조회·변경은 계속 제공한다.
+- 기본 공개 범위 저장은 진행 중인 공유 설정 조회만 대체하며 독립적으로 진행 중인 친구 목록 조회는 유지한다.
 - 공유 설정 저장 중 발생한 친구 목록 invalidation·수동 재조회는 버리지 않고 하나로 합친 뒤 저장 종료 후 한 번 실행한다.
 - 각 친구 row에는 override 유무뿐 아니라 현재 실제 적용 범위와 `기본값 적용` 또는 `개별 설정`을 함께 표시한다.
 
@@ -1040,3 +1041,4 @@ Core 출시 준비와 친구 화면 완성은 #24·#25에서 병합됐고, 시�
 | 2026-08-23 | 시간표 공유 리뷰 보완: 최신 요청만 상태 반영, cache hit의 진행 중 요청 무효화, 설정 mutation의 reload supersede, 즐겨찾기 후 목록·상세 동기화, 기존 목록 유지 오류 안내, 공개 범위 sheet 스크롤을 확정 |
 | 2026-08-23 | 시간표 공유 리뷰 보완: 기본 공개 범위와 친구 목록 결과를 각 완료 시점에 독립 반영하고, 친구 accordion 동명이인 식별 코드를 기존 목록 정책과 통일 |
 | 2026-08-23 | 시간표 공유 리뷰 보완: 이전 학기 mutation 응답이 이후 학기 전환을 취소하지 않도록 하고, 설정 저장 중 누적된 재조회는 저장 종료 후 한 번 실행하도록 확정 |
+| 2026-08-23 | 시간표 공유 리뷰 보완: mutation 시작 뒤에도 학기 전환을 유지하고, 친구 target은 전개·스크롤 후 소비하며, 비활성 화면 알림 억제와 공유 설정·친구 목록의 독립 요청 세대를 확정 |
