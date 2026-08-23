@@ -170,8 +170,12 @@ export const useFriendInvitationsData = () => {
         );
       }
       invalidateData(FRIEND_INBOX_COUNTS_INVALIDATION_KEY);
+
+      if (pendingReconciliationRef.current.size > 0) {
+        reload().catch(() => undefined);
+      }
     },
-    [],
+    [reload],
   );
 
   const acceptInvitation = React.useCallback(
