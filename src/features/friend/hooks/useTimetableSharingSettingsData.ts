@@ -54,33 +54,51 @@ export const useTimetableSharingSettingsData = () => {
     setLoadingFriends(true);
     setSettingsError(undefined);
     setFriendsError(undefined);
-    const [settingsResult, friendsResult] = await Promise.allSettled([
-      timetableRepository.getMySharingSettings(),
-      friendRepository.getFriends(),
-    ]);
-    if (loadVersion !== stateVersionRef.current) {
-      return;
-    }
+    const settingsRequest = timetableRepository.getMySharingSettings()
+      .then(
+        nextSettings => {
+          if (loadVersion === stateVersionRef.current) {
+            setSettings(nextSettings);
+          }
+        },
+        error => {
+          if (loadVersion === stateVersionRef.current) {
+            setSettingsError(
+              getErrorMessage(
+                error,
+                '시간표 공유 설정을 불러오지 못했습니다.',
+              ),
+            );
+          }
+        },
+      )
+      .finally(() => {
+        if (loadVersion === stateVersionRef.current) {
+          setLoadingSettings(false);
+        }
+      });
+    const friendsRequest = friendRepository.getFriends()
+      .then(
+        nextFriends => {
+          if (loadVersion === stateVersionRef.current) {
+            setFriends(sortFriends(nextFriends));
+          }
+        },
+        error => {
+          if (loadVersion === stateVersionRef.current) {
+            setFriendsError(
+              getErrorMessage(error, '친구 목록을 불러오지 못했습니다.'),
+            );
+          }
+        },
+      )
+      .finally(() => {
+        if (loadVersion === stateVersionRef.current) {
+          setLoadingFriends(false);
+        }
+      });
 
-    if (settingsResult.status === 'fulfilled') {
-      setSettings(settingsResult.value);
-    } else {
-      setSettingsError(
-        getErrorMessage(
-          settingsResult.reason,
-          '시간표 공유 설정을 불러오지 못했습니다.',
-        ),
-      );
-    }
-    if (friendsResult.status === 'fulfilled') {
-      setFriends(sortFriends(friendsResult.value));
-    } else {
-      setFriendsError(
-        getErrorMessage(friendsResult.reason, '친구 목록을 불러오지 못했습니다.'),
-      );
-    }
-    setLoadingSettings(false);
-    setLoadingFriends(false);
+    await Promise.all([settingsRequest, friendsRequest]);
   }, [friendRepository, timetableRepository]);
 
   React.useEffect(() => {
