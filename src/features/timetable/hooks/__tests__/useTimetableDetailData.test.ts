@@ -312,4 +312,54 @@ describe('useTimetableDetailData add course options', () => {
     ]);
     expect(result.current.error).toBeNull();
   });
+
+  it('학기 전환 실패 후 기존 학기의 편집 응답을 계속 반영한다', async () => {
+    const failedSemesterRecord: TimetableSemesterRecord = {
+      ...semesterRecord,
+      id: '2026-1',
+      label: '2026-1학기',
+    };
+    const repository = createRepository();
+    repository.listSemesterRecords.mockResolvedValue([
+      semesterRecord,
+      failedSemesterRecord,
+    ]);
+    repository.getSemesterRecord
+      .mockResolvedValueOnce(semesterRecord)
+      .mockRejectedValueOnce(new Error('network unavailable'));
+    repository.addManualCourse.mockResolvedValue(
+      semesterRecordWithManualCourse,
+    );
+    mockedUseTimetableRepository.mockReturnValue(
+      repository as ReturnType<typeof useTimetableRepository>,
+    );
+
+    const {result} = renderHook(() => useTimetableDetailData());
+    await waitFor(() => {
+      expect(result.current.data?.semesterId).toBe('2026-2');
+    });
+
+    await act(async () => {
+      await result.current.selectSemester('2026-1');
+    });
+
+    expect(result.current.data?.semesterId).toBe('2026-2');
+    expect(result.current.error).toBe('시간표를 불러오지 못했습니다.');
+
+    act(() => {
+      result.current.setManualField('name', '프로젝트 세미나');
+      result.current.setManualOnline(true);
+    });
+    await act(async () => {
+      await result.current.addManualCourse();
+    });
+
+    expect(repository.addManualCourse).toHaveBeenCalledWith(
+      expect.objectContaining({semesterId: '2026-2'}),
+    );
+    expect(result.current.data?.courses.map(course => course.id)).toEqual([
+      'manual-1',
+    ]);
+    expect(result.current.error).toBeNull();
+  });
 });
