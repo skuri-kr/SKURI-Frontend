@@ -1,5 +1,7 @@
 import {act, renderHook, waitFor} from '@testing-library/react-native';
 
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {useFriendRepository} from '@/di';
 
 import {useFriendDetailData} from '../useFriendDetailData';
@@ -257,6 +259,26 @@ describe('useFriendDetailData', () => {
     await act(async () => {
       favoriteDeferred.resolve(undefined);
       await expect(favoriteMutation).resolves.toBe(true);
+    });
+  });
+
+  it('친구 데이터가 무효화되면 상세 정보를 다시 조회한다', async () => {
+    const repository = createRepository();
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    renderHook(() => useFriendDetailData('friend-1'));
+    await waitFor(() => {
+      expect(repository.getFriend).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      invalidateData(FRIEND_HUB_INVALIDATION_KEY);
+    });
+
+    await waitFor(() => {
+      expect(repository.getFriend).toHaveBeenCalledTimes(2);
     });
   });
 });

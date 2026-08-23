@@ -1,5 +1,7 @@
 import {act, renderHook, waitFor} from '@testing-library/react-native';
 
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {useFriendRepository, useTimetableRepository} from '@/di';
 
 import {useFriendTimetableData} from '../useFriendTimetableData';
@@ -10,11 +12,22 @@ jest.mock('@/di', () => ({
 }));
 
 jest.mock('@/app/data-freshness/dataInvalidation', () => ({
+  invalidateData: jest.fn(),
   useInvalidationVersion: jest.fn(() => 0),
 }));
 
 const mockedUseFriendRepository = jest.mocked(useFriendRepository);
 const mockedUseTimetableRepository = jest.mocked(useTimetableRepository);
+const mockedInvalidateData = jest.mocked(invalidateData);
+
+const createDeferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(resolvePromise => {
+    resolve = resolvePromise;
+  });
+
+  return {promise, resolve};
+};
 
 const friends = [
   {
@@ -191,5 +204,113 @@ describe('useFriendTimetableData', () => {
     });
 
     expect(result.current.updatingFavoriteIds).toEqual(new Set());
+    expect(mockedInvalidateData).toHaveBeenCalledWith(
+      FRIEND_HUB_INVALIDATION_KEY,
+    );
+  });
+
+  it('겹친 친구 목록 요청에서는 최신 응답만 반영한다', async () => {
+    const olderFriends = createDeferred<typeof friends>();
+    const latestFriends = createDeferred<typeof friends>();
+    const getFriends = jest
+      .fn()
+      .mockReturnValueOnce(olderFriends.promise)
+      .mockReturnValueOnce(latestFriends.promise);
+    mockedUseFriendRepository.mockReturnValue({
+      getFriends,
+      updateFavorite: jest.fn(),
+    } as unknown as ReturnType<typeof useFriendRepository>);
+    mockedUseTimetableRepository.mockReturnValue({
+      getFriendTimetable: jest.fn(),
+    } as unknown as ReturnType<typeof useTimetableRepository>);
+
+    const {result} = renderHook(() => useFriendTimetableData('2026-2'));
+    let latestReload!: Promise<void>;
+    act(() => {
+      latestReload = result.current.reloadFriends();
+    });
+
+    await act(async () => {
+      latestFriends.resolve([friends[0]]);
+      await latestReload;
+    });
+    expect(result.current.friends.map(friend => friend.id)).toEqual(['friend-b']);
+
+    await act(async () => {
+      olderFriends.resolve(friends);
+      await Promise.resolve();
+    });
+    expect(result.current.friends.map(friend => friend.id)).toEqual(['friend-b']);
+  });
+
+  it('캐시를 표시하면 이전 친구의 진행 중인 시간표 응답을 무효화한다', async () => {
+    const friendBTimetable = createDeferred<{
+      courses: [];
+      effectiveScope: 'DETAILS';
+      hasTimetable: true;
+      semester: string;
+      slots: [];
+    }>();
+    const getFriendTimetable = jest.fn(
+      ({friendId}: {friendId: string; semesterId: string}) =>
+        friendId === 'friend-a'
+          ? Promise.resolve({
+              courses: [],
+              effectiveScope: 'BUSY_ONLY' as const,
+              hasTimetable: true,
+              semester: '2026-2',
+              slots: [],
+            })
+          : friendBTimetable.promise,
+    );
+    mockedUseFriendRepository.mockReturnValue({
+      getFriends: jest.fn().mockResolvedValue(friends),
+      updateFavorite: jest.fn(),
+    } as unknown as ReturnType<typeof useFriendRepository>);
+    mockedUseTimetableRepository.mockReturnValue({
+      getFriendTimetable,
+    } as unknown as ReturnType<typeof useTimetableRepository>);
+
+    const {result} = renderHook(() => useFriendTimetableData('2026-2'));
+    await waitFor(() => {
+      expect(result.current.friends).toHaveLength(2);
+    });
+
+    act(() => {
+      result.current.selectFriend('friend-a');
+    });
+    await waitFor(() => {
+      expect(result.current.selectedTimetable?.effectiveScope).toBe('BUSY_ONLY');
+    });
+
+    act(() => {
+      result.current.selectFriend('friend-b');
+    });
+    await waitFor(() => {
+      expect(result.current.selectedFriendId).toBe('friend-b');
+      expect(result.current.loadingTimetable).toBe(true);
+    });
+
+    act(() => {
+      result.current.selectFriend('friend-a');
+    });
+    await waitFor(() => {
+      expect(result.current.selectedFriendId).toBe('friend-a');
+      expect(result.current.selectedTimetable?.effectiveScope).toBe('BUSY_ONLY');
+      expect(result.current.loadingTimetable).toBe(false);
+    });
+
+    await act(async () => {
+      friendBTimetable.resolve({
+        courses: [],
+        effectiveScope: 'DETAILS',
+        hasTimetable: true,
+        semester: '2026-2',
+        slots: [],
+      });
+    });
+
+    expect(result.current.selectedFriendId).toBe('friend-a');
+    expect(result.current.selectedTimetable?.effectiveScope).toBe('BUSY_ONLY');
   });
 });

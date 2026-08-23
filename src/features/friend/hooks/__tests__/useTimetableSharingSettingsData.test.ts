@@ -16,6 +16,15 @@ jest.mock('@/app/data-freshness/dataInvalidation', () => ({
 const mockedUseFriendRepository = jest.mocked(useFriendRepository);
 const mockedUseTimetableRepository = jest.mocked(useTimetableRepository);
 
+const createDeferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(resolvePromise => {
+    resolve = resolvePromise;
+  });
+
+  return {promise, resolve};
+};
+
 describe('useTimetableSharingSettingsData', () => {
   beforeEach(() => {
     jest.resetAllMocks();
@@ -130,6 +139,58 @@ describe('useTimetableSharingSettingsData', () => {
     await act(async () => {
       resolveOlderSettings?.({defaultScope: 'PRIVATE', overrides: []});
       await olderReload;
+    });
+    expect(result.current.settings?.defaultScope).toBe('DETAILS');
+  });
+
+  it('설정 변경이 진행 중인 새로고침을 대체하면 로딩 상태를 종료한다', async () => {
+    const staleSettings = createDeferred<{
+      defaultScope: 'PRIVATE';
+      overrides: [];
+    }>();
+    const staleFriends = createDeferred<[]>();
+    const getMySharingSettings = jest
+      .fn()
+      .mockResolvedValueOnce({defaultScope: 'BUSY_ONLY', overrides: []})
+      .mockReturnValueOnce(staleSettings.promise);
+    const getFriends = jest
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockReturnValueOnce(staleFriends.promise);
+    mockedUseFriendRepository.mockReturnValue({
+      getFriends,
+    } as unknown as ReturnType<typeof useFriendRepository>);
+    mockedUseTimetableRepository.mockReturnValue({
+      getMySharingSettings,
+      updateMySharingSettings: jest.fn().mockResolvedValue({
+        defaultScope: 'DETAILS',
+        overrides: [],
+      }),
+    } as unknown as ReturnType<typeof useTimetableRepository>);
+
+    const {result} = renderHook(() => useTimetableSharingSettingsData());
+    await waitFor(() => {
+      expect(result.current.settings?.defaultScope).toBe('BUSY_ONLY');
+    });
+
+    let staleReload!: Promise<void>;
+    act(() => {
+      staleReload = result.current.reload();
+    });
+    expect(result.current.loadingSettings).toBe(true);
+    expect(result.current.loadingFriends).toBe(true);
+
+    await act(async () => {
+      await result.current.updateDefaultScope('DETAILS');
+    });
+    expect(result.current.loadingSettings).toBe(false);
+    expect(result.current.loadingFriends).toBe(false);
+    expect(result.current.settings?.defaultScope).toBe('DETAILS');
+
+    await act(async () => {
+      staleSettings.resolve({defaultScope: 'PRIVATE', overrides: []});
+      staleFriends.resolve([]);
+      await staleReload;
     });
     expect(result.current.settings?.defaultScope).toBe('DETAILS');
   });
