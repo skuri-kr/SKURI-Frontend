@@ -313,4 +313,56 @@ describe('useFriendTimetableData', () => {
     expect(result.current.selectedFriendId).toBe('friend-a');
     expect(result.current.selectedTimetable?.effectiveScope).toBe('BUSY_ONLY');
   });
+
+  it('선택한 친구를 유지한 학기 변경에서는 새 학기 시간표를 한 번만 조회한다', async () => {
+    const getFriends = jest.fn().mockResolvedValue(friends);
+    const getFriendTimetable = jest.fn(
+      ({semesterId}: {friendId: string; semesterId: string}) =>
+        Promise.resolve({
+          courses: [],
+          effectiveScope: 'BUSY_ONLY' as const,
+          hasTimetable: true,
+          semester: semesterId,
+          slots: [],
+        }),
+    );
+    mockedUseFriendRepository.mockReturnValue({
+      getFriends,
+      updateFavorite: jest.fn(),
+    } as unknown as ReturnType<typeof useFriendRepository>);
+    mockedUseTimetableRepository.mockReturnValue({
+      getFriendTimetable,
+    } as unknown as ReturnType<typeof useTimetableRepository>);
+
+    const {result, rerender} = renderHook(
+      ({semesterId}: {semesterId: string}) =>
+        useFriendTimetableData(semesterId),
+      {initialProps: {semesterId: '2026-1'}},
+    );
+    await waitFor(() => {
+      expect(result.current.friends).toHaveLength(2);
+    });
+
+    act(() => {
+      result.current.selectFriend('friend-a');
+    });
+    await waitFor(() => {
+      expect(result.current.selectedTimetable?.semester).toBe('2026-1');
+    });
+
+    rerender({semesterId: '2026-2'});
+    await waitFor(() => {
+      expect(result.current.selectedTimetable?.semester).toBe('2026-2');
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(getFriends).toHaveBeenCalledTimes(1);
+    expect(getFriendTimetable).toHaveBeenCalledTimes(2);
+    expect(getFriendTimetable).toHaveBeenLastCalledWith({
+      friendId: 'friend-a',
+      semesterId: '2026-2',
+    });
+  });
 });

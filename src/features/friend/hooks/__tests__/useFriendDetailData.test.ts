@@ -281,4 +281,61 @@ describe('useFriendDetailData', () => {
       expect(repository.getFriend).toHaveBeenCalledTimes(2);
     });
   });
+
+  it('겹친 상세 조회에서는 최신 응답만 반영한다', async () => {
+    const repository = createRepository();
+    const olderFriend = createDeferred<{
+      department: null;
+      favorite: false;
+      id: string;
+      nickname: string;
+      photoUrl: null;
+    }>();
+    const latestFriend = createDeferred<{
+      department: null;
+      favorite: true;
+      id: string;
+      nickname: string;
+      photoUrl: null;
+    }>();
+    repository.getFriend
+      .mockReturnValueOnce(olderFriend.promise)
+      .mockReturnValueOnce(latestFriend.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendDetailData('friend-1'));
+    let latestReload!: Promise<void>;
+    act(() => {
+      latestReload = result.current.reload();
+    });
+
+    await act(async () => {
+      latestFriend.resolve({
+        department: null,
+        favorite: true,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      });
+      await latestReload;
+    });
+    expect(result.current.friend?.favorite).toBe(true);
+    expect(result.current.loading).toBe(false);
+
+    await act(async () => {
+      olderFriend.resolve({
+        department: null,
+        favorite: false,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      });
+    });
+
+    expect(result.current.friend?.favorite).toBe(true);
+    expect(result.current.error).toBeUndefined();
+    expect(result.current.loading).toBe(false);
+  });
 });
