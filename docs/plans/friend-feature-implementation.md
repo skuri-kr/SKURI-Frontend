@@ -81,7 +81,7 @@ PR #23 완료 범위:
 - FriendHub에는 친구 목록 및 받은·보낸 PENDING 요청만 보여준다. 목록 정렬은 즐겨찾기 우선·가나다순이며, 요청·검색의 opaque cursor 다음 페이지는 `더 보기`로 이어 붙인다.
 - FriendHub는 pull-to-refresh를 제공한다. 수락·거절·취소·즐겨찾기 변경 직후에는 화면 상태를 먼저 반영하고, 이전에 시작된 새로고침 응답은 최신 상태를 덮어쓰지 않도록 무시한다.
 - 닉네임 검색의 빈 결과는 현재 입력값으로 성공한 검색 뒤에만 표시하며, 다른 친구에게 보내는 요청은 각각 완료될 때까지 독립적으로 진행 상태를 유지한다.
-- 친구 상세는 프로필 요약, 시간표, 즐겨찾기, 친구 끊기, 차단을 우선 제공하고, 현재 사용자가 참여 중인 OPEN 택시파티와 공개 non-PARTY 채팅방이 있을 때 친구 초대 진입점을 노출한다. Minecraft SELF·FRIEND 계정 계층은 가장 아래의 보조 기능 위계로 표시한다.
+- 친구 상세는 프로필 요약, 시간표, 즐겨찾기, 친구 끊기, 차단을 우선 제공하고, 현재 사용자가 참여 중인 OPEN 택시파티와 실제 참여 중인 공개 non-PARTY 채팅방이 있을 때만 친구 초대 진입점을 노출한다. Minecraft SELF·FRIEND 계정 계층은 가장 아래의 보조 기능 위계로 표시한다.
 - FriendSettings에는 닉네임 검색 공개 toggle과 차단 목록/차단 해제만 둔다. 두 정보는 독립적으로 불러오므로 한 조회가 실패해도 다른 정보와 개별 재시도를 제공한다.
 - 차단 목록에서도 닉네임과 학과가 모두 같은 대상이 둘 이상일 때만 `friendPublicId` 마지막 6자리를 `식별 코드 · ABC123`으로 표시한다. 그 외에는 식별 코드를 노출하지 않는다.
 - QR은 `skuri-friend:v1:{friendCode}`만 생성·인식하고, 스캔 뒤 기존 친구 코드 preview를 호출한 뒤에만 요청 action을 노출한다.
@@ -281,6 +281,7 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 
 - 요청 탭 badge는 내가 받은 유효 PENDING 요청인 incomingRequestCount만 표시하며 보낸 PENDING 요청은 제외한다.
 - 초대 탭 badge는 내가 받은 유효 PENDING partyInvitationCount와 chatRoomInvitationCount의 합계만 표시한다.
+- 초대 count를 아직 불러오지 못한 초기 상태에서는 숫자 대신 `초대`만 표시하며 `undefined` 같은 내부 값을 노출하지 않는다.
 - 초대 목록 일부가 실패하거나 terminal mutation 직후 이전 reload가 늦게 도착해도 badge는 서버 `inbox-counts`를 우선하고, 이미 처리한 카드를 이전 응답으로 복원하지 않는다.
 - 마이페이지 친구 행은 서버 totalActionCount를 표시하며, 이는 받은 요청과 받은 두 종류 초대 count의 합계다.
 - 알림 인박스 unread badge와 친구 PENDING badge는 다른 의미이므로 합치지 않는다.
@@ -604,11 +605,11 @@ FriendInviteSheet는 다음 진입점에서 같은 컴포넌트를 사용한다.
 - 이미 참여, 중복 초대, 차단, 자격 불충족 인원은 초대할 수 없는 친구 count로 안내한다.
 - count를 누르면 개인정보를 노출하지 않는 범위에서 사유별 개수만 보여준다.
 - footer 버튼은 선택 수를 포함하고 keyboard와 safe area를 고려해 고정한다.
-- sheet 대상이 파티에서 채팅방으로 바뀌거나 닫힌 뒤 도착한 이전 eligible·발송 응답은 현재 대상의 목록·선택·닫기 상태를 변경하지 않는다. 대상 식별자와 요청 세대로 비동기 응답을 폐기한다.
+- sheet 대상이 파티에서 채팅방으로 바뀌거나 닫힌 뒤 도착한 이전 eligible·발송 응답은 현재 대상의 목록·선택·닫기 상태를 변경하지 않는다. 같은 대상을 닫았다 다시 여는 경우까지 구분하는 sheet session 세대와 요청 세대로 비동기 응답을 폐기한다.
 - 요청 중 재탭을 막고 일부 실패 시 친구별 실패 사유를 표시한다.
 - batch 응답은 요청 순서대로 SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE을 반환한다. `invitationId`는 SENT와 현재 사용자가 발송한 기존 ALREADY_PENDING에만 존재할 수 있으므로 nullable로 처리한다.
-- SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE처럼 서버가 결과를 확정한 친구는 선택 상태에서 제거하고 eligible 목록을 다시 조회한다. 일부 성공이면 outcome별 결과를 함께 안내한다.
-- timeout·연결 끊김처럼 서버 처리 여부를 알 수 없는 transport 오류에서만 해당 선택을 임시 유지한다. 재조회 결과 더 이상 eligible하지 않은 친구는 자동 해제하고, 계속 eligible한 친구만 사용자가 다시 시도할 수 있다.
+- SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE의 확정 결과는 친구 닉네임과 함께 안내하되, 차단·관계 상실을 포함할 수 있는 NOT_ELIGIBLE의 구체적인 사유는 `초대할 수 없음`으로 일반화한다. 확정 결과는 선택 상태에서 제거하고 eligible 목록을 다시 조회한다.
+- timeout·연결 끊김처럼 서버 처리 여부를 알 수 없는 transport 오류에서만 해당 선택을 임시 유지한다. 재조회 결과 더 이상 eligible하지 않은 친구는 자동 해제하고, 계속 eligible한 친구만 사용자가 다시 시도할 수 있다. 재조회도 실패하면 중복 발송 위험을 피하도록 전송 버튼을 비활성화하고 eligible 재조회가 성공한 뒤에만 다시 전송할 수 있다.
 - 차단·관계 상실처럼 민감한 사유는 NOT_ELIGIBLE로 통합해 구체적인 차단 상태를 표시하지 않는다.
 
 ### 9.3 택시 context
@@ -879,6 +880,7 @@ Academic 공개 projection과 개인정보 노출 계약, 복잡한 시간표 UI
 - FriendInviteSheet initialFriendPublicId 자동 선택·스크롤, 대상 부적격 일반 안내와 채팅 메뉴 무초기값 진입
 - FriendInviteSheet 수신자별 SENT·ALREADY_PENDING·ALREADY_MEMBER·NOT_ELIGIBLE 부분 성공, outcome별 nullable invitationId와 확정 결과 선택 해제
 - FriendInviteSheet transport 오류 선택 유지와 eligible 재조회 후 자동 해제
+- FriendInviteSheet 같은 대상 close/reopen의 이전 응답 폐기와 불확실 발송 후 eligible 재조회 성공 전 재전송 차단
 - FriendSettings privacy GET loading·disabled 상태, PATCH 최종값 반영과 실패 원복
 - 내 친구 코드 action sheet의 표시·복사·공유·재발급 확인과 FriendAdd 이동
 - Minecraft SELF·FRIEND grouping
