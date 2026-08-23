@@ -71,7 +71,7 @@ export function useFriendRepository(): IFriendRepository {
 
 export function useFriendInvitationRepository(): IFriendInvitationRepository {
   const {friendRepository} = useRepositories();
-  return friendRepository as IFriendInvitationRepository;
+  return friendRepository;
 }
 
 /**

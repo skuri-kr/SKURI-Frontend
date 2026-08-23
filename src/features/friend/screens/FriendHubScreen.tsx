@@ -142,7 +142,7 @@ export const FriendHubScreen = () => {
   const hasInitialRequestLoadPending =
     (!hasLoadedReceivedRequests && !receivedRequestsError) ||
     (!hasLoadedSentRequests && !sentRequestsError);
-  const invitationTabLabel = hasLoadedInvitations
+  const invitationTabLabel = hasLoadedInvitations && pendingInvitationCount !== undefined
     ? `초대 ${pendingInvitationCount}`
     : '초대';
 

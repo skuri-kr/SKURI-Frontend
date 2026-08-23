@@ -35,6 +35,7 @@ import type {
   FriendInvitationCandidate,
   FriendInvitationEligibleFriends,
   FriendInvitationOutcome,
+  FriendInvitationSendResult,
 } from '../model/friend';
 import {FriendAvatar} from './FriendAvatar';
 
@@ -78,19 +79,27 @@ const OUTCOME_LABELS: Record<FriendInvitationOutcome, string> = {
 };
 
 const buildOutcomeMessage = (
-  outcomes: Array<{outcome: FriendInvitationOutcome}>,
+  outcomes: FriendInvitationSendResult[],
+  candidates: FriendInvitationCandidate[],
 ) => {
-  const counts = outcomes.reduce<Partial<Record<FriendInvitationOutcome, number>>>(
-    (result, item) => ({
-      ...result,
-      [item.outcome]: (result[item.outcome] ?? 0) + 1,
-    }),
-    {},
+  const namesById = new Map(
+    candidates.map(candidate => [candidate.id, candidate.nickname]),
   );
+  const namesByOutcome = outcomes.reduce<
+    Partial<Record<FriendInvitationOutcome, string[]>>
+  >((result, item) => {
+    const names = result[item.outcome] ?? [];
+    names.push(namesById.get(item.friendId) ?? '선택한 친구');
+    result[item.outcome] = names;
+    return result;
+  }, {});
 
   return (Object.keys(OUTCOME_LABELS) as FriendInvitationOutcome[])
-    .filter(outcome => counts[outcome])
-    .map(outcome => `${OUTCOME_LABELS[outcome]} ${counts[outcome]}명`)
+    .filter(outcome => namesByOutcome[outcome]?.length)
+    .map(
+      outcome =>
+        `${OUTCOME_LABELS[outcome]}: ${namesByOutcome[outcome]?.join(', ')}`,
+    )
     .join('\n');
 };
 
@@ -108,6 +117,7 @@ export const FriendInviteSheet = ({
   const initialSelectionAppliedRef = React.useRef(false);
   const activeContextKeyRef = React.useRef<string | undefined>(undefined);
   const loadVersionRef = React.useRef(0);
+  const sheetSessionVersionRef = React.useRef(0);
   const [eligible, setEligible] =
     React.useState<FriendInvitationEligibleFriends | null>(null);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(
@@ -116,6 +126,8 @@ export const FriendInviteSheet = ({
   const [query, setQuery] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [sending, setSending] = React.useState(false);
+  const [requiresEligibilityRefresh, setRequiresEligibilityRefresh] =
+    React.useState(false);
   const [error, setError] = React.useState<string>();
   const [initialFriendUnavailable, setInitialFriendUnavailable] =
     React.useState(false);
@@ -125,19 +137,19 @@ export const FriendInviteSheet = ({
     contextTargetId && contextType
       ? `${contextType}:${contextTargetId}`
       : undefined;
-  activeContextKeyRef.current = visible ? contextKey : undefined;
-
   const loadEligible = React.useCallback(
     async ({preserveSelection = false}: {preserveSelection?: boolean} = {}) => {
       if (!contextTargetId || !contextType) {
-        return;
+        return false;
       }
 
       const requestContextKey = `${contextType}:${contextTargetId}`;
+      const requestSessionVersion = sheetSessionVersionRef.current;
       const requestVersion = loadVersionRef.current + 1;
       loadVersionRef.current = requestVersion;
       const isCurrentRequest = () =>
         activeContextKeyRef.current === requestContextKey &&
+        sheetSessionVersionRef.current === requestSessionVersion &&
         loadVersionRef.current === requestVersion;
 
       setLoading(true);
@@ -150,10 +162,11 @@ export const FriendInviteSheet = ({
                 contextTargetId,
               );
         if (!isCurrentRequest()) {
-          return;
+          return false;
         }
         const sortedFriends = sortCandidates(nextEligible.friends);
         setEligible({...nextEligible, friends: sortedFriends});
+        setRequiresEligibilityRefresh(false);
         const eligibleIds = new Set(sortedFriends.map(friend => friend.id));
 
         setSelectedIds(current => {
@@ -189,12 +202,14 @@ export const FriendInviteSheet = ({
             });
           }
         }
+        return true;
       } catch (loadError) {
         if (isCurrentRequest()) {
           setError(
             getErrorMessage(loadError, '초대할 친구 목록을 불러오지 못했습니다.'),
           );
         }
+        return false;
       } finally {
         if (isCurrentRequest()) {
           setLoading(false);
@@ -208,6 +223,8 @@ export const FriendInviteSheet = ({
       return;
     }
 
+    sheetSessionVersionRef.current += 1;
+
     if (visible && contextTargetId && contextType) {
       activeContextKeyRef.current = `${contextType}:${contextTargetId}`;
       loadVersionRef.current += 1;
@@ -217,6 +234,7 @@ export const FriendInviteSheet = ({
       setEligible(null);
       setSelectedIds(new Set());
       setSending(false);
+      setRequiresEligibilityRefresh(false);
       modal.present();
       loadEligible().catch(() => undefined);
       return;
@@ -297,9 +315,12 @@ export const FriendInviteSheet = ({
     }
 
     const requestContextKey = contextKey;
+    const requestSessionVersion = sheetSessionVersionRef.current;
     const isCurrentContext = () =>
-      activeContextKeyRef.current === requestContextKey;
+      activeContextKeyRef.current === requestContextKey &&
+      sheetSessionVersionRef.current === requestSessionVersion;
     const friendIds = [...selectedIds];
+    const candidates = eligible?.friends ?? [];
     setSending(true);
     try {
       const results =
@@ -310,23 +331,29 @@ export const FriendInviteSheet = ({
         return;
       }
       setSelectedIds(new Set());
-      Alert.alert('친구 초대 결과', buildOutcomeMessage(results));
+      Alert.alert('친구 초대 결과', buildOutcomeMessage(results, candidates));
       await loadEligible();
     } catch (sendError) {
       if (!isCurrentContext()) {
         return;
       }
+      setRequiresEligibilityRefresh(true);
+      const refreshed = await loadEligible({preserveSelection: true});
+      if (!isCurrentContext()) {
+        return;
+      }
       Alert.alert(
         '초대 전송 실패',
-        `${getErrorMessage(sendError, '친구 초대를 전송하지 못했습니다.')}\n\n최신 상태를 확인한 뒤 선택을 유지했습니다.`,
+        refreshed
+          ? `${getErrorMessage(sendError, '친구 초대를 전송하지 못했습니다.')}\n\n최신 상태를 다시 확인하고 선택을 유지했습니다.`
+          : `${getErrorMessage(sendError, '친구 초대를 전송하지 못했습니다.')}\n\n최신 상태도 확인하지 못했습니다. 목록을 다시 불러온 뒤 재시도해 주세요.`,
       );
-      await loadEligible({preserveSelection: true});
     } finally {
       if (isCurrentContext()) {
         setSending(false);
       }
     }
-  }, [contextKey, contextTargetId, contextType, loadEligible, repository, selectedIds, sending]);
+  }, [contextKey, contextTargetId, contextType, eligible?.friends, loadEligible, repository, selectedIds, sending]);
 
   const unavailableCount = eligible
     ? eligible.alreadyMemberCount +
@@ -342,7 +369,9 @@ export const FriendInviteSheet = ({
         bottomInset={insets.bottom}
         style={styles.footer}>
         <Button
-          disabled={selectedIds.size === 0 || loading}
+          disabled={
+            selectedIds.size === 0 || loading || requiresEligibilityRefresh
+          }
           loading={sending}
           onPress={() => {
             handleSend().catch(() => undefined);
@@ -351,7 +380,7 @@ export const FriendInviteSheet = ({
         />
       </BottomSheetFooter>
     ),
-    [handleSend, insets.bottom, loading, selectedIds.size, sending],
+    [handleSend, insets.bottom, loading, requiresEligibilityRefresh, selectedIds.size, sending],
   );
 
   return (
@@ -435,7 +464,18 @@ export const FriendInviteSheet = ({
           />
         ) : null}
         {error && eligible ? (
-          <Text style={styles.inlineError}>{error}</Text>
+          <View style={styles.inlineErrorContainer}>
+            <Text style={styles.inlineError}>{error}</Text>
+            {requiresEligibilityRefresh ? (
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={() => {
+                  loadEligible({preserveSelection: true}).catch(() => undefined);
+                }}>
+                <Text style={styles.inlineRetryText}>목록 다시 불러오기</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         ) : null}
 
         {eligible && filteredFriends.length > 0 ? (
@@ -552,7 +592,9 @@ const styles = StyleSheet.create({
   guideText: {color: COLORS.text.secondary, flex: 1, fontSize: 12, lineHeight: 18},
   handleIndicator: {backgroundColor: COLORS.border.default},
   initialFriendNotice: {color: COLORS.accent.orange, fontSize: 12, lineHeight: 18, marginBottom: SPACING.sm},
-  inlineError: {color: COLORS.status.danger, fontSize: 12, lineHeight: 18, marginBottom: SPACING.sm},
+  inlineError: {color: COLORS.status.danger, flex: 1, fontSize: 12, lineHeight: 18},
+  inlineErrorContainer: {alignItems: 'center', flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.sm},
+  inlineRetryText: {color: COLORS.brand.primaryStrong, fontSize: 12, fontWeight: '700'},
   loadingState: {alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.xxl},
   loadingText: {color: COLORS.text.secondary, fontSize: 13},
   searchContainer: {
