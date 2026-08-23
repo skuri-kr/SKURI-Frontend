@@ -1,5 +1,6 @@
 import React from 'react';
 import {BottomSheetScrollView} from '@gorhom/bottom-sheet';
+import {useNavigation} from '@react-navigation/native';
 import {
   ActivityIndicator,
   Alert,
@@ -261,6 +262,7 @@ export const FriendTimetableSection = React.forwardRef<
   ownCourses,
   semesterId,
 }, ref) => {
+  const navigation = useNavigation();
   const {
     friends,
     friendsError,
@@ -450,6 +452,9 @@ export const FriendTimetableSection = React.forwardRef<
                     disabled={isUpdatingFavorite}
                     onPress={() => {
                       updateFavorite(friend).catch(error => {
+                        if (!navigation.isFocused()) {
+                          return;
+                        }
                         Alert.alert(
                           '오류',
                           error instanceof Error && error.message.trim()
