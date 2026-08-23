@@ -89,6 +89,33 @@ describe('useTimetableSharingSettingsData', () => {
     expect(result.current.settingsError).toBeUndefined();
   });
 
+  it('친구 목록 응답을 기다리는 동안 기본 공개 범위를 먼저 반영한다', async () => {
+    const pendingFriends = createDeferred<[]>();
+    mockedUseFriendRepository.mockReturnValue({
+      getFriends: jest.fn().mockReturnValue(pendingFriends.promise),
+    } as unknown as ReturnType<typeof useFriendRepository>);
+    mockedUseTimetableRepository.mockReturnValue({
+      getMySharingSettings: jest.fn().mockResolvedValue({
+        defaultScope: 'DETAILS',
+        overrides: [],
+      }),
+    } as unknown as ReturnType<typeof useTimetableRepository>);
+
+    const {result} = renderHook(() => useTimetableSharingSettingsData());
+
+    await waitFor(() => {
+      expect(result.current.settings?.defaultScope).toBe('DETAILS');
+    });
+    expect(result.current.loadingSettings).toBe(false);
+    expect(result.current.loadingFriends).toBe(true);
+
+    await act(async () => {
+      pendingFriends.resolve([]);
+      await Promise.resolve();
+    });
+    expect(result.current.loadingFriends).toBe(false);
+  });
+
   it('겹친 새로고침에서는 가장 최신 응답만 반영한다', async () => {
     let resolveOlderSettings: ((value: {
       defaultScope: 'PRIVATE';
