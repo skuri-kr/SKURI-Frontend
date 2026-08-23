@@ -22,6 +22,7 @@ export const useFriendDetailData = (friendId: string) => {
   const [loading, setLoading] = React.useState(true);
   const [mutating, setMutating] = React.useState(false);
   const mutationInFlightRef = React.useRef(false);
+  const friendLoadVersionRef = React.useRef(0);
   const minecraftAccountsLoadVersionRef = React.useRef(0);
 
   const loadMinecraftAccounts = React.useCallback(async () => {
@@ -49,15 +50,26 @@ export const useFriendDetailData = (friendId: string) => {
   }, [friendId, friendRepository]);
 
   const reload = React.useCallback(async () => {
+    const requestVersion = friendLoadVersionRef.current + 1;
+    friendLoadVersionRef.current = requestVersion;
     try {
       setLoading(true);
       setError(undefined);
       loadMinecraftAccounts().catch(() => undefined);
-      setFriend(await friendRepository.getFriend(friendId));
+      const nextFriend = await friendRepository.getFriend(friendId);
+      if (requestVersion !== friendLoadVersionRef.current) {
+        return;
+      }
+      setFriend(nextFriend);
     } catch (loadError) {
+      if (requestVersion !== friendLoadVersionRef.current) {
+        return;
+      }
       setError(getErrorMessage(loadError, '친구 정보를 불러오지 못했습니다.'));
     } finally {
-      setLoading(false);
+      if (requestVersion === friendLoadVersionRef.current) {
+        setLoading(false);
+      }
     }
   }, [friendId, friendRepository, loadMinecraftAccounts]);
 
