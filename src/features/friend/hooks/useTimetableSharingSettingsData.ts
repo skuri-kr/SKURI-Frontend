@@ -44,6 +44,10 @@ export const useTimetableSharingSettingsData = () => {
   const stateVersionRef = React.useRef(0);
 
   const reload = React.useCallback(async () => {
+    if (savingRef.current) {
+      return;
+    }
+
     const loadVersion = stateVersionRef.current + 1;
     stateVersionRef.current = loadVersion;
     setLoadingSettings(true);
