@@ -35,6 +35,7 @@ import {useScreenView} from '@/shared/hooks/useScreenView';
 
 import {FriendRequestCard} from '../components/FriendRequestCard';
 import {FriendRow} from '../components/FriendRow';
+import {FriendDataErrorBanner} from '../components/FriendDataErrorBanner';
 import {useFriendHubData} from '../hooks/useFriendHubData';
 import {getDuplicateFriendProfileIds} from '../model/friendDisambiguation';
 
@@ -286,7 +287,7 @@ export const FriendHubScreen = () => {
             )
           ) : (
             <>
-              {friendError ? <ErrorBanner error={friendError} onRetry={reloadFriends} /> : null}
+              {friendError ? <FriendDataErrorBanner error={friendError} onRetry={reloadFriends} /> : null}
               {friends.length > 0 ? (
                 <View style={styles.listCard}>
                   {friends.map((friend, index) => (
@@ -334,7 +335,7 @@ export const FriendHubScreen = () => {
             ) : null}
             {hasLoadedReceivedRequests ? (
               <>
-                {receivedRequestsError ? <ErrorBanner error={receivedRequestsError} onRetry={() => reloadRequestDirection('RECEIVED')} /> : null}
+                {receivedRequestsError ? <FriendDataErrorBanner error={receivedRequestsError} onRetry={() => reloadRequestDirection('RECEIVED')} /> : null}
                 {hasAnyPendingRequests ? (
                   <>
                     <Text style={styles.sectionTitle}>받은 요청</Text>
@@ -376,7 +377,7 @@ export const FriendHubScreen = () => {
             ) : null}
             {hasLoadedSentRequests ? (
               <>
-                {sentRequestsError ? <ErrorBanner error={sentRequestsError} onRetry={() => reloadRequestDirection('SENT')} /> : null}
+                {sentRequestsError ? <FriendDataErrorBanner error={sentRequestsError} onRetry={() => reloadRequestDirection('SENT')} /> : null}
                 {hasAnyPendingRequests ? (
                   <>
                     <Text style={styles.sectionTitle}>보낸 요청</Text>
@@ -438,16 +439,6 @@ const LoadMoreButton = ({loading, onPress}: {loading: boolean; onPress: () => vo
   </TouchableOpacity>
 );
 
-const ErrorBanner = ({error, onRetry}: {error: string; onRetry: () => Promise<void>}) => (
-  <View style={styles.errorBanner}>
-    <Icon color={COLORS.accent.orange} name="alert-circle-outline" size={18} />
-    <Text numberOfLines={2} style={styles.errorBannerText}>{error}</Text>
-    <TouchableOpacity accessibilityRole="button" activeOpacity={0.82} onPress={() => { onRetry().catch(() => undefined); }} style={styles.errorRetryButton}>
-      <Text style={styles.errorRetryText}>재시도</Text>
-    </TouchableOpacity>
-  </View>
-);
-
 const styles = StyleSheet.create({
   safeArea: {backgroundColor: COLORS.background.page, flex: 1},
   content: {padding: SPACING.lg, paddingBottom: 40},
@@ -459,10 +450,6 @@ const styles = StyleSheet.create({
   requestContent: {gap: SPACING.sm},
   inlineLoading: {alignItems: 'center', flexDirection: 'row', gap: SPACING.xs, justifyContent: 'center', paddingVertical: SPACING.sm},
   inlineLoadingText: {color: COLORS.text.secondary, fontSize: 12},
-  errorBanner: {alignItems: 'center', backgroundColor: COLORS.accent.orangeSoft, borderRadius: RADIUS.md, flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.lg, minHeight: 44, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm},
-  errorBannerText: {color: COLORS.text.secondary, flex: 1, fontSize: 12, lineHeight: 18},
-  errorRetryButton: {paddingHorizontal: SPACING.xs, paddingVertical: SPACING.xs},
-  errorRetryText: {color: COLORS.accent.orange, fontSize: 12, fontWeight: '700'},
   sectionTitle: {color: COLORS.text.primary, fontSize: 14, fontWeight: '700', lineHeight: 20, marginTop: SPACING.sm, paddingHorizontal: 4},
   emptySectionText: {color: COLORS.text.muted, fontSize: 13, lineHeight: 20, paddingHorizontal: SPACING.md},
   loadMoreButton: {alignItems: 'center', backgroundColor: COLORS.background.subtle, borderRadius: RADIUS.md, height: 40, justifyContent: 'center', marginTop: SPACING.sm},

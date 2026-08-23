@@ -24,6 +24,7 @@ import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
 import {useScreenView} from '@/shared/hooks/useScreenView';
 
 import {FriendAvatar} from '../components/FriendAvatar';
+import {FriendDataErrorBanner} from '../components/FriendDataErrorBanner';
 import {useFriendSettingsData} from '../hooks/useFriendSettingsData';
 import {useTimetableSharingSettingsData} from '../hooks/useTimetableSharingSettingsData';
 import {getDuplicateFriendProfileIds} from '../model/friendDisambiguation';
@@ -45,27 +46,6 @@ const getTimetableScopeLabel = (scope?: TimetableShareScope) => {
       return '기본값 사용';
   }
 };
-
-interface ErrorBannerProps {
-  error: string;
-  onRetry: () => void;
-}
-
-const ErrorBanner = ({error, onRetry}: ErrorBannerProps) => (
-  <View style={styles.errorBanner}>
-    <Icon color={COLORS.accent.orange} name="alert-circle-outline" size={18} />
-    <Text numberOfLines={2} style={styles.errorBannerText}>
-      {error}
-    </Text>
-    <TouchableOpacity
-      accessibilityRole="button"
-      activeOpacity={0.82}
-      onPress={onRetry}
-      style={styles.errorRetryButton}>
-      <Text style={styles.errorRetryText}>재시도</Text>
-    </TouchableOpacity>
-  </View>
-);
 
 export const FriendSettingsScreen = () => {
   useScreenView();
@@ -180,7 +160,7 @@ export const FriendSettingsScreen = () => {
         {privacy ? (
           <>
             {privacyError ? (
-              <ErrorBanner
+              <FriendDataErrorBanner
                 error={privacyError}
                 onRetry={() => {
                   reloadPrivacy().catch(() => undefined);
@@ -235,7 +215,7 @@ export const FriendSettingsScreen = () => {
         {sharingSettings ? (
           <>
             {sharingSettingsError ? (
-              <ErrorBanner
+              <FriendDataErrorBanner
                 error={sharingSettingsError}
                 onRetry={() => {
                   reloadSharing().catch(() => undefined);
@@ -275,7 +255,7 @@ export const FriendSettingsScreen = () => {
                 />
               ) : null}
               {sharingFriendsError && sharingFriends.length > 0 ? (
-                <ErrorBanner
+                <FriendDataErrorBanner
                   error={sharingFriendsError}
                   onRetry={() => {
                     reloadSharing().catch(() => undefined);
@@ -343,7 +323,7 @@ export const FriendSettingsScreen = () => {
         {hasLoadedBlocks ? (
           <>
             {blocksError ? (
-              <ErrorBanner
+              <FriendDataErrorBanner
                 error={blocksError}
                 onRetry={() => {
                   reloadBlocks().catch(() => undefined);
@@ -427,20 +407,6 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xl,
     paddingHorizontal: 4,
   },
-  errorBanner: {
-    alignItems: 'center',
-    backgroundColor: COLORS.accent.orangeSoft,
-    borderRadius: RADIUS.md,
-    flexDirection: 'row',
-    gap: SPACING.sm,
-    marginBottom: SPACING.lg,
-    minHeight: 44,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-  },
-  errorBannerText: {color: COLORS.text.secondary, flex: 1, fontSize: 12, lineHeight: 18},
-  errorRetryButton: {paddingHorizontal: SPACING.xs, paddingVertical: SPACING.xs},
-  errorRetryText: {color: COLORS.accent.orange, fontSize: 12, fontWeight: '700'},
   blockCard: {
     backgroundColor: COLORS.background.surface,
     borderRadius: RADIUS.lg,

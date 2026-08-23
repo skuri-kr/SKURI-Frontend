@@ -14,6 +14,7 @@ import {useScreenView} from '@/shared/hooks/useScreenView';
 import {RepositoryError} from '@/shared/lib/errors';
 
 import {FriendAvatar} from '../components/FriendAvatar';
+import {FriendDataErrorBanner} from '../components/FriendDataErrorBanner';
 import {FriendMinecraftAccountTree} from '../components/FriendMinecraftAccountTree';
 import {useFriendDetailData} from '../hooks/useFriendDetailData';
 
@@ -125,6 +126,9 @@ export const FriendDetailScreen = () => {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {loading && !friend ? <StateCard description="친구 정보를 준비하고 있습니다." icon={<ActivityIndicator color={COLORS.brand.primary} />} title="친구 정보를 불러오는 중" /> : null}
         {error && !friend ? <StateCard actionLabel="다시 시도" description={error} icon={<Icon color={COLORS.accent.orange} name="alert-circle-outline" size={28} />} onPressAction={() => { reload().catch(() => undefined); }} title="친구 정보를 불러오지 못했습니다" /> : null}
+        {error && friend ? (
+          <FriendDataErrorBanner error={error} onRetry={reload} />
+        ) : null}
         {friend ? <>
           <View style={styles.profileCard}>
             <FriendAvatar photoUrl={friend.photoUrl} size={88} />
