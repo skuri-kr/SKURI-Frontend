@@ -28,6 +28,18 @@ const sortFriends = (friends: FriendSummary[]) =>
     );
   });
 
+const evictFriendTimetableCache = (
+  cache: Map<string, FriendTimetable>,
+  friendId: string,
+) => {
+  const cacheKeyPrefix = `${friendId}:`;
+  for (const cacheKey of cache.keys()) {
+    if (cacheKey.startsWith(cacheKeyPrefix)) {
+      cache.delete(cacheKey);
+    }
+  }
+};
+
 export const useFriendTimetableData = (semesterId?: string) => {
   const friendRepository = useFriendRepository();
   const timetableRepository = useTimetableRepository();
@@ -48,35 +60,60 @@ export const useFriendTimetableData = (semesterId?: string) => {
     () => new Set(),
   );
   const cacheRef = React.useRef(new Map<string, FriendTimetable>());
+  const friendScopesRef = React.useRef(
+    new Map<string, FriendSummary['effectiveTimetableScope']>(),
+  );
   const friendsRequestRef = React.useRef(0);
   const timetableRequestRef = React.useRef(0);
   const selectedFriendIdRef = React.useRef<string | undefined>(undefined);
   const updatingFavoriteIdsRef = React.useRef(new Set<string>());
+  const loadFriendTimetableRef = React.useRef<
+    (
+      friendId: string,
+      options?: {force?: boolean},
+    ) => Promise<void>
+  >(async () => undefined);
 
   const loadFriends = React.useCallback(async () => {
+    const changedScopeFriendIds = new Set<string>();
     const requestId = friendsRequestRef.current + 1;
     friendsRequestRef.current = requestId;
     try {
       setFriendsError(undefined);
       const nextFriends = sortFriends(await friendRepository.getFriends());
       if (requestId !== friendsRequestRef.current) {
-        return;
+        return changedScopeFriendIds;
       }
+
+      const nextFriendIds = new Set(nextFriends.map(friend => friend.id));
+      const nextFriendScopes = new Map(
+        nextFriends.map(friend => [
+          friend.id,
+          friend.effectiveTimetableScope,
+        ]),
+      );
+      for (const [friendId, previousScope] of friendScopesRef.current) {
+        if (
+          !nextFriendScopes.has(friendId) ||
+          nextFriendScopes.get(friendId) !== previousScope
+        ) {
+          changedScopeFriendIds.add(friendId);
+          evictFriendTimetableCache(cacheRef.current, friendId);
+        }
+      }
+      friendScopesRef.current = nextFriendScopes;
       setFriends(nextFriends);
       setHasLoadedFriends(true);
-      setSelectedFriendId(current => {
-        if (!current || nextFriends.some(friend => friend.id === current)) {
-          return current;
-        }
-
+      const selectedFriend = selectedFriendIdRef.current;
+      if (selectedFriend && !nextFriendIds.has(selectedFriend)) {
         timetableRequestRef.current += 1;
         selectedFriendIdRef.current = undefined;
+        setSelectedFriendId(undefined);
         setSelectedTimetable(undefined);
         setSelectedTimetableKey(undefined);
         setTimetableError(undefined);
         setLoadingTimetable(false);
-        return undefined;
-      });
+      }
     } catch (error) {
       if (requestId === friendsRequestRef.current) {
         setFriendsError(
@@ -84,6 +121,7 @@ export const useFriendTimetableData = (semesterId?: string) => {
         );
       }
     }
+    return changedScopeFriendIds;
   }, [friendRepository]);
 
   const loadFriendTimetable = React.useCallback(
@@ -137,6 +175,15 @@ export const useFriendTimetableData = (semesterId?: string) => {
     },
     [semesterId, timetableRepository],
   );
+  loadFriendTimetableRef.current = loadFriendTimetable;
+
+  const reloadFriends = React.useCallback(async () => {
+    const changedScopeFriendIds = await loadFriends();
+    const selectedFriend = selectedFriendIdRef.current;
+    if (selectedFriend && changedScopeFriendIds.has(selectedFriend)) {
+      await loadFriendTimetableRef.current?.(selectedFriend, {force: true});
+    }
+  }, [loadFriends]);
 
   const selectFriend = React.useCallback(
     (friendId: string) => {
@@ -200,6 +247,7 @@ export const useFriendTimetableData = (semesterId?: string) => {
   );
 
   const refresh = React.useCallback(async () => {
+    cacheRef.current.clear();
     await loadFriends();
     if (selectedFriendIdRef.current) {
       await loadFriendTimetable(selectedFriendIdRef.current, {force: true});
@@ -207,8 +255,8 @@ export const useFriendTimetableData = (semesterId?: string) => {
   }, [loadFriendTimetable, loadFriends]);
 
   React.useEffect(() => {
-    loadFriends().catch(() => undefined);
-  }, [friendHubInvalidationVersion, loadFriends]);
+    reloadFriends().catch(() => undefined);
+  }, [friendHubInvalidationVersion, reloadFriends]);
 
   React.useEffect(() => {
     selectedFriendIdRef.current = selectedFriendId;
@@ -234,7 +282,7 @@ export const useFriendTimetableData = (semesterId?: string) => {
     hasLoadedFriends,
     loadingTimetable,
     refresh,
-    reloadFriends: loadFriends,
+    reloadFriends,
     reloadSelectedTimetable: () =>
       selectedFriendId
         ? loadFriendTimetable(selectedFriendId, {force: true})
