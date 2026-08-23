@@ -281,6 +281,7 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 
 - 요청 탭 badge는 내가 받은 유효 PENDING 요청인 incomingRequestCount만 표시하며 보낸 PENDING 요청은 제외한다.
 - 초대 탭 badge는 내가 받은 유효 PENDING partyInvitationCount와 chatRoomInvitationCount의 합계만 표시한다.
+- 초대 목록 일부가 실패하거나 terminal mutation 직후 이전 reload가 늦게 도착해도 badge는 서버 `inbox-counts`를 우선하고, 이미 처리한 카드를 이전 응답으로 복원하지 않는다.
 - 마이페이지 친구 행은 서버 totalActionCount를 표시하며, 이는 받은 요청과 받은 두 종류 초대 count의 합계다.
 - 알림 인박스 unread badge와 친구 PENDING badge는 다른 의미이므로 합치지 않는다.
 - 소셜 알림 수신 시 관련 query를 무효화해 화면 진입 전 badge를 갱신한다.
@@ -603,6 +604,7 @@ FriendInviteSheet는 다음 진입점에서 같은 컴포넌트를 사용한다.
 - 이미 참여, 중복 초대, 차단, 자격 불충족 인원은 초대할 수 없는 친구 count로 안내한다.
 - count를 누르면 개인정보를 노출하지 않는 범위에서 사유별 개수만 보여준다.
 - footer 버튼은 선택 수를 포함하고 keyboard와 safe area를 고려해 고정한다.
+- sheet 대상이 파티에서 채팅방으로 바뀌거나 닫힌 뒤 도착한 이전 eligible·발송 응답은 현재 대상의 목록·선택·닫기 상태를 변경하지 않는다. 대상 식별자와 요청 세대로 비동기 응답을 폐기한다.
 - 요청 중 재탭을 막고 일부 실패 시 친구별 실패 사유를 표시한다.
 - batch 응답은 요청 순서대로 SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE을 반환한다. `invitationId`는 SENT와 현재 사용자가 발송한 기존 ALREADY_PENDING에만 존재할 수 있으므로 nullable로 처리한다.
 - SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE처럼 서버가 결과를 확정한 친구는 선택 상태에서 제거하고 eligible 목록을 다시 조회한다. 일부 성공이면 outcome별 결과를 함께 안내한다.
