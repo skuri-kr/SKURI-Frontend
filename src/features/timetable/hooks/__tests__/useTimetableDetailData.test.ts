@@ -24,6 +24,15 @@ const semesterRecord: TimetableSemesterRecord = {
   label: '2026-2학기',
 };
 
+const createDeferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(resolvePromise => {
+    resolve = resolvePromise;
+  });
+
+  return {promise, resolve};
+};
+
 const createRepository = () => ({
   addCatalogCourse: jest.fn(),
   addManualCourse: jest.fn(),
@@ -151,5 +160,82 @@ describe('useTimetableDetailData add course options', () => {
       result.current.data?.addCourseSheet.manual.departmentErrorLabel,
     ).toBeUndefined();
     expect(repository.listDepartments).toHaveBeenCalledTimes(2);
+  });
+
+  it('학기 변경과 겹친 이전 새로고침 응답을 무시한다', async () => {
+    const previousSemesterRecord: TimetableSemesterRecord = {
+      ...semesterRecord,
+      id: '2026-1',
+      label: '2026-1학기',
+    };
+    const staleReload = createDeferred<TimetableSemesterRecord | null>();
+    const latestSelection = createDeferred<TimetableSemesterRecord | null>();
+    const repository = createRepository();
+    repository.listSemesterRecords.mockResolvedValue([
+      semesterRecord,
+      previousSemesterRecord,
+    ]);
+    repository.getSemesterRecord
+      .mockResolvedValueOnce(semesterRecord)
+      .mockReturnValueOnce(staleReload.promise)
+      .mockReturnValueOnce(latestSelection.promise);
+    mockedUseTimetableRepository.mockReturnValue(
+      repository as ReturnType<typeof useTimetableRepository>,
+    );
+
+    const {result} = renderHook(() => useTimetableDetailData());
+    await waitFor(() => {
+      expect(result.current.data?.semesterId).toBe('2026-2');
+    });
+
+    let reloadPromise!: Promise<void>;
+    act(() => {
+      reloadPromise = result.current.reload();
+    });
+    await waitFor(() => {
+      expect(repository.getSemesterRecord).toHaveBeenCalledTimes(2);
+    });
+
+    let selectPromise!: Promise<void>;
+    act(() => {
+      selectPromise = result.current.selectSemester('2026-1');
+    });
+    await waitFor(() => {
+      expect(repository.getSemesterRecord).toHaveBeenCalledTimes(3);
+    });
+
+    await act(async () => {
+      latestSelection.resolve(previousSemesterRecord);
+      await selectPromise;
+    });
+    expect(result.current.data?.semesterId).toBe('2026-1');
+
+    await act(async () => {
+      staleReload.resolve(semesterRecord);
+      await reloadPromise;
+    });
+    expect(result.current.data?.semesterId).toBe('2026-1');
+  });
+
+  it('새로고침이 실패해도 기존 시간표와 오류를 함께 유지한다', async () => {
+    const repository = createRepository();
+    repository.getSemesterRecord
+      .mockResolvedValueOnce(semesterRecord)
+      .mockRejectedValueOnce(new Error('network unavailable'));
+    mockedUseTimetableRepository.mockReturnValue(
+      repository as ReturnType<typeof useTimetableRepository>,
+    );
+
+    const {result} = renderHook(() => useTimetableDetailData());
+    await waitFor(() => {
+      expect(result.current.data?.semesterId).toBe('2026-2');
+    });
+
+    await act(async () => {
+      await result.current.reload();
+    });
+
+    expect(result.current.data?.semesterId).toBe('2026-2');
+    expect(result.current.error).toBe('시간표를 불러오지 못했습니다.');
   });
 });

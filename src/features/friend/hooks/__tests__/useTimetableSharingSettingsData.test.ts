@@ -194,4 +194,50 @@ describe('useTimetableSharingSettingsData', () => {
     });
     expect(result.current.settings?.defaultScope).toBe('DETAILS');
   });
+
+  it('설정 저장 중에는 새로고침을 시작하지 않고 저장 응답을 유지한다', async () => {
+    const savedSettings = createDeferred<{
+      defaultScope: 'DETAILS';
+      overrides: [];
+    }>();
+    const getFriends = jest.fn().mockResolvedValue([]);
+    const getMySharingSettings = jest.fn().mockResolvedValue({
+      defaultScope: 'BUSY_ONLY',
+      overrides: [],
+    });
+    mockedUseFriendRepository.mockReturnValue({
+      getFriends,
+    } as unknown as ReturnType<typeof useFriendRepository>);
+    mockedUseTimetableRepository.mockReturnValue({
+      getMySharingSettings,
+      updateMySharingSettings: jest.fn().mockReturnValue(savedSettings.promise),
+    } as unknown as ReturnType<typeof useTimetableRepository>);
+
+    const {result} = renderHook(() => useTimetableSharingSettingsData());
+    await waitFor(() => {
+      expect(result.current.settings?.defaultScope).toBe('BUSY_ONLY');
+    });
+
+    let savePromise!: Promise<void>;
+    act(() => {
+      savePromise = result.current.updateDefaultScope('DETAILS');
+    });
+    expect(result.current.saving).toBe(true);
+    expect(result.current.settings?.defaultScope).toBe('DETAILS');
+
+    await act(async () => {
+      await result.current.reload();
+    });
+
+    expect(getMySharingSettings).toHaveBeenCalledTimes(1);
+    expect(getFriends).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      savedSettings.resolve({defaultScope: 'DETAILS', overrides: []});
+      await savePromise;
+    });
+
+    expect(result.current.saving).toBe(false);
+    expect(result.current.settings?.defaultScope).toBe('DETAILS');
+  });
 });

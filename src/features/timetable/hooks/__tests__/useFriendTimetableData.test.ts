@@ -286,6 +286,9 @@ describe('useFriendTimetableData', () => {
     act(() => {
       result.current.selectFriend('friend-b');
     });
+    expect(result.current.selectedFriendId).toBe('friend-b');
+    expect(result.current.selectedTimetable).toBeUndefined();
+    expect(result.current.loadingTimetable).toBe(true);
     await waitFor(() => {
       expect(result.current.selectedFriendId).toBe('friend-b');
       expect(result.current.loadingTimetable).toBe(true);
