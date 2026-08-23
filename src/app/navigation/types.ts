@@ -66,7 +66,7 @@ export type CampusStackParamList = {
     | undefined;
   MinecraftAccount: undefined;
   MinecraftDetail: undefined;
-  FriendHub: {initialTab?: 'friends' | 'requests'} | undefined;
+  FriendHub: {initialTab?: 'friends' | 'requests' | 'invitations'} | undefined;
   FriendAdd: undefined;
   FriendDetail: {friendId: string};
   FriendSettings: undefined;

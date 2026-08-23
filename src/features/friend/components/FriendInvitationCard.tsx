@@ -1,0 +1,155 @@
+import React from 'react';
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
+
+import {ToneBadge} from '@/shared/design-system/components';
+import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
+
+import type {
+  FriendInvitation,
+  FriendInvitationExpiryReason,
+} from '../model/friend';
+import {FriendAvatar} from './FriendAvatar';
+
+interface FriendInvitationCardProps {
+  invitation: FriendInvitation;
+  loading: boolean;
+  onAccept: () => void;
+  onDecline: () => void;
+  onDelete: () => void;
+}
+
+const EXPIRY_REASON_LABELS: Record<FriendInvitationExpiryReason, string> = {
+  ALREADY_JOINED: '이미 참여해 초대가 종료되었어요.',
+  CAPACITY_FULL: '정원이 마감되어 초대가 만료되었어요.',
+  ELIGIBILITY_CHANGED: '입장 자격이 변경되어 초대가 만료되었어요.',
+  INVITATION_TIMEOUT: '수락 기한이 지나 초대가 만료되었어요.',
+  INVITER_LEFT: '초대한 친구가 나가 초대가 만료되었어요.',
+  MEMBER_WITHDRAWN: '탈퇴한 회원과 관련된 초대예요.',
+  RELATIONSHIP_UNAVAILABLE: '친구 관계가 변경되어 초대가 만료되었어요.',
+  TARGET_UNAVAILABLE: '대상이 종료되거나 이용할 수 없어졌어요.',
+};
+
+const getTargetLabel = (invitation: FriendInvitation) => {
+  if (!invitation.target) {
+    return '더 이상 확인할 수 없는 대상';
+  }
+
+  if (invitation.target.type === 'PARTY') {
+    return `${invitation.target.departureName} → ${invitation.target.destinationName}`;
+  }
+
+  return invitation.target.name;
+};
+
+export const FriendInvitationCard = ({
+  invitation,
+  loading,
+  onAccept,
+  onDecline,
+  onDelete,
+}: FriendInvitationCardProps) => {
+  const expired = invitation.status === 'EXPIRED';
+  const inviterName = invitation.inviter?.nickname ?? '알 수 없는 친구';
+  const expiryMessage = invitation.expiryReason
+    ? EXPIRY_REASON_LABELS[invitation.expiryReason]
+    : '초대가 만료되었어요.';
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.header}>
+        <FriendAvatar photoUrl={invitation.inviter?.photoUrl ?? null} size={46} />
+        <View style={styles.headerText}>
+          <Text style={styles.inviterName}>{inviterName}님의 초대</Text>
+          <Text style={styles.department}>
+            {invitation.inviter?.department ?? '학과 정보 없음'}
+          </Text>
+        </View>
+        <ToneBadge
+          label={invitation.type === 'PARTY' ? '택시파티' : '공개 채팅방'}
+          tone={invitation.type === 'PARTY' ? 'green' : 'blue'}
+        />
+      </View>
+
+      <View style={styles.targetRow}>
+        <Icon
+          color={COLORS.text.secondary}
+          name={invitation.type === 'PARTY' ? 'car-outline' : 'chatbubbles-outline'}
+          size={19}
+        />
+        <Text style={styles.targetLabel}>{getTargetLabel(invitation)}</Text>
+      </View>
+
+      {invitation.type === 'PARTY' && !expired ? (
+        <Text style={styles.helperText}>
+          초대는 좌석을 예약하지 않으며 수락 시점에 정원을 다시 확인해요.
+        </Text>
+      ) : null}
+      {expired ? <Text style={styles.expiryText}>{expiryMessage}</Text> : null}
+
+      {expired ? (
+        <TouchableOpacity
+          accessibilityRole="button"
+          activeOpacity={0.82}
+          disabled={loading}
+          onPress={onDelete}
+          style={styles.deleteButton}>
+          {loading ? (
+            <ActivityIndicator color={COLORS.text.secondary} size="small" />
+          ) : (
+            <Text style={styles.deleteButtonText}>목록에서 지우기</Text>
+          )}
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.actions}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            activeOpacity={0.82}
+            disabled={loading}
+            onPress={onDecline}
+            style={[styles.actionButton, styles.declineButton]}>
+            <Text style={styles.declineButtonText}>거절</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityRole="button"
+            activeOpacity={0.82}
+            disabled={loading}
+            onPress={onAccept}
+            style={[styles.actionButton, styles.acceptButton]}>
+            {loading ? (
+              <ActivityIndicator color={COLORS.text.inverse} size="small" />
+            ) : (
+              <Text style={styles.acceptButtonText}>수락</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  acceptButton: {backgroundColor: COLORS.brand.primary},
+  acceptButtonText: {color: COLORS.text.inverse, fontSize: 14, fontWeight: '700'},
+  actionButton: {alignItems: 'center', borderRadius: RADIUS.md, flex: 1, height: 42, justifyContent: 'center'},
+  actions: {flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md},
+  card: {backgroundColor: COLORS.background.surface, borderRadius: RADIUS.lg, padding: SPACING.lg, ...SHADOWS.card},
+  declineButton: {backgroundColor: COLORS.background.subtle},
+  declineButtonText: {color: COLORS.text.secondary, fontSize: 14, fontWeight: '700'},
+  deleteButton: {alignItems: 'center', alignSelf: 'flex-end', minHeight: 36, justifyContent: 'center', marginTop: SPACING.sm, paddingHorizontal: SPACING.sm},
+  deleteButtonText: {color: COLORS.text.secondary, fontSize: 13, fontWeight: '700'},
+  department: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18},
+  expiryText: {color: COLORS.accent.orange, fontSize: 12, lineHeight: 18, marginTop: SPACING.sm},
+  header: {alignItems: 'center', flexDirection: 'row', gap: SPACING.sm},
+  headerText: {flex: 1},
+  helperText: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: SPACING.sm},
+  inviterName: {color: COLORS.text.primary, fontSize: 15, fontWeight: '800', lineHeight: 21},
+  targetLabel: {color: COLORS.text.primary, flex: 1, fontSize: 14, fontWeight: '700', lineHeight: 20},
+  targetRow: {alignItems: 'center', backgroundColor: COLORS.background.subtle, borderRadius: RADIUS.md, flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md, padding: SPACING.md},
+});
