@@ -1,11 +1,18 @@
 import React from 'react';
-import {AccessibilityInfo} from 'react-native';
+import {AccessibilityInfo, Alert} from 'react-native';
 import {act, fireEvent, render} from '@testing-library/react-native';
 
 import {useNavigation, useRoute} from '@react-navigation/native';
 
 import {useTimetableDetailData} from '../../hooks/useTimetableDetailData';
 import {TimetableDetailScreen} from '../TimetableDetailScreen';
+
+let mockFriendTimetableSectionProps: {
+  onInitialFriendHandled?: () => void;
+  onInitialFriendUnavailable?: () => void;
+} | undefined;
+let mockIsFocused: jest.Mock;
+let mockSetParams: jest.Mock;
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: jest.fn(),
@@ -42,8 +49,17 @@ jest.mock('../../components/FriendTimetableSection', () => {
   const ReactModule = require('react');
   const {Text} = require('react-native');
   return {
-    FriendTimetableSection: ReactModule.forwardRef(() =>
-      ReactModule.createElement(Text, undefined, '친구 시간표 목록'),
+    FriendTimetableSection: ReactModule.forwardRef(
+      (
+        props: {
+          onInitialFriendHandled?: () => void;
+          onInitialFriendUnavailable?: () => void;
+        },
+        _ref: unknown,
+      ) => {
+        mockFriendTimetableSectionProps = props;
+        return ReactModule.createElement(Text, undefined, '친구 시간표 목록');
+      },
     ),
   };
 });
@@ -75,6 +91,9 @@ describe('TimetableDetailScreen', () => {
     jest.resetAllMocks();
     frameCallbacks.clear();
     nextFrameId = 0;
+    mockFriendTimetableSectionProps = undefined;
+    mockIsFocused = jest.fn(() => true);
+    mockSetParams = jest.fn();
     globalThis.requestAnimationFrame = jest.fn(callback => {
       const frameId = ++nextFrameId;
       frameCallbacks.set(frameId, callback);
@@ -90,8 +109,9 @@ describe('TimetableDetailScreen', () => {
       .mockImplementation(() => undefined);
     mockedUseNavigation.mockReturnValue({
       goBack: jest.fn(),
+      isFocused: mockIsFocused,
       navigate: jest.fn(),
-      setParams: jest.fn(),
+      setParams: mockSetParams,
     } as unknown as ReturnType<typeof useNavigation>);
     mockedUseRoute.mockReturnValue({
       params: {initialView: 'all', targetFriendPublicId: 'friend-1'},
@@ -148,6 +168,10 @@ describe('TimetableDetailScreen', () => {
     globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('레이아웃 변경으로 스크롤 frame이 취소되면 새 위치로 다시 예약한다', () => {
     const view = render(<TimetableDetailScreen />);
     const friendSection = view.getByTestId('friend-timetable-section-container');
@@ -166,5 +190,43 @@ describe('TimetableDetailScreen', () => {
     expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith(
       '친구 시간표로 이동했습니다.',
     );
+  });
+
+  it('친구 전개와 스크롤이 모두 끝난 뒤 route target을 소비한다', () => {
+    const view = render(<TimetableDetailScreen />);
+    const friendSection = view.getByTestId('friend-timetable-section-container');
+
+    fireEvent(friendSection, 'layout', {nativeEvent: {layout: {y: 100}}});
+    act(() => {
+      mockFriendTimetableSectionProps?.onInitialFriendHandled?.();
+    });
+
+    expect(mockSetParams).not.toHaveBeenCalled();
+
+    act(() => {
+      frameCallbacks.get(1)?.(0);
+    });
+
+    expect(mockSetParams).toHaveBeenCalledWith({
+      targetFriendPublicId: undefined,
+    });
+    expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith(
+      '친구 시간표로 이동했습니다.',
+    );
+  });
+
+  it('화면이 비활성 상태이면 친구 target 부재 알림을 표시하지 않는다', () => {
+    mockIsFocused.mockReturnValue(false);
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    render(<TimetableDetailScreen />);
+
+    act(() => {
+      mockFriendTimetableSectionProps?.onInitialFriendUnavailable?.();
+    });
+
+    expect(mockSetParams).toHaveBeenCalledWith({
+      targetFriendPublicId: undefined,
+    });
+    expect(alertSpy).not.toHaveBeenCalled();
   });
 });
