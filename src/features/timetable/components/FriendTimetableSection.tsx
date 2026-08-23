@@ -1,4 +1,5 @@
 import React from 'react';
+import {BottomSheetScrollView} from '@gorhom/bottom-sheet';
 import {
   ActivityIndicator,
   Alert,
@@ -509,22 +510,28 @@ export const FriendTimetableSection = React.forwardRef<
       ) : null}
 
       <TimetableBottomSheet
+        contentMode="scrollable"
         onClose={() => setCommonFreeSheetVisible(false)}
         snapPoints={['45%']}
         visible={commonFreeSheetVisible}>
-        <Text style={styles.sheetTitle}>
-          {selectedFriend ? `${selectedFriend.nickname}님과의 공통 공강` : '공통 공강'}
-        </Text>
-        <Text style={styles.sheetDescription}>월~금 1~15교시 기준으로 계산했어요.</Text>
-        {commonFreePeriods.length > 0 ? (
-          <View style={styles.freePeriodList}>
-            {commonFreePeriods.map(period => (
-              <Text key={period} style={styles.freePeriodItem}>{period}</Text>
-            ))}
-          </View>
-        ) : (
-          <Text style={styles.emptyFreePeriodLabel}>공통으로 비는 시간이 없어요.</Text>
-        )}
+        <BottomSheetScrollView
+          contentContainerStyle={styles.commonFreeScrollContent}
+          showsVerticalScrollIndicator={false}
+          style={styles.commonFreeScroll}>
+          <Text style={styles.sheetTitle}>
+            {selectedFriend ? `${selectedFriend.nickname}님과의 공통 공강` : '공통 공강'}
+          </Text>
+          <Text style={styles.sheetDescription}>월~금 1~15교시 기준으로 계산했어요.</Text>
+          {commonFreePeriods.length > 0 ? (
+            <View style={styles.freePeriodList}>
+              {commonFreePeriods.map(period => (
+                <Text key={period} style={styles.freePeriodItem}>{period}</Text>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.emptyFreePeriodLabel}>공통으로 비는 시간이 없어요.</Text>
+          )}
+        </BottomSheetScrollView>
       </TimetableBottomSheet>
     </View>
   );
@@ -662,6 +669,8 @@ const styles = StyleSheet.create({
   saturdaySection: {alignSelf: 'stretch', backgroundColor: COLORS.background.subtle, borderRadius: RADIUS.md, marginTop: SPACING.md, padding: SPACING.md},
   saturdayTitle: {color: COLORS.text.secondary, fontSize: 12, fontWeight: '700', lineHeight: 18, marginBottom: 4},
   saturdayItem: {color: COLORS.text.secondary, fontSize: 12, lineHeight: 18},
+  commonFreeScroll: {flex: 1},
+  commonFreeScrollContent: {paddingBottom: SPACING.xl},
   sheetTitle: {color: COLORS.text.primary, fontSize: 18, fontWeight: '800', lineHeight: 26, marginTop: SPACING.sm},
   sheetDescription: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: SPACING.xs},
   freePeriodList: {flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginTop: SPACING.lg},
