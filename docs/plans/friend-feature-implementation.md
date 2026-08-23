@@ -1,9 +1,9 @@
 # SKURI 친구 기능 모바일 구현 계획
 
-> 문서 상태: Friend 관계 Core, Core 출시 준비, 친구 화면 완성 모바일 구현 병합 완료
-> 기준일: 2026-08-22
+> 문서 상태: Friend 관계 Core, Core 출시 준비, 친구 화면 완성, 시간표 공유 전달 완료. 친구 초대·알림·탈퇴 정리는 후속 단계다.
+> 기준일: 2026-08-23
 > 정책 기준: SKURI-Backend docs/features/friends.md
-> 구현 게이트: 승인된 V1의 1·2단계가 완료됐다. 다음 3단계 시간표 공유는 별도 구현 승인이 필요하다.
+> 구현 게이트: 승인된 V1의 1·2·3단계 전달이 완료됐다. 다음 4단계 친구 초대는 별도 구현 승인이 필요하다.
 
 백엔드 기준 문서:
 
@@ -24,18 +24,21 @@
 | Backend | [#81](https://github.com/skuri-kr/SKURI-Backend/pull/81) | 프로필 완료 eligibility, ACTIVE 닉네임 정책, Friend 데이터 lifecycle, 관계 상태와 운영 cleanup |
 | Backend | [#82](https://github.com/skuri-kr/SKURI-Backend/pull/82) | 친구 출시 운영 postcheck CTE 검증 보정 |
 | Backend | [#83](https://github.com/skuri-kr/SKURI-Backend/pull/83) | 친구 Minecraft 안전 projection과 목록·수락 응답 요약 |
+| Backend | [#84](https://github.com/skuri-kr/SKURI-Backend/pull/84) | 시간표 공개 범위·친구별 예외·친구 시간표 projection과 관계 종료 cleanup |
 | Frontend | [#22](https://github.com/skuri-kr/SKURI-Frontend/pull/22) | 친구 기능 모바일 정보 구조·화면·상태·검증 계획 문서화 |
 | Frontend | [#23](https://github.com/skuri-kr/SKURI-Frontend/pull/23) | FriendHub·FriendAdd·FriendDetail·FriendSettings, 관계 Core API 연동, navigation·badge·테스트 |
 | Frontend | [#24](https://github.com/skuri-kr/SKURI-Frontend/pull/24) | Core 출시 준비 UX, 회원가입·프로필 닉네임 정책과 수동 QA 보완 |
 | Frontend | [#25](https://github.com/skuri-kr/SKURI-Frontend/pull/25) | 친구 QR 생성·스캔과 친구 Minecraft SELF·FRIEND 계정 표시 |
+| Frontend | [#26](https://github.com/skuri-kr/SKURI-Frontend/pull/26) | 시간표 공유 설정과 친구 시간표 accordion·공통 공강·같이 듣는 수업 |
 
 PR #23 병합 후 실제 기기·시뮬레이터 수동 QA에서 발견된 가입 완료 판정, 닉네임 정책, 검색·요청 상태와 UI 문제는 #81·#24의 1단계 Core 출시 준비에서 보완했다. 완료 PR에 대한 보완은 기존 완료 범위를 취소하지 않으며, 출시 전 계약을 운영 가능한 상태로 강화한 작업이다.
 
 남은 승인 구현 단계:
 
-1. 시간표 공유: 공개 범위, 친구 시간표, 공통 공강·같이 듣는 수업
-2. 친구 초대: 택시파티와 공개 채팅방 초대
-3. 알림·탈퇴 정리: 친구·초대 알림, badge·이동, 최종 cleanup
+1. 친구 초대: 택시파티와 공개 채팅방 초대
+2. 알림·탈퇴 정리: 친구·초대 알림, badge·이동, 최종 cleanup
+
+시간표 공유는 [Backend #84](https://github.com/skuri-kr/SKURI-Backend/pull/84)와 [Frontend #26](https://github.com/skuri-kr/SKURI-Frontend/pull/26)에서 구현·테스트·문서 정합성 점검과 리뷰 보완까지 마쳐 전달 완료로 기록한다. 실제 기기 QA는 아직 완료로 표시하지 않는다.
 
 각 단계는 저장소당 최대 1개 PR로 진행한다. 런타임, 테스트, 문서는 같은 PR에 포함하되 리뷰 가능한 작은 Conventional Commit으로 나눈다. 예상보다 범위가 커져 PR을 나눠야 하면 임의로 분리하지 않고 먼저 사용자 승인을 받는다.
 
@@ -46,6 +49,13 @@ PR #23 병합 후 실제 기기·시뮬레이터 수동 QA에서 발견된 가�
 - 모바일 화면·상태·DTO·mapper와 백엔드 런타임 API 계약을 대조한다.
 - 이 문서, 백엔드 친구 명세, OpenAPI, ERD, 배포·회원 탈퇴 문서에서 정책 충돌·완료/예정 범위 오표기·drift를 찾는다.
 - 필요한 문서 갱신과 검증 결과를 같은 단계의 최종 PR에 포함한다. 운영 DB·실기기 검증처럼 아직 실행하지 않은 항목은 완료로 표시하지 않는다.
+
+2026-08-23 시간표 공유 단계 최종 점검 결과:
+
+- Backend 친구 목록의 `effectiveTimetableScope`와 친구 시간표 응답의 `effectiveScope`를 모두 **친구가 현재 사용자에게 공개한 범위**로 통일했다.
+- 모바일 DTO·mapper·repository와 `GET /v1/timetables/friends/{friendPublicId}?semester=...`, 공유 설정·예외 API를 대조했고 요청·응답 필드와 세 범위 정책의 충돌은 없었다.
+- 친구 목록·공유 설정은 독립적으로 실패·재시도하며, pull-to-refresh는 열린 친구 시간표 cache까지 강제 갱신한다. 별 변경은 대상별 진행 중 상태로 중복 탭을 막고, 친구 accordion 안의 시간표는 실제 container 폭을 기준으로 그린다.
+- Backend `clean build`, 모바일 전체 자동 테스트·타입 검사·변경 파일 lint와 PR 재검토를 통과했다. 실제 기기/시뮬레이터 QA는 아직 남은 gate다.
 
 ---
 
@@ -91,6 +101,7 @@ PR #23에서 의도적으로 제외:
 1단계 모바일 PR #24는 PR #23 수동 QA 결과와 회원 정책 변경을 한 번에 반영했다.
 
 - 회원가입·프로필 저장 시 `ACTIVE` 회원 간 닉네임 중복과 `스쿠리 유저`, `운영자` 포함 닉네임을 서버 오류에 맞춰 안내하고 현재 화면에 머문다.
+- 가입 완료는 `ACTIVE`이고 nickname·studentId·department가 모두 null도 공백도 아닌 경우로만 판단한다. 예약어는 새 nickname 입력과 미완료 회원의 최초 완료 전환을 검증할 때만 사용하며, 이미 완료된 기존 예약어 nickname 회원의 친구 기능 이용을 막는 기준은 아니다.
 - FriendAdd 닉네임 검색은 1글자부터 검색 버튼을 눌렀을 때만 실행하며, blur·키보드 내림으로 자동 검색하지 않는다.
 - 검색·코드 preview는 서버의 관계 상태 enum을 사용해 `요청`, `수락`, `요청 보냄`, `이미 친구`를 구분한다.
 - 명시적 재조회는 이전 로컬 요청 상태보다 서버 최신 상태를 우선해, 상대가 거절한 뒤 즉시 다시 요청할 수 있게 한다.
@@ -279,7 +290,7 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 
 - 헤더 우측 설정 아이콘은 FriendSettings로 이동한다.
 - 접근성 label은 `친구 설정`으로 지정하고 친구 추가 action과 독립된 hit target을 사용한다.
-- 관계 Core에서는 닉네임 검색 허용과 차단 목록만 관리한다. 시간표 기본 공유와 친구별 예외는 시간표 공유 API가 준비되는 후속 PR에서 추가한다.
+- FriendSettings는 닉네임 검색 허용·시간표 기본 공유 범위·친구별 예외·차단 목록을 관리한다. 시간표 범위 저장은 별도 Academic API를 사용하며, 각 범위의 의미를 선택 sheet에서 함께 설명한다.
 
 ---
 
@@ -386,8 +397,8 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 - 택시파티·공개방 대상이 정해지면 `FriendInviteSheet`에 현재 `friendPublicId`를 `initialFriendPublicId`로 전달한다.
 - 친구 시간표 보기는 `TimetableDetail`에 `targetFriendPublicId=friendPublicId`를 전달한다.
 - TimetableDetail은 자신의 시간표와 친구 요약 목록이 준비되면 친구 section으로 스크롤하고 해당 친구 accordion을 펼친다.
-- 대상 적용 후 `targetFriendPublicId`를 한 번 소비해 rerender·학기 변경·화면 복귀 시 자동 이동을 반복하지 않는다.
-- 친구 해제·차단으로 대상이 목록에 없으면 `더 이상 친구 시간표를 볼 수 없어요` 안내 후 친구 section의 기본 상태를 유지한다.
+- 대상 친구 accordion 전개와 친구 section scroll이 모두 끝난 뒤 `targetFriendPublicId`를 한 번 소비해 rerender·학기 변경·화면 복귀 시 자동 이동을 반복하지 않는다.
+- 친구 해제·차단으로 대상이 목록에 없으면 route target은 정리하되 TimetableDetail이 활성 화면일 때만 `더 이상 친구 시간표를 볼 수 없어요`를 안내하고 친구 section의 기본 상태를 유지한다.
 - 친구 끊기와 차단은 destructive confirmation을 사용한다.
 - 차단 설명에는 친구 관계와 소셜 공유가 함께 해제되며 공개 콘텐츠는 유지된다고 명시한다.
 
@@ -440,6 +451,7 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 6. 친구 시간표
 
 오늘 보기에서도 같은 최하단 친구 section을 제공한다.
+자신의 시간표 강의 추가·삭제 mutation은 시작·응답 시점 모두 진행 중인 다른 학기 전환을 취소하지 않는다. 같은 학기에서 진행 중인 이전 조회만 mutation의 canonical 응답으로 대체한다.
 
 ### 7.4 친구 accordion
 
@@ -458,11 +470,14 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 
 - 즐겨찾기 우선, 이후 가나다순이다.
 - row 우측에 공유 범위 badge, 별, chevron을 둔다.
+- 같은 화면에 닉네임과 학과가 모두 같은 친구가 둘 이상이면 기존 친구 목록과 동일하게 `friendPublicId` 마지막 6자리를 `식별 코드 · ABC123`으로 표시하고, 시간표·즐겨찾기 접근성 라벨에도 포함한다.
 - 별 버튼은 accordion toggle과 별도 hit target이다.
 - 한 번에 한 친구만 펼친다.
 - 펼칠 때 화면 상단 학기 선택기의 `selectedSemester`를 필수 query parameter로 전달해 해당 친구의 같은 학기 시간표를 지연 조회한다.
 - query key는 `friendPublicId + selectedSemester`로 구성하고, 학기 변경 시 열린 친구를 같은 학기로 재조회한다.
-- 이미 조회한 데이터는 query cache를 사용하되 pull-to-refresh 시 갱신한다.
+- 이미 조회한 데이터는 query cache를 사용한다. 단, 최신 친구 목록에서 공개 범위 변경 또는 친구 제거가 확인되면 해당 `friendPublicId`의 모든 학기 cache를 폐기한다.
+- 공개 범위가 바뀐 친구가 현재 펼쳐져 있으면 이전 상세를 즉시 숨기고 강제 재조회한다. pull-to-refresh는 펼침 여부와 관계없이 친구 시간표 cache 전체를 폐기하며, 펼친 친구는 즉시 강제 재조회한다.
+- 친구 목록 재조회가 실패했을 때는 초기 target friend를 부재로 확정하지 않고, 성공한 목록 응답에서만 unavailable 처리를 한다.
 - 친구가 선택 학기에 시간표가 없으면 현재 학기 데이터로 대체하지 않고 `이 학기에 등록된 시간표가 없어요` 빈 상태를 표시한다.
 - 펼친 친구가 친구 해제·차단되면 즉시 닫고 목록에서 제거한다.
 - 전체 주간 시간표를 읽기 전용으로 표시하며 오늘·전체 toggle을 내부에 중복 제공하지 않는다.
@@ -484,6 +499,8 @@ BUSY_ONLY:
 DETAILS:
 
 - 과목명과 허용 상세를 표시한다.
+- 시간이 없는 온라인 수업은 주간 grid와 공통 공강 계산에서는 제외하되, 읽기 전용 `온라인 수업` 목록으로 표시한다.
+- 공식 강의에 등록된 교수 정보가 없으면 `professor`는 null로 유지하며 직접 입력 수업처럼 임의 문구로 대체하지 않는다.
 - 같은 courseId의 공식 강의를 같이 듣는 수업으로 표시한다.
 - 직접 입력 수업은 같은 이름이어도 같이 듣는 수업으로 판단하지 않는다.
 
@@ -511,6 +528,11 @@ DETAILS:
 ## 8. 시간표 공유 설정
 
 FriendSettings에서 다음을 제공한다. FriendHub 헤더 설정 아이콘과 시간표 친구 section 제목 우측의 `공유 설정`이 같은 화면으로 이동한다.
+
+- 기본 공개 범위와 친구 목록은 서로 독립적으로 조회한다. 친구 목록 조회가 실패해도 기본 공개 범위의 조회·변경은 계속 제공한다.
+- 기본 공개 범위 저장은 진행 중인 공유 설정 조회만 대체하며 독립적으로 진행 중인 친구 목록 조회는 유지한다.
+- 공유 설정 저장 중 발생한 친구 목록 invalidation·수동 재조회는 버리지 않고 하나로 합친 뒤 저장 종료 후 한 번 실행한다.
+- 각 친구 row에는 override 유무뿐 아니라 현재 실제 적용 범위와 `기본값 적용` 또는 `개별 설정`을 함께 표시한다.
 
 ### 8.1 닉네임 검색 허용
 
@@ -776,11 +798,11 @@ API client / DTO / Mapper
 | --- | --- | --- | --- |
 | 1. Core 출시 준비 | 1 | 1 | 회원·FriendProfile 수명주기, 닉네임 정책, 관계 상태 계약, 수동 QA 보완 |
 | 2. 친구 화면 완성 | 1 | 1 | QR, Minecraft SELF·FRIEND 표시 |
-| 3. 시간표 공유 | 1 | 1 | 공개 범위, 친구별 예외, 친구 시간표, 공통 공강·같이 듣는 수업 |
+| 3. 시간표 공유 | 1 | 1 | 공개 범위, 친구별 예외, 친구 시간표, 공통 공강·같이 듣는 수업 (전달 완료) |
 | 4. 친구 초대 | 1 | 1 | 택시파티·공개방 초대, FriendHub 초대 탭, 공통 선택 sheet |
 | 5. 알림·탈퇴 정리 | 1 | 1 | 요청·수락·거절·초대 알림, FCM·인박스·SSE·이동, 최종 cleanup |
 
-기존 완료 이력을 포함하면 Backend #78~#83·Frontend #22~#25가 1·2단계를 전달했다. 이후 시간표 공유, 친구 초대, 알림·탈퇴 정리에 Backend와 Frontend 각각 3개의 구현 PR을 추가한다. 관리자 친구 관계망 UI는 V1 제외 범위이므로 Admin PR은 만들지 않는다.
+기존 완료 이력을 포함하면 Backend #78~#83·Frontend #22~#25가 1·2단계를 전달했다. 시간표 공유는 Backend #84·Frontend #26에서 구현을 완료했고, 이후 친구 초대와 알림·탈퇴 정리에 Backend와 Frontend 각각 2개의 구현 PR을 추가한다. 관리자 친구 관계망 UI는 V1 제외 범위이므로 Admin PR은 만들지 않는다.
 
 ### 15.1 1단계: Core 출시 준비 (완료)
 
@@ -798,7 +820,9 @@ Backend는 가입 완료 판정, ACTIVE 닉네임 정책, 완료 회원만 Frien
 
 QR과 Minecraft는 FriendAdd·FriendRow·FriendDetail의 남은 기본 화면을 완성한다는 하나의 사용자 목표로 묶는다. Backend PR에는 Minecraft 안전 projection을, Frontend PR에는 QR·계정 표시·네이티브 설정을 담되 각각 별도 커밋으로 나눈다.
 
-### 15.3 3단계: 시간표 공유
+### 15.3 3단계: 시간표 공유 (전달 완료)
+
+Backend는 `PRIVATE` 기본값·친구별 예외·친구 시간표 projection과 관계 종료 시 양방향 예외 정리를 구현했다. Frontend는 선택 학기 기준 하단 단일-open accordion, 상단 scroll anchor, 즐겨찾기 정렬, `PRIVATE`/`BUSY_ONLY`/`DETAILS` 노출 경계, 공통 공강·공식 courseId 기반 같이 듣는 수업, FriendSettings 공개 범위 picker를 구현했다. 실제 기기 QA는 별도 gate다.
 
 - PRIVATE·BUSY_ONLY·DETAILS와 친구별 예외
 - 시간표 상단 anchor와 하단 단일-open 친구 accordion
@@ -934,13 +958,13 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 
 ---
 
-## 19. 1·2단계 완료 후 다음 구현 경계
+## 19. 3단계 구현 완료 후 다음 구현 경계
 
-Core 출시 준비와 친구 화면 완성은 #24·#25에서 완료했다. 다음 구현은 시간표 공유 단계의 별도 승인 후에만 시작한다.
+Core 출시 준비와 친구 화면 완성은 #24·#25에서, 시간표 공유는 Backend #84·Frontend #26에서 전달을 완료했다. 다음 구현은 친구 초대 단계의 별도 승인 후에만 시작한다.
 
 현재 별도 승인이 필요한 남은 변경:
 
-- 시간표 공유·택시·공개방 초대 런타임 코드
+- 택시·공개방 친구 초대 런타임 코드
 - 친구·초대 인박스·FCM·SSE와 알림 이동 런타임 코드
 
 3~5단계는 앞 단계의 Backend 계약·배포와 별도 단계 착수 확인 후 진행한다. 새로운 정책이나 기존 공통 UI로 표현하기 어려운 선택이 발견되면 임의로 확장하지 않고 사용자 승인을 받는다.
@@ -949,11 +973,12 @@ Core 출시 준비와 친구 화면 완성은 #24·#25에서 완료했다. 다�
 
 ## 20. 문서 검토 체크리스트
 
-- [x] Backend #78·#79·#80·#81·#82·#83과 Frontend #22·#23·#24·#25의 완료 범위가 후속 단계와 구분되어 있다.
-- [x] 승인 V1의 1·2단계 완료와 남은 3단계·저장소별 단계당 최대 1개 PR 계획이 구분되어 있다.
+- [x] Backend #78·#79·#80·#81·#82·#83·#84와 Frontend #22·#23·#24·#25·#26의 완료 범위가 후속 단계와 구분되어 있다.
+- [x] 승인 V1의 1·2·3단계 전달 완료, 남은 2단계와 저장소별 단계당 최대 1개 PR 계획이 구분되어 있다.
 - [x] 프로필 완료 회원만 FriendProfile·코드를 갖고 미완료 회원 데이터는 출시 전 정리하는 gate가 반영되어 있다.
 - [x] 검색 기본 true·1글자·검색 버튼 실행과 관계 상태별 행동이 반영되어 있다.
 - [x] ACTIVE 닉네임 중복·예약어 정책과 기존 중복 유지가 반영되어 있다.
+- [x] 가입 완료와 nickname 예약어 검증의 책임을 분리했고, 미완료 회원의 예약어 유지 완료 전환만 차단하며 기존 완료 예약어 nickname 회원을 일괄 제외하지 않는다.
 - [x] 친구 요청 거절 알림이 5단계 후속 범위로 보존되어 있다.
 - [x] 백엔드 기준 문서와 V1 정책이 일치한다.
 - [x] URL 딥링크와 1:1·비공개 채팅이 V1에서 제외되어 있다.
@@ -1013,3 +1038,12 @@ Core 출시 준비와 친구 화면 완성은 #24·#25에서 완료했다. 다�
 | 2026-08-21 | 검색 허용 toggle은 낙관적으로 반영하고 실패 시 마지막 서버 확인 값으로 원복 |
 | 2026-08-21 | FRIEND_DECLINED 알림은 5단계에서 원 요청자에게 제공하고 요청 탭으로 이동 |
 | 2026-08-22 | Core 출시 준비(#81·#24)와 친구 화면 완성(#83·#25)을 완료 이력으로 고정하고 다음 구현 단위를 시간표 공유로 전환 |
+| 2026-08-22 | 시간표 공유 Backend·Frontend 구현은 각각 한 PR 범위에서 완료하고, 문서 정합성 점검 후 PR 검토·실기기 QA를 남은 gate로 분리 |
+| 2026-08-22 | 가입 완료는 ACTIVE·nickname·studentId·department의 null/공백 여부만으로 판단하고, 예약어는 신규 nickname 입력과 미완료 회원의 최초 완료 전환 검증에만 사용 |
+| 2026-08-22 | 시간표 공유 리뷰 보완: 독립 오류 상태, 열린 친구 cache pull-to-refresh, 별 변경 중복 방지, accordion container 폭, DETAILS 온라인 수업 목록과 nullable 교수 계약을 확정 |
+| 2026-08-23 | 시간표 공유 리뷰 보완: 최신 요청만 상태 반영, cache hit의 진행 중 요청 무효화, 설정 mutation의 reload supersede, 즐겨찾기 후 목록·상세 동기화, 기존 목록 유지 오류 안내, 공개 범위 sheet 스크롤을 확정 |
+| 2026-08-23 | 시간표 공유 리뷰 보완: 기본 공개 범위와 친구 목록 결과를 각 완료 시점에 독립 반영하고, 친구 accordion 동명이인 식별 코드를 기존 목록 정책과 통일 |
+| 2026-08-23 | 시간표 공유 리뷰 보완: 이전 학기 mutation 응답이 이후 학기 전환을 취소하지 않도록 하고, 설정 저장 중 누적된 재조회는 저장 종료 후 한 번 실행하도록 확정 |
+| 2026-08-23 | 시간표 공유 리뷰 보완: mutation 시작 뒤에도 학기 전환을 유지하고, 친구 target은 전개·스크롤 후 소비하며, 비활성 화면 알림 억제와 공유 설정·친구 목록의 독립 요청 세대를 확정 |
+| 2026-08-23 | 시간표 공유 리뷰 보완: 공개 범위 변경·친구 제거 시 해당 친구의 전체 학기 cache를 폐기하고, pull-to-refresh는 접힌 친구 cache까지 갱신하도록 확정 |
+| 2026-08-23 | 시간표 공유 Backend #84·Frontend #26의 리뷰 보완과 문서 정합성 점검을 마쳐 3단계 전달 완료로 전환 |

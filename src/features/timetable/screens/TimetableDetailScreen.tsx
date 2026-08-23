@@ -1,8 +1,12 @@
 import React from 'react';
 import {
+  AccessibilityInfo,
+  Alert,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import {
@@ -21,13 +25,17 @@ import {
   TimetableDetailSkeleton,
   type SegmentedControlItem,
 } from '@/shared/design-system/components';
-import {COLORS, SPACING} from '@/shared/design-system/tokens';
+import {COLORS, RADIUS, SPACING} from '@/shared/design-system/tokens';
 import {useScreenView} from '@/shared/hooks/useScreenView';
 
 import {TimetableAddCourseSheet} from '../components/TimetableAddCourseSheet';
 import {TimetableAllViewCard} from '../components/TimetableAllViewCard';
 import {TimetableCourseDetailSheet} from '../components/TimetableCourseDetailSheet';
 import {TimetableDetailHeader} from '../components/TimetableDetailHeader';
+import {
+  FriendTimetableSection,
+  type FriendTimetableSectionHandle,
+} from '../components/FriendTimetableSection';
 import {TimetableSemesterSheet} from '../components/TimetableSemesterSheet';
 import {TimetableSupplementSection} from '../components/TimetableSupplementSection';
 import {TimetableTodayViewCard} from '../components/TimetableTodayViewCard';
@@ -52,7 +60,14 @@ export const TimetableDetailScreen = () => {
   const route = useRoute<TimetableDetailRouteProp>();
   const initialView = route.params?.initialView ?? 'all';
   const [semesterSheetVisible, setSemesterSheetVisible] = React.useState(false);
+  const [friendSectionTop, setFriendSectionTop] = React.useState<number>();
   const autoOpenedEditRef = React.useRef(false);
+  const autoOpenedFriendRef = React.useRef<string | undefined>(undefined);
+  const handledInitialFriendRef = React.useRef<string | undefined>(undefined);
+  const friendTimetableSectionRef =
+    React.useRef<FriendTimetableSectionHandle>(null);
+  const scrollViewRef = React.useRef<ScrollView>(null);
+  const [refreshing, setRefreshing] = React.useState(false);
 
   const {
     activeMode,
@@ -97,6 +112,85 @@ export const TimetableDetailScreen = () => {
     }
   }, [openAddSheet, route.params?.mode]);
 
+  const scrollToFriendTimetable = React.useCallback(() => {
+    if (friendSectionTop === undefined) {
+      return;
+    }
+
+    scrollViewRef.current?.scrollTo({
+      animated: true,
+      y: Math.max(0, friendSectionTop - 12),
+    });
+    AccessibilityInfo.announceForAccessibility('친구 시간표로 이동했습니다.');
+  }, [friendSectionTop]);
+
+  const consumeInitialFriendTarget = React.useCallback(
+    (targetFriendPublicId: string) => {
+      if (
+        route.params?.targetFriendPublicId !== targetFriendPublicId ||
+        autoOpenedFriendRef.current !== targetFriendPublicId ||
+        handledInitialFriendRef.current !== targetFriendPublicId
+      ) {
+        return;
+      }
+
+      navigation.setParams({targetFriendPublicId: undefined});
+    },
+    [navigation, route.params?.targetFriendPublicId],
+  );
+
+  React.useEffect(() => {
+    const targetFriendPublicId = route.params?.targetFriendPublicId;
+    if (
+      !targetFriendPublicId ||
+      friendSectionTop === undefined ||
+      autoOpenedFriendRef.current === targetFriendPublicId
+    ) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      scrollToFriendTimetable();
+      autoOpenedFriendRef.current = targetFriendPublicId;
+      consumeInitialFriendTarget(targetFriendPublicId);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    consumeInitialFriendTarget,
+    friendSectionTop,
+    route.params?.targetFriendPublicId,
+    scrollToFriendTimetable,
+  ]);
+
+  const handleInitialFriendHandled = React.useCallback(() => {
+    const targetFriendPublicId = route.params?.targetFriendPublicId;
+    if (!targetFriendPublicId) {
+      return;
+    }
+
+    handledInitialFriendRef.current = targetFriendPublicId;
+    consumeInitialFriendTarget(targetFriendPublicId);
+  }, [consumeInitialFriendTarget, route.params?.targetFriendPublicId]);
+
+  const handleInitialFriendUnavailable = React.useCallback(() => {
+    navigation.setParams({targetFriendPublicId: undefined});
+    if (navigation.isFocused()) {
+      Alert.alert('친구 시간표', '더 이상 친구 시간표를 볼 수 없어요.');
+    }
+  }, [navigation]);
+
+  const handleRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        reload(),
+        friendTimetableSectionRef.current?.refresh() ?? Promise.resolve(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [reload]);
+
   const selectedCourseId = data?.selectedCourse?.courseId;
   const hasAnyCourse =
     Boolean(data?.allView.blocks.length) ||
@@ -120,16 +214,26 @@ export const TimetableDetailScreen = () => {
           />
 
           <View style={styles.toolbar}>
-            <SegmentedControl
-              items={MODE_ITEMS}
-              onSelect={selectMode}
-              selectedId={activeMode}
-              style={styles.modeControl}
-              isFullWidth={false}
-              isRounded={true}
-              height={36}
-              variant="surface"
-            />
+            <View style={styles.modeGroup}>
+              <SegmentedControl
+                items={MODE_ITEMS}
+                onSelect={selectMode}
+                selectedId={activeMode}
+                style={styles.modeControl}
+                isFullWidth={false}
+                isRounded={true}
+                height={36}
+                variant="surface"
+              />
+              <TouchableOpacity
+                accessibilityLabel="친구 시간표로 이동"
+                accessibilityRole="button"
+                activeOpacity={0.82}
+                onPress={scrollToFriendTimetable}
+                style={styles.friendTimetableAnchor}>
+                <Text style={styles.friendTimetableAnchorLabel}>친구 시간표</Text>
+              </TouchableOpacity>
+            </View>
 
             {data ? (
               <View style={styles.creditContainer}>
@@ -145,6 +249,17 @@ export const TimetableDetailScreen = () => {
 
         <ScrollView
           contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              colors={[COLORS.brand.primary]}
+              onRefresh={() => {
+                handleRefresh().catch(() => undefined);
+              }}
+              refreshing={refreshing}
+              tintColor={COLORS.brand.primary}
+            />
+          }
+          ref={scrollViewRef}
           showsVerticalScrollIndicator={false}>
           {loading && !data ? (
             <TimetableDetailSkeleton />
@@ -167,6 +282,31 @@ export const TimetableDetailScreen = () => {
               style={styles.stateCard}
               title="시간표를 불러오지 못했습니다"
             />
+          ) : null}
+
+          {error && data ? (
+            <View
+              accessibilityLiveRegion="polite"
+              style={styles.refreshErrorBanner}>
+              <Icon
+                color={COLORS.accent.orange}
+                name="alert-circle-outline"
+                size={18}
+              />
+              <Text numberOfLines={2} style={styles.refreshErrorLabel}>
+                {error}
+              </Text>
+              <TouchableOpacity
+                accessibilityLabel="시간표 다시 불러오기"
+                accessibilityRole="button"
+                activeOpacity={0.82}
+                onPress={() => {
+                  reload().catch(() => undefined);
+                }}
+                style={styles.refreshRetryButton}>
+                <Text style={styles.refreshRetryLabel}>다시 시도</Text>
+              </TouchableOpacity>
+            </View>
           ) : null}
 
           {data && !hasAnyCourse ? (
@@ -230,6 +370,24 @@ export const TimetableDetailScreen = () => {
                 />
               )}
             </>
+          ) : null}
+
+          {data ? (
+            <View
+              onLayout={event => setFriendSectionTop(event.nativeEvent.layout.y)}
+              testID="friend-timetable-section-container"
+              style={styles.friendTimetableContainer}>
+              <View style={styles.friendTimetableDivider} />
+              <FriendTimetableSection
+                initialFriendId={route.params?.targetFriendPublicId}
+                onInitialFriendHandled={handleInitialFriendHandled}
+                onInitialFriendUnavailable={handleInitialFriendUnavailable}
+                onPressSettings={() => navigation.navigate('FriendSettings')}
+                ownCourses={data.courses}
+                ref={friendTimetableSectionRef}
+                semesterId={data.semesterId}
+              />
+            </View>
           ) : null}
         </ScrollView>
 
@@ -314,15 +472,34 @@ const styles = StyleSheet.create({
   toolbar: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     paddingBottom: 12,
     paddingHorizontal: 16,
+    rowGap: SPACING.xs,
+  },
+  modeGroup: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexShrink: 1,
+    minWidth: 0,
   },
   modeControl: {
+  },
+  friendTimetableAnchor: {
+    marginLeft: SPACING.sm,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: SPACING.xs,
+  },
+  friendTimetableAnchorLabel: {
+    color: COLORS.text.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
   },
   creditContainer: {
     alignItems: 'center',
     flexDirection: 'row',
+    marginLeft: 'auto',
   },
   creditMuted: {
     color: COLORS.text.muted,
@@ -337,5 +514,43 @@ const styles = StyleSheet.create({
   },
   stateCard: {
     marginHorizontal: 16,
+  },
+  refreshErrorBanner: {
+    alignItems: 'center',
+    backgroundColor: COLORS.background.surface,
+    borderColor: COLORS.accent.orange,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  refreshErrorLabel: {
+    color: COLORS.text.secondary,
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  refreshRetryButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 32,
+    paddingHorizontal: SPACING.sm,
+  },
+  refreshRetryLabel: {
+    color: COLORS.brand.primaryStrong,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  friendTimetableContainer: {
+    marginTop: SPACING.xl,
+  },
+  friendTimetableDivider: {
+    backgroundColor: COLORS.border.subtle,
+    height: 1,
+    marginHorizontal: SPACING.lg,
   },
 });

@@ -24,59 +24,36 @@ import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
 import {useScreenView} from '@/shared/hooks/useScreenView';
 
 import {FriendAvatar} from '../components/FriendAvatar';
+import {FriendDataErrorBanner} from '../components/FriendDataErrorBanner';
 import {useFriendSettingsData} from '../hooks/useFriendSettingsData';
+import {useTimetableSharingSettingsData} from '../hooks/useTimetableSharingSettingsData';
+import {getDuplicateFriendProfileIds} from '../model/friendDisambiguation';
+import {TimetableSharingScopeSheet} from '@/features/timetable/components/TimetableSharingScopeSheet';
+import type {TimetableShareScope} from '@/features/timetable/model/timetableDomain';
 
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
 
-const getDuplicateBlockIds = (
-  blocks: ReadonlyArray<{
-    department: string | null;
-    id: string;
-    nickname: string;
-  }>,
-) => {
-  const counts = new Map<string, number>();
-  blocks.forEach(block => {
-    const key = JSON.stringify([block.nickname, block.department]);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  });
-
-  return new Set(
-    blocks
-      .filter(block => {
-        const key = JSON.stringify([block.nickname, block.department]);
-        return counts.get(key)! > 1;
-      })
-      .map(block => block.id),
-  );
+const getTimetableScopeLabel = (scope?: TimetableShareScope) => {
+  switch (scope) {
+    case 'DETAILS':
+      return '상세 시간표';
+    case 'BUSY_ONLY':
+      return '바쁜 시간만';
+    case 'PRIVATE':
+      return '비공개';
+    default:
+      return '기본값 사용';
+  }
 };
-
-interface ErrorBannerProps {
-  error: string;
-  onRetry: () => void;
-}
-
-const ErrorBanner = ({error, onRetry}: ErrorBannerProps) => (
-  <View style={styles.errorBanner}>
-    <Icon color={COLORS.accent.orange} name="alert-circle-outline" size={18} />
-    <Text numberOfLines={2} style={styles.errorBannerText}>
-      {error}
-    </Text>
-    <TouchableOpacity
-      accessibilityRole="button"
-      activeOpacity={0.82}
-      onPress={onRetry}
-      style={styles.errorRetryButton}>
-      <Text style={styles.errorRetryText}>재시도</Text>
-    </TouchableOpacity>
-  </View>
-);
 
 export const FriendSettingsScreen = () => {
   useScreenView();
 
   const navigation = useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
+  const [scopeTarget, setScopeTarget] = React.useState<
+    {friendId: string} | {type: 'default'}
+  >();
   const {
     blocks,
     blocksError,
@@ -92,9 +69,26 @@ export const FriendSettingsScreen = () => {
     unblockingIds,
     updateNicknameSearchable,
   } = useFriendSettingsData();
+  const {
+    friends: sharingFriends,
+    friendsError: sharingFriendsError,
+    getFriendScope,
+    loadingFriends: loadingSharingFriends,
+    loadingSettings: loadingSharingSettings,
+    reload: reloadSharing,
+    saving: savingSharing,
+    settings: sharingSettings,
+    settingsError: sharingSettingsError,
+    updateDefaultScope,
+    updateFriendScope,
+  } = useTimetableSharingSettingsData();
   const duplicateBlockIds = React.useMemo(
-    () => getDuplicateBlockIds(blocks),
+    () => getDuplicateFriendProfileIds(blocks),
     [blocks],
+  );
+  const duplicateSharingFriendIds = React.useMemo(
+    () => getDuplicateFriendProfileIds(sharingFriends),
+    [sharingFriends],
   );
 
   const handleUnblock = React.useCallback(
@@ -114,6 +108,31 @@ export const FriendSettingsScreen = () => {
       ]);
     },
     [navigation, unblockMember],
+  );
+
+  const handleSelectTimetableScope = React.useCallback(
+    (scope?: TimetableShareScope) => {
+      const target = scopeTarget;
+      if (!target) {
+        return;
+      }
+
+      setScopeTarget(undefined);
+      const save = 'type' in target
+        ? scope
+          ? updateDefaultScope(scope)
+          : Promise.resolve()
+        : updateFriendScope(target.friendId, scope);
+      save.catch(actionError => {
+        if (navigation.isFocused()) {
+          Alert.alert(
+            '오류',
+            getErrorMessage(actionError, '시간표 공유 설정을 저장하지 못했습니다.'),
+          );
+        }
+      });
+    },
+    [navigation, scopeTarget, updateDefaultScope, updateFriendScope],
   );
 
   return (
@@ -141,7 +160,7 @@ export const FriendSettingsScreen = () => {
         {privacy ? (
           <>
             {privacyError ? (
-              <ErrorBanner
+              <FriendDataErrorBanner
                 error={privacyError}
                 onRetry={() => {
                   reloadPrivacy().catch(() => undefined);
@@ -173,6 +192,115 @@ export const FriendSettingsScreen = () => {
           </>
         ) : null}
 
+        {loadingSharingSettings && !sharingSettings ? (
+          <StateCard
+            description="친구에게 보이는 시간표 범위를 준비하고 있습니다."
+            icon={<ActivityIndicator color={COLORS.brand.primary} />}
+            style={styles.sharingStateCard}
+            title="시간표 공유 설정을 불러오는 중"
+          />
+        ) : null}
+        {sharingSettingsError && !sharingSettings ? (
+          <StateCard
+            actionLabel="다시 시도"
+            description={sharingSettingsError}
+            icon={<Icon color={COLORS.accent.orange} name="alert-circle-outline" size={28} />}
+            onPressAction={() => {
+              reloadSharing().catch(() => undefined);
+            }}
+            style={styles.sharingStateCard}
+            title="시간표 공유 설정을 불러오지 못했습니다"
+          />
+        ) : null}
+        {sharingSettings ? (
+          <>
+            {sharingSettingsError ? (
+              <FriendDataErrorBanner
+                error={sharingSettingsError}
+                onRetry={() => {
+                  reloadSharing().catch(() => undefined);
+                }}
+              />
+            ) : null}
+            <SettingsSection style={styles.sharingSection} title="시간표 공유 설정">
+              <SettingsRow
+                accessoryType="chevron"
+                disabled={savingSharing}
+                iconBackgroundColor={COLORS.brand.primaryTint}
+                iconColor={COLORS.brand.primaryStrong}
+                iconName="calendar-outline"
+                onPress={() => setScopeTarget({type: 'default'})}
+                subtitle={`${getTimetableScopeLabel(sharingSettings.defaultScope)} · 친구별 예외가 없을 때 적용돼요.`}
+                title="기본 공개 범위"
+                titleWeight="700"
+              />
+            </SettingsSection>
+            <SettingsSection style={styles.sharingSection} title="친구별 공개 범위">
+              {loadingSharingFriends && sharingFriends.length === 0 ? (
+                <StateCard
+                  description="친구별 공개 범위를 준비하고 있습니다."
+                  icon={<ActivityIndicator color={COLORS.brand.primary} />}
+                  title="친구 목록을 불러오는 중"
+                />
+              ) : null}
+              {sharingFriendsError && sharingFriends.length === 0 ? (
+                <StateCard
+                  actionLabel="다시 시도"
+                  description={sharingFriendsError}
+                  icon={<Icon color={COLORS.accent.orange} name="alert-circle-outline" size={28} />}
+                  onPressAction={() => {
+                    reloadSharing().catch(() => undefined);
+                  }}
+                  title="친구 목록을 불러오지 못했습니다"
+                />
+              ) : null}
+              {sharingFriendsError && sharingFriends.length > 0 ? (
+                <FriendDataErrorBanner
+                  error={sharingFriendsError}
+                  onRetry={() => {
+                    reloadSharing().catch(() => undefined);
+                  }}
+                />
+              ) : null}
+              {sharingFriends.length > 0 ? (
+                sharingFriends.map((friend, index) => {
+                  const overrideScope = getFriendScope(friend.id);
+                  const effectiveScope =
+                    overrideScope ?? sharingSettings.defaultScope;
+                  const showIdentifier = duplicateSharingFriendIds.has(friend.id);
+                  const identifier = friend.id.slice(-6).toUpperCase();
+                  return (
+                    <SettingsRow
+                      accessibilityLabel={`${friend.nickname} 시간표 공개 범위 변경${showIdentifier ? `, 식별 코드 ${identifier}` : ''}`}
+                      accessoryType="chevron"
+                      disabled={savingSharing}
+                      iconBackgroundColor={COLORS.background.subtle}
+                      iconColor={COLORS.text.secondary}
+                      iconName="person-outline"
+                      key={friend.id}
+                      onPress={() => setScopeTarget({friendId: friend.id})}
+                      showDivider={index < sharingFriends.length - 1}
+                      subtitle={`${getTimetableScopeLabel(effectiveScope)} · ${overrideScope ? '개별 설정' : '기본값 적용'} · ${friend.department || '학과 정보 없음'}${showIdentifier ? ` · 식별 코드 · ${identifier}` : ''}`}
+                      subtitleNumberOfLines={showIdentifier ? 2 : 1}
+                      title={friend.nickname}
+                      titleWeight="700"
+                    />
+                  );
+                })
+              ) : null}
+              {!loadingSharingFriends &&
+              !sharingFriendsError &&
+              sharingFriends.length === 0 ? (
+                <StateCard
+                  description="친구를 추가하면 사람별로 다른 범위를 정할 수 있어요."
+                  icon={<Icon color={COLORS.text.muted} name="people-outline" size={28} />}
+                  title="친구별 예외가 없어요"
+                />
+              ) : null}
+            </SettingsSection>
+          </>
+        ) : null}
+
         <Text style={styles.sectionTitle}>차단한 사용자</Text>
         {loadingBlocks && !hasLoadedBlocks ? (
           <StateCard
@@ -195,7 +323,7 @@ export const FriendSettingsScreen = () => {
         {hasLoadedBlocks ? (
           <>
             {blocksError ? (
-              <ErrorBanner
+              <FriendDataErrorBanner
                 error={blocksError}
                 onRetry={() => {
                   reloadBlocks().catch(() => undefined);
@@ -248,6 +376,19 @@ export const FriendSettingsScreen = () => {
           </>
         ) : null}
       </ScrollView>
+      <TimetableSharingScopeSheet
+        allowDefault={Boolean(scopeTarget && !('type' in scopeTarget))}
+        currentScope={
+          scopeTarget && 'type' in scopeTarget
+            ? sharingSettings?.defaultScope
+            : scopeTarget
+              ? getFriendScope(scopeTarget.friendId)
+              : undefined
+        }
+        onClose={() => setScopeTarget(undefined)}
+        onSelect={handleSelectTimetableScope}
+        visible={Boolean(scopeTarget)}
+      />
     </SafeAreaView>
   );
 };
@@ -255,6 +396,8 @@ export const FriendSettingsScreen = () => {
 const styles = StyleSheet.create({
   safeArea: {backgroundColor: COLORS.background.page, flex: 1},
   content: {padding: SPACING.lg, paddingBottom: 40},
+  sharingStateCard: {marginTop: SPACING.xl},
+  sharingSection: {marginTop: SPACING.xl},
   sectionTitle: {
     color: COLORS.text.primary,
     fontSize: 14,
@@ -264,20 +407,6 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xl,
     paddingHorizontal: 4,
   },
-  errorBanner: {
-    alignItems: 'center',
-    backgroundColor: COLORS.accent.orangeSoft,
-    borderRadius: RADIUS.md,
-    flexDirection: 'row',
-    gap: SPACING.sm,
-    marginBottom: SPACING.lg,
-    minHeight: 44,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-  },
-  errorBannerText: {color: COLORS.text.secondary, flex: 1, fontSize: 12, lineHeight: 18},
-  errorRetryButton: {paddingHorizontal: SPACING.xs, paddingVertical: SPACING.xs},
-  errorRetryText: {color: COLORS.accent.orange, fontSize: 12, fontWeight: '700'},
   blockCard: {
     backgroundColor: COLORS.background.surface,
     borderRadius: RADIUS.lg,

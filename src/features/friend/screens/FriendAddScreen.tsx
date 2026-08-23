@@ -41,6 +41,7 @@ import {useScreenView} from '@/shared/hooks/useScreenView';
 import {FriendAvatar} from '../components/FriendAvatar';
 import {useFriendAddData} from '../hooks/useFriendAddData';
 import type {FriendSearchResult} from '../model/friend';
+import {getDuplicateFriendProfileIds} from '../model/friendDisambiguation';
 
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -70,20 +71,6 @@ const isScanCanceled = (scanError: unknown) =>
 
 const isCameraScanUnavailable = (scanError: unknown) =>
   scanError instanceof Error && /camera|permission|unavailable/i.test(scanError.message);
-
-const getDuplicateResultIds = (results: FriendSearchResult[]) => {
-  const counts = new Map<string, number>();
-  results.forEach(result => {
-    const key = JSON.stringify([result.nickname, result.department]);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  });
-
-  return new Set(
-    results
-      .filter(result => counts.get(JSON.stringify([result.nickname, result.department]))! > 1)
-      .map(result => result.id),
-  );
-};
 
 export const FriendAddScreen = () => {
   useScreenView();
@@ -192,7 +179,7 @@ export const FriendAddScreen = () => {
   }, [nicknameQuery, searchFriends]);
 
   const duplicateResultIds = React.useMemo(
-    () => getDuplicateResultIds(searchResults),
+    () => getDuplicateFriendProfileIds(searchResults),
     [searchResults],
   );
   const hasDuplicateNickname = React.useMemo(() => {

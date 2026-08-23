@@ -85,6 +85,28 @@ describe('FriendDetailScreen', () => {
     jest.resetAllMocks();
   });
 
+  it('기존 친구 정보를 유지한 재조회 실패를 배너로 알리고 재시도할 수 있다', async () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true)};
+    const reload = jest.fn().mockResolvedValue(undefined);
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseRoute.mockReturnValue({params: {friendId: 'friend-1'}} as ReturnType<typeof useRoute>);
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData({
+      error: '최신 친구 정보를 불러오지 못했습니다.',
+      reload,
+    }));
+
+    const view = render(<FriendDetailScreen />);
+
+    expect(view.getByText('가람')).toBeTruthy();
+    expect(view.getByText('최신 친구 정보를 불러오지 못했습니다.')).toBeTruthy();
+
+    fireEvent.press(view.getByLabelText('다시 불러오기'));
+
+    await waitFor(() => {
+      expect(reload).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('화면을 떠난 뒤 친구 끊기와 차단이 완료되어도 현재 화면을 뒤로 이동하지 않는다', async () => {
     const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(false)};
     const removeFriend = jest.fn().mockResolvedValue(true);

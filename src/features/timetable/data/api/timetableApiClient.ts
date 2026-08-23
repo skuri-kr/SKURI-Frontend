@@ -6,8 +6,13 @@ import type {
   CourseFilterOptionsDto,
   CreateMyManualTimetableCourseRequestDto,
   TimetablePageDto,
+  TimetableShareOverrideDto,
   TimetableSemesterOptionDto,
+  TimetableSharingSettingsDto,
+  UpdateTimetableShareOverrideRequestDto,
+  UpdateTimetableSharingSettingsRequestDto,
   UserTimetableDto,
+  FriendTimetableDto,
 } from '../dto/timetableDto';
 
 interface GetCoursesParams {
@@ -73,6 +78,45 @@ export class TimetableApiClient {
       {
         params: {semester},
       },
+    );
+  }
+
+  getMySharingSettings() {
+    return httpClient.get<ApiSuccessResponse<TimetableSharingSettingsDto>>(
+      '/v1/timetables/my/sharing-settings',
+    );
+  }
+
+  updateMySharingSettings(data: UpdateTimetableSharingSettingsRequestDto) {
+    return httpClient.patch<
+      ApiSuccessResponse<TimetableSharingSettingsDto>,
+      UpdateTimetableSharingSettingsRequestDto
+    >('/v1/timetables/my/sharing-settings', data);
+  }
+
+  updateShareOverride(
+    friendPublicId: string,
+    data: UpdateTimetableShareOverrideRequestDto,
+  ) {
+    return httpClient.put<
+      ApiSuccessResponse<TimetableShareOverrideDto>,
+      UpdateTimetableShareOverrideRequestDto
+    >(
+      `/v1/timetables/my/sharing-overrides/${encodeURIComponent(friendPublicId)}`,
+      data,
+    );
+  }
+
+  deleteShareOverride(friendPublicId: string) {
+    return httpClient.delete<void>(
+      `/v1/timetables/my/sharing-overrides/${encodeURIComponent(friendPublicId)}`,
+    );
+  }
+
+  getFriendTimetable(friendPublicId: string, semester: string) {
+    return httpClient.get<ApiSuccessResponse<FriendTimetableDto>>(
+      `/v1/timetables/friends/${encodeURIComponent(friendPublicId)}`,
+      {params: {semester}},
     );
   }
 }

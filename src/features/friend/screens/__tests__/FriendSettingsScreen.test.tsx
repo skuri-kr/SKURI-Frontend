@@ -5,6 +5,7 @@ import {act, fireEvent, render} from '@testing-library/react-native';
 import {useNavigation} from '@react-navigation/native';
 
 import {useFriendSettingsData} from '../../hooks/useFriendSettingsData';
+import {useTimetableSharingSettingsData} from '../../hooks/useTimetableSharingSettingsData';
 import {FriendSettingsScreen} from '../FriendSettingsScreen';
 
 jest.mock('@react-navigation/native', () => ({
@@ -21,7 +22,33 @@ jest.mock('react-native-safe-area-context', () => ({
 
 jest.mock('react-native-vector-icons/Ionicons', () => 'Icon');
 jest.mock('@/shared/design-system/components', () => ({
-  SettingsRow: () => null,
+  SettingsRow: ({
+    accessibilityLabel,
+    onPress,
+    subtitle,
+    title,
+  }: {
+    accessibilityLabel?: string;
+    onPress?: () => void;
+    subtitle?: string;
+    title: string;
+  }) => {
+    const {createElement} = require('react');
+    const {Text, TouchableOpacity, View} = require('react-native');
+    const content = createElement(
+      View,
+      undefined,
+      createElement(Text, undefined, title),
+      subtitle ? createElement(Text, undefined, subtitle) : null,
+    );
+    return onPress
+      ? createElement(
+          TouchableOpacity,
+          {accessibilityLabel, onPress},
+          content,
+        )
+      : content;
+  },
   SettingsSection: ({children}: {children: React.ReactNode}) => children,
   StackHeader: () => null,
   StateCard: () => null,
@@ -31,13 +58,43 @@ jest.mock('../../components/FriendAvatar', () => ({FriendAvatar: () => null}));
 jest.mock('../../hooks/useFriendSettingsData', () => ({
   useFriendSettingsData: jest.fn(),
 }));
+jest.mock('../../hooks/useTimetableSharingSettingsData', () => ({
+  useTimetableSharingSettingsData: jest.fn(),
+}));
+jest.mock('@/features/timetable/components/TimetableSharingScopeSheet', () => ({
+  TimetableSharingScopeSheet: () => null,
+}));
 
 const mockedUseNavigation = jest.mocked(useNavigation);
 const mockedUseFriendSettingsData = jest.mocked(useFriendSettingsData);
+const mockedUseTimetableSharingSettingsData = jest.mocked(
+  useTimetableSharingSettingsData,
+);
+
+const createTimetableSharingSettingsData = () => ({
+  friends: [],
+  friendsError: undefined,
+  getFriendScope: jest.fn(),
+  loading: false,
+  loadingFriends: false,
+  loadingSettings: false,
+  reload: jest.fn(),
+  saving: false,
+  settings: {
+    defaultScope: 'PRIVATE' as const,
+    overrides: [],
+  },
+  settingsError: undefined,
+  updateDefaultScope: jest.fn(),
+  updateFriendScope: jest.fn(),
+}) as ReturnType<typeof useTimetableSharingSettingsData>;
 
 describe('FriendSettingsScreen', () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    mockedUseTimetableSharingSettingsData.mockReturnValue(
+      createTimetableSharingSettingsData(),
+    );
   });
 
   it('동일 프로필 차단 대상에만 공개 식별 코드 일부를 표시한다', () => {
@@ -68,6 +125,40 @@ describe('FriendSettingsScreen', () => {
     expect(view.getByText('식별 코드 · ABC123')).toBeTruthy();
     expect(view.getByText('식별 코드 · DEF456')).toBeTruthy();
     expect(view.queryByText('식별 코드 · GHI789')).toBeNull();
+  });
+
+  it('동일 프로필 친구의 시간표 공개 범위 행에만 식별 코드를 표시한다', () => {
+    mockedUseNavigation.mockReturnValue({goBack: jest.fn()} as ReturnType<typeof useNavigation>);
+    mockedUseFriendSettingsData.mockReturnValue({
+      blocks: [],
+      blocksError: undefined,
+      hasLoadedBlocks: true,
+      loadingBlocks: false,
+      loadingPrivacy: false,
+      privacy: undefined,
+      privacyError: undefined,
+      reload: jest.fn(),
+      reloadBlocks: jest.fn(),
+      reloadPrivacy: jest.fn(),
+      savingPrivacy: false,
+      unblockMember: jest.fn(),
+      unblockingIds: new Set(),
+      updateNicknameSearchable: jest.fn(),
+    } as ReturnType<typeof useFriendSettingsData>);
+    mockedUseTimetableSharingSettingsData.mockReturnValue({
+      ...createTimetableSharingSettingsData(),
+      friends: [
+        {department: '컴퓨터공학과', favorite: false, id: 'friend-public-abc123', nickname: '가람', photoUrl: null},
+        {department: '컴퓨터공학과', favorite: false, id: 'friend-public-def456', nickname: '가람', photoUrl: null},
+        {department: '전자공학과', favorite: false, id: 'friend-public-ghi789', nickname: '가람', photoUrl: null},
+      ],
+    } as ReturnType<typeof useTimetableSharingSettingsData>);
+
+    const view = render(<FriendSettingsScreen />);
+
+    expect(view.getByText(/식별 코드 · ABC123/)).toBeTruthy();
+    expect(view.getByText(/식별 코드 · DEF456/)).toBeTruthy();
+    expect(view.queryByText(/식별 코드 · GHI789/)).toBeNull();
   });
 
   it('화면을 떠난 뒤 차단 해제가 실패해도 오류를 표시하지 않는다', async () => {

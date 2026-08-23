@@ -67,6 +67,7 @@ describe('SpringFriendRepository', () => {
     await expect(repository.getFriends()).resolves.toEqual([
       {
         department: null,
+        effectiveTimetableScope: 'PRIVATE',
         favorite: true,
         id: 'friend-0',
         minecraftAccountCount: 0,
@@ -76,6 +77,7 @@ describe('SpringFriendRepository', () => {
       },
       {
         department: null,
+        effectiveTimetableScope: 'PRIVATE',
         favorite: true,
         id: 'friend-2',
         minecraftAccountCount: 0,
@@ -85,6 +87,7 @@ describe('SpringFriendRepository', () => {
       },
       {
         department: '컴퓨터공학과',
+        effectiveTimetableScope: 'PRIVATE',
         favorite: true,
         id: 'friend-1',
         minecraftAccountCount: 0,
@@ -94,6 +97,7 @@ describe('SpringFriendRepository', () => {
       },
       {
         department: null,
+        effectiveTimetableScope: 'PRIVATE',
         favorite: false,
         id: 'friend-3',
         minecraftAccountCount: 0,

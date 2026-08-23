@@ -61,6 +61,7 @@ export type CampusStackParamList = {
     | {
         initialView?: TimetableDetailViewMode;
         mode?: 'edit';
+        targetFriendPublicId?: string;
       }
     | undefined;
   MinecraftAccount: undefined;

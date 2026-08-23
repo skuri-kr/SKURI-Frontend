@@ -663,7 +663,9 @@ const buildScreenViewData = ({
           toneId: course.toneId,
         })),
     },
+    courses,
     selectedCourse: buildSelectedCourseDetail(selectedCourse),
+    semesterId: record.id,
     semesterLabel: record.label,
     totalCreditsLabel: `총 ${courses.reduce((sum, course) => sum + course.credits, 0)}학점`,
     todayView: {
@@ -729,17 +731,34 @@ export const useTimetableDetailData = (
   const [searchResultKey, setSearchResultKey] = React.useState<string>();
   const [showNightClasses, setShowNightClasses] = React.useState(false);
   const searchRequestIdRef = React.useRef(0);
+  const semesterLoadVersionRef = React.useRef(0);
+  const semesterLoadTargetRef = React.useRef<
+    | {
+        semesterId?: string;
+        version: number;
+      }
+    | undefined
+  >(undefined);
   const selectedSemesterIdRef = React.useRef<string | undefined>(undefined);
   const currentSearchKey = selectedSemesterId
     ? buildCatalogSearchKey(selectedSemesterId, query, catalogFilters)
     : undefined;
 
   const loadSemester = React.useCallback(async (semesterId?: string) => {
+    const loadVersion = semesterLoadVersionRef.current + 1;
+    semesterLoadVersionRef.current = loadVersion;
+    semesterLoadTargetRef.current = {
+      semesterId: semesterId ?? selectedSemesterIdRef.current,
+      version: loadVersion,
+    };
     setLoading(true);
     setError(null);
 
     try {
       const semesters = await timetableRepository.listSemesterRecords();
+      if (loadVersion !== semesterLoadVersionRef.current) {
+        return;
+      }
       const options = semesters.map(semester => ({
         id: semester.id,
         label: semester.label,
@@ -751,6 +770,10 @@ export const useTimetableDetailData = (
         : undefined;
 
       setSemesterOptions(options);
+      semesterLoadTargetRef.current = {
+        semesterId: nextSemesterId,
+        version: loadVersion,
+      };
 
       if (!nextSemesterId) {
         selectedSemesterIdRef.current = undefined;
@@ -764,6 +787,9 @@ export const useTimetableDetailData = (
         nextSemesterId,
         nextSemesterOption?.label ?? `${nextSemesterId}학기`,
       );
+      if (loadVersion !== semesterLoadVersionRef.current) {
+        return;
+      }
 
       selectedSemesterIdRef.current = nextSemesterId;
       setRecord(nextRecord ?? null);
@@ -774,10 +800,15 @@ export const useTimetableDetailData = (
         ) ?? false,
       );
     } catch (loadError) {
-      console.error(loadError);
-      setError('시간표를 불러오지 못했습니다.');
+      if (loadVersion === semesterLoadVersionRef.current) {
+        console.error(loadError);
+        setError('시간표를 불러오지 못했습니다.');
+      }
     } finally {
-      setLoading(false);
+      if (loadVersion === semesterLoadVersionRef.current) {
+        semesterLoadTargetRef.current = undefined;
+        setLoading(false);
+      }
     }
   }, [timetableRepository]);
 
@@ -1028,6 +1059,43 @@ export const useTimetableDetailData = (
     setRecord(nextRecord);
   }, []);
 
+  const supersedeSemesterLoad = React.useCallback(() => {
+    semesterLoadVersionRef.current += 1;
+    semesterLoadTargetRef.current = undefined;
+    setLoading(false);
+  }, []);
+
+  const hasPendingDifferentSemesterLoad = React.useCallback(
+    (semesterId: string) => {
+      const pendingSemesterId = semesterLoadTargetRef.current?.semesterId;
+      return pendingSemesterId !== undefined && pendingSemesterId !== semesterId;
+    },
+    [],
+  );
+
+  const supersedeSemesterLoadForMutation = React.useCallback(
+    (semesterId: string) => {
+      if (!hasPendingDifferentSemesterLoad(semesterId)) {
+        supersedeSemesterLoad();
+      }
+    },
+    [hasPendingDifferentSemesterLoad, supersedeSemesterLoad],
+  );
+
+  const applyAuthoritativeRecord = React.useCallback(
+    (semesterId: string, nextRecord: TimetableSemesterRecord | null) => {
+      supersedeSemesterLoadForMutation(semesterId);
+      setRecord(nextRecord);
+      setError(null);
+    },
+    [supersedeSemesterLoadForMutation],
+  );
+
+  const isCurrentSemester = React.useCallback(
+    (semesterId: string) => selectedSemesterIdRef.current === semesterId,
+    [],
+  );
+
   const visibleCatalogCourses = React.useMemo(() => {
     if (!currentSearchKey || searchResultKey !== currentSearchKey) {
       return [];
@@ -1072,11 +1140,13 @@ export const useTimetableDetailData = (
       }
 
       const previousRecord = record;
+      const mutationSemesterId = selectedSemesterId;
       const optimisticCourse: TimetableCourseRecord = {
         ...targetCourse,
         toneId: selectedToneId,
       };
 
+      supersedeSemesterLoadForMutation(mutationSemesterId);
       refreshRecord({
         ...previousRecord,
         courses: [...previousRecord.courses, optimisticCourse],
@@ -1084,7 +1154,7 @@ export const useTimetableDetailData = (
       closeAddSheet();
 
       setTimetableCourseTone(
-        selectedSemesterId,
+        mutationSemesterId,
         courseId,
         selectedToneId,
       ).catch(toneError => {
@@ -1094,28 +1164,40 @@ export const useTimetableDetailData = (
       try {
         const nextRecord = await timetableRepository.addCatalogCourse({
           courseId,
-          semesterId: selectedSemesterId,
+          semesterId: mutationSemesterId,
           toneId: selectedToneId,
         });
 
         if (!nextRecord) {
-          await loadSemester(selectedSemesterId);
+          if (
+            isCurrentSemester(mutationSemesterId)
+            && !hasPendingDifferentSemesterLoad(mutationSemesterId)
+          ) {
+            await loadSemester(mutationSemesterId);
+          }
           invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
           return;
         }
 
-        refreshRecord({
-          ...nextRecord,
-          label: previousRecord.label,
-          courses: nextRecord.courses.map(course =>
-            course.id === courseId
-              ? {...course, toneId: selectedToneId}
-              : course,
-          ),
-        });
+        if (isCurrentSemester(mutationSemesterId)) {
+          applyAuthoritativeRecord(
+            mutationSemesterId,
+            {
+              ...nextRecord,
+              label: previousRecord.label,
+              courses: nextRecord.courses.map(course =>
+                course.id === courseId
+                  ? {...course, toneId: selectedToneId}
+                  : course,
+              ),
+            },
+          );
+        }
         invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
       } catch (addError) {
-        refreshRecord(previousRecord);
+        if (isCurrentSemester(mutationSemesterId)) {
+          refreshRecord(previousRecord);
+        }
 
         if (isAlreadyExistsError(addError)) {
           Alert.alert(
@@ -1125,7 +1207,12 @@ export const useTimetableDetailData = (
           return;
         }
 
-        loadSemester(selectedSemesterId).catch(() => undefined);
+        if (
+          isCurrentSemester(mutationSemesterId)
+          && !hasPendingDifferentSemesterLoad(mutationSemesterId)
+        ) {
+          loadSemester(mutationSemesterId).catch(() => undefined);
+        }
         Alert.alert(
           '강의를 추가하지 못했습니다',
           '잠시 후 다시 시도해주세요.',
@@ -1133,12 +1220,16 @@ export const useTimetableDetailData = (
       }
     },
     [
+      applyAuthoritativeRecord,
       closeAddSheet,
+      hasPendingDifferentSemesterLoad,
+      isCurrentSemester,
       loadSemester,
       record,
       refreshRecord,
       selectedSemesterId,
       selectedToneId,
+      supersedeSemesterLoadForMutation,
       timetableRepository,
       visibleCatalogCourses,
     ],
@@ -1185,14 +1276,21 @@ export const useTimetableDetailData = (
       return;
     }
 
+    const mutationSemesterId = selectedSemesterId;
     const previousCourseIds = new Set(record.courses.map(course => course.id));
+    supersedeSemesterLoadForMutation(mutationSemesterId);
     const nextRecord = await timetableRepository.addManualCourse({
       draft: manualDraft,
-      semesterId: selectedSemesterId,
+      semesterId: mutationSemesterId,
     });
 
     if (!nextRecord) {
-      await loadSemester(selectedSemesterId);
+      if (
+        isCurrentSemester(mutationSemesterId)
+        && !hasPendingDifferentSemesterLoad(mutationSemesterId)
+      ) {
+        await loadSemester(mutationSemesterId);
+      }
       invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
       closeAddSheet();
       return;
@@ -1205,7 +1303,7 @@ export const useTimetableDetailData = (
     if (nextRecord && addedCourse) {
       try {
         await setTimetableCourseTone(
-          selectedSemesterId,
+          mutationSemesterId,
           addedCourse.id,
           manualDraft.toneId,
         );
@@ -1219,29 +1317,42 @@ export const useTimetableDetailData = (
           : course,
       );
 
-      refreshRecord({
-        ...nextRecord,
-        label: record.label,
-        courses: nextCourses,
-      });
+      if (isCurrentSemester(mutationSemesterId)) {
+        applyAuthoritativeRecord(
+          mutationSemesterId,
+          {
+            ...nextRecord,
+            label: record.label,
+            courses: nextCourses,
+          },
+        );
+      }
       invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
       closeAddSheet();
       return;
     }
 
-    refreshRecord({
-      ...nextRecord,
-      label: record.label,
-    });
+    if (isCurrentSemester(mutationSemesterId)) {
+      applyAuthoritativeRecord(
+        mutationSemesterId,
+        {
+          ...nextRecord,
+          label: record.label,
+        },
+      );
+    }
     invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
     closeAddSheet();
   }, [
+    applyAuthoritativeRecord,
     closeAddSheet,
+    hasPendingDifferentSemesterLoad,
+    isCurrentSemester,
     loadSemester,
     manualDraft,
     record,
-    refreshRecord,
     selectedSemesterId,
+    supersedeSemesterLoadForMutation,
     timetableRepository,
   ]);
 
@@ -1272,7 +1383,9 @@ export const useTimetableDetailData = (
         style: 'destructive',
         onPress: async () => {
           const previousRecord = record;
+          const mutationSemesterId = selectedSemesterId;
 
+          supersedeSemesterLoadForMutation(mutationSemesterId);
           refreshRecord({
             ...previousRecord,
             courses: previousRecord.courses.filter(
@@ -1283,31 +1396,38 @@ export const useTimetableDetailData = (
           try {
             const nextRecord = await timetableRepository.removeCourse({
               courseId: removedCourseId,
-              semesterId: selectedSemesterId,
+              semesterId: mutationSemesterId,
             });
 
             try {
               await removeTimetableCourseTone(
-                selectedSemesterId,
+                mutationSemesterId,
                 removedCourseId,
               );
             } catch (toneError) {
               console.warn('시간표 색상을 삭제하지 못했습니다.', toneError);
             }
 
-            if (nextRecord) {
-              refreshRecord({
-                ...nextRecord,
-                label: previousRecord.label,
-              });
-            } else {
-              await loadSemester(selectedSemesterId);
+            if (isCurrentSemester(mutationSemesterId)) {
+              if (nextRecord) {
+                applyAuthoritativeRecord(
+                  mutationSemesterId,
+                  {
+                    ...nextRecord,
+                    label: previousRecord.label,
+                  },
+                );
+              } else if (!hasPendingDifferentSemesterLoad(mutationSemesterId)) {
+                await loadSemester(mutationSemesterId);
+              }
             }
 
             invalidateData(CAMPUS_HOME_INVALIDATION_KEY);
           } catch (removeError) {
-            refreshRecord(previousRecord);
-            setSelectedCourseId(removedCourseId);
+            if (isCurrentSemester(mutationSemesterId)) {
+              refreshRecord(previousRecord);
+              setSelectedCourseId(removedCourseId);
+            }
             Alert.alert(
               '강의를 삭제하지 못했습니다',
               removeError instanceof RepositoryError
@@ -1319,11 +1439,15 @@ export const useTimetableDetailData = (
       },
     ]);
   }, [
+    applyAuthoritativeRecord,
+    hasPendingDifferentSemesterLoad,
+    isCurrentSemester,
     loadSemester,
     record,
     refreshRecord,
     selectedCourseId,
     selectedSemesterId,
+    supersedeSemesterLoadForMutation,
     timetableRepository,
   ]);
 

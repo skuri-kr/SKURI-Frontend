@@ -1,5 +1,7 @@
 import {act, renderHook, waitFor} from '@testing-library/react-native';
 
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {useFriendRepository} from '@/di';
 
 import {useFriendDetailData} from '../useFriendDetailData';
@@ -258,5 +260,82 @@ describe('useFriendDetailData', () => {
       favoriteDeferred.resolve(undefined);
       await expect(favoriteMutation).resolves.toBe(true);
     });
+  });
+
+  it('친구 데이터가 무효화되면 상세 정보를 다시 조회한다', async () => {
+    const repository = createRepository();
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    renderHook(() => useFriendDetailData('friend-1'));
+    await waitFor(() => {
+      expect(repository.getFriend).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      invalidateData(FRIEND_HUB_INVALIDATION_KEY);
+    });
+
+    await waitFor(() => {
+      expect(repository.getFriend).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('겹친 상세 조회에서는 최신 응답만 반영한다', async () => {
+    const repository = createRepository();
+    const olderFriend = createDeferred<{
+      department: null;
+      favorite: false;
+      id: string;
+      nickname: string;
+      photoUrl: null;
+    }>();
+    const latestFriend = createDeferred<{
+      department: null;
+      favorite: true;
+      id: string;
+      nickname: string;
+      photoUrl: null;
+    }>();
+    repository.getFriend
+      .mockReturnValueOnce(olderFriend.promise)
+      .mockReturnValueOnce(latestFriend.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendDetailData('friend-1'));
+    let latestReload!: Promise<void>;
+    act(() => {
+      latestReload = result.current.reload();
+    });
+
+    await act(async () => {
+      latestFriend.resolve({
+        department: null,
+        favorite: true,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      });
+      await latestReload;
+    });
+    expect(result.current.friend?.favorite).toBe(true);
+    expect(result.current.loading).toBe(false);
+
+    await act(async () => {
+      olderFriend.resolve({
+        department: null,
+        favorite: false,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      });
+    });
+
+    expect(result.current.friend?.favorite).toBe(true);
+    expect(result.current.error).toBeUndefined();
+    expect(result.current.loading).toBe(false);
   });
 });

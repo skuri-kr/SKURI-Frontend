@@ -1,5 +1,7 @@
 import React from 'react';
 
+import {useInvalidationVersion} from '@/app/data-freshness/dataInvalidation';
+import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {useFriendRepository} from '@/di';
 
 import type {FriendMinecraftAccounts, FriendSummary} from '../model/friend';
@@ -9,6 +11,9 @@ const getErrorMessage = (error: unknown, fallback: string) =>
 
 export const useFriendDetailData = (friendId: string) => {
   const friendRepository = useFriendRepository();
+  const friendHubInvalidationVersion = useInvalidationVersion(
+    FRIEND_HUB_INVALIDATION_KEY,
+  );
   const [friend, setFriend] = React.useState<FriendSummary>();
   const [minecraftAccounts, setMinecraftAccounts] = React.useState<FriendMinecraftAccounts>();
   const [minecraftAccountsError, setMinecraftAccountsError] = React.useState<string>();
@@ -17,6 +22,7 @@ export const useFriendDetailData = (friendId: string) => {
   const [loading, setLoading] = React.useState(true);
   const [mutating, setMutating] = React.useState(false);
   const mutationInFlightRef = React.useRef(false);
+  const friendLoadVersionRef = React.useRef(0);
   const minecraftAccountsLoadVersionRef = React.useRef(0);
 
   const loadMinecraftAccounts = React.useCallback(async () => {
@@ -44,21 +50,32 @@ export const useFriendDetailData = (friendId: string) => {
   }, [friendId, friendRepository]);
 
   const reload = React.useCallback(async () => {
+    const requestVersion = friendLoadVersionRef.current + 1;
+    friendLoadVersionRef.current = requestVersion;
     try {
       setLoading(true);
       setError(undefined);
       loadMinecraftAccounts().catch(() => undefined);
-      setFriend(await friendRepository.getFriend(friendId));
+      const nextFriend = await friendRepository.getFriend(friendId);
+      if (requestVersion !== friendLoadVersionRef.current) {
+        return;
+      }
+      setFriend(nextFriend);
     } catch (loadError) {
+      if (requestVersion !== friendLoadVersionRef.current) {
+        return;
+      }
       setError(getErrorMessage(loadError, '친구 정보를 불러오지 못했습니다.'));
     } finally {
-      setLoading(false);
+      if (requestVersion === friendLoadVersionRef.current) {
+        setLoading(false);
+      }
     }
   }, [friendId, friendRepository, loadMinecraftAccounts]);
 
   React.useEffect(() => {
     reload().catch(() => undefined);
-  }, [reload]);
+  }, [friendHubInvalidationVersion, reload]);
 
   const updateFavorite = React.useCallback(async () => {
     if (!friend || mutationInFlightRef.current) {

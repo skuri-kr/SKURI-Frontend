@@ -1,4 +1,7 @@
-import {buildTimetableSemesterRecord} from '../timetableApiMapper';
+import {
+  buildTimetableSemesterRecord,
+  mapFriendTimetableDto,
+} from '../timetableApiMapper';
 
 describe('buildTimetableSemesterRecord', () => {
   it('백엔드 시간표 응답을 상세 화면 모델로 변환한다', () => {
@@ -209,5 +212,30 @@ describe('buildTimetableSemesterRecord', () => {
       'purple',
       'pink',
     ]);
+  });
+});
+
+describe('mapFriendTimetableDto', () => {
+  it('공식 강의의 없는 교수 정보는 null로 유지한다', () => {
+    const timetable = mapFriendTimetableDto({
+      courses: [
+        {
+          code: '01255',
+          courseId: 'course-1',
+          credits: 3,
+          isOnline: false,
+          location: '영401',
+          name: '민법총칙',
+          professor: null,
+          schedule: [],
+        },
+      ],
+      effectiveScope: 'DETAILS',
+      hasTimetable: true,
+      semester: '2026-2',
+      slots: [],
+    });
+
+    expect(timetable.courses[0]?.professor).toBeNull();
   });
 });
