@@ -192,8 +192,8 @@ export const useFriendTimetableData = (semesterId?: string) => {
   }, [loadFriendTimetable, loadFriends]);
 
   React.useEffect(() => {
-    refresh().catch(() => undefined);
-  }, [friendHubInvalidationVersion, refresh]);
+    loadFriends().catch(() => undefined);
+  }, [friendHubInvalidationVersion, loadFriends]);
 
   React.useEffect(() => {
     selectedFriendIdRef.current = selectedFriendId;
