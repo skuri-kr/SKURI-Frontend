@@ -2,6 +2,7 @@ import {act, renderHook, waitFor} from '@testing-library/react-native';
 
 import {invalidateData} from '@/app/data-freshness/dataInvalidation';
 import {useFriendInvitationRepository} from '@/di';
+import {RepositoryError, RepositoryErrorCode} from '@/shared/lib/errors';
 
 import {useFriendInvitationsData} from '../useFriendInvitationsData';
 
@@ -136,6 +137,76 @@ describe('useFriendInvitationsData', () => {
     expect(result.current.pendingCount).toBe(0);
     expect(result.current.invitations).toEqual([chatInvitation]);
     expect(mockedInvalidateData).toHaveBeenCalled();
+  });
+
+  it('수락 응답이 불확실하면 멱등 수락을 한 번 재확인해 이동 정보를 복구한다', async () => {
+    const repository = createRepository();
+    repository.acceptPartyInvitation
+      .mockRejectedValueOnce(
+        new RepositoryError(
+          RepositoryErrorCode.NETWORK_ERROR,
+          'accept response unavailable',
+        ),
+      )
+      .mockResolvedValueOnce({
+        invitationId: partyInvitation.id,
+        status: 'ACCEPTED',
+        targetId: 'party-1',
+        type: 'PARTY',
+      });
+    mockedUseRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendInvitationRepository>,
+    );
+    const {result} = renderHook(() => useFriendInvitationsData());
+    await waitFor(() => expect(result.current.hasLoaded).toBe(true));
+
+    let mutation;
+    await act(async () => {
+      mutation = await result.current.acceptInvitation(partyInvitation);
+    });
+
+    expect(repository.acceptPartyInvitation).toHaveBeenCalledTimes(2);
+    expect(mutation).toMatchObject({status: 'ACCEPTED', targetId: 'party-1'});
+    expect(result.current.mutatingIds.has(partyInvitation.id)).toBe(false);
+    expect(result.current.invitations).toEqual([chatInvitation]);
+  });
+
+  it('수락 재확인과 목록 보정이 모두 실패하면 성공적인 재조회까지 카드를 잠근다', async () => {
+    const repository = createRepository();
+    const firstError = new RepositoryError(
+      RepositoryErrorCode.NETWORK_ERROR,
+      'accept response unavailable',
+    );
+    const secondError = new RepositoryError(
+      RepositoryErrorCode.TIMEOUT,
+      'accept reconciliation unavailable',
+    );
+    repository.acceptPartyInvitation
+      .mockRejectedValueOnce(firstError)
+      .mockRejectedValueOnce(secondError);
+    mockedUseRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendInvitationRepository>,
+    );
+    const {result} = renderHook(() => useFriendInvitationsData());
+    await waitFor(() => expect(result.current.hasLoaded).toBe(true));
+    repository.getReceivedPartyInvitations.mockRejectedValueOnce(
+      new Error('party reload unavailable'),
+    );
+
+    await act(async () => {
+      await expect(
+        result.current.acceptInvitation(partyInvitation),
+      ).rejects.toBe(secondError);
+    });
+
+    expect(result.current.mutatingIds.has(partyInvitation.id)).toBe(true);
+
+    await act(async () => {
+      await result.current.reload();
+    });
+
+    expect(result.current.mutatingIds.has(partyInvitation.id)).toBe(false);
+    expect(result.current.invitations).toContainEqual(partyInvitation);
   });
 
   it('일부 목록 조회가 실패해도 서버 inbox count를 badge에 사용한다', async () => {

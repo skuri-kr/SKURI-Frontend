@@ -35,7 +35,14 @@ jest.mock('@/shared/design-system/components', () => ({
   },
   SettingsSection: ({children}: {children: React.ReactNode}) => children,
   StackHeader: () => null,
-  StateCard: () => null,
+  StateCard: ({actionLabel, onPressAction, title}: {actionLabel?: string; onPressAction?: () => void; title: string}) => {
+    const {createElement} = require('react');
+    const {Text, TouchableOpacity, View} = require('react-native');
+    return createElement(View, undefined,
+      createElement(Text, undefined, title),
+      actionLabel ? createElement(TouchableOpacity, {onPress: onPressAction}, createElement(Text, undefined, actionLabel)) : null,
+    );
+  },
 }));
 
 jest.mock('@/shared/hooks/useScreenView', () => ({useScreenView: jest.fn()}));
@@ -122,6 +129,29 @@ describe('FriendDetailScreen', () => {
       visibleTexts.indexOf('차단하기'),
     );
     expect(mockedUseChatRooms).toHaveBeenCalledWith('all', {joinedOnly: true});
+  });
+
+  it('참여 채팅방 조회가 실패하면 초대 섹션에서 오류와 재시도를 제공한다', async () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true), navigate: jest.fn()};
+    const refresh = jest.fn().mockResolvedValue(undefined);
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseRoute.mockReturnValue({params: {friendId: 'friend-1'}} as ReturnType<typeof useRoute>);
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData());
+    mockedUseChatRooms.mockReturnValue({
+      chatRooms: [],
+      error: new Error('joined rooms unavailable'),
+      loading: false,
+      refresh,
+    });
+
+    const view = render(<FriendDetailScreen />);
+
+    expect(view.getByText('채팅방을 불러오지 못했습니다')).toBeTruthy();
+    fireEvent.press(view.getByText('다시 시도'));
+
+    await waitFor(() => {
+      expect(refresh).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('기존 친구 정보를 유지한 재조회 실패를 배너로 알리고 재시도할 수 있다', async () => {

@@ -5,6 +5,10 @@ import {fireEvent, render, waitFor} from '@testing-library/react-native';
 import {useIsFocused, useNavigation, useRoute} from '@react-navigation/native';
 
 import {useInvalidationVersion} from '@/app/data-freshness/dataInvalidation';
+import {
+  navigateToCommunityChat,
+  navigateToTaxiChat,
+} from '@/app/navigation/services/appRouteNavigation';
 
 import {useFriendHubData} from '../../hooks/useFriendHubData';
 import {useFriendInvitationsData} from '../../hooks/useFriendInvitationsData';
@@ -53,6 +57,7 @@ jest.mock('@/shared/design-system/components', () => ({
     return createElement(Text, undefined, items.map(item => item.label).join(' '));
   },
   StackHeader: () => null,
+  ToneBadge: () => null,
   StateCard: ({title}: {title: string}) => {
     const {createElement} = require('react');
     const {Text} = require('react-native');
@@ -78,6 +83,8 @@ const mockedUseInvalidationVersion = jest.mocked(useInvalidationVersion);
 const mockedUseIsFocused = jest.mocked(useIsFocused);
 const mockedUseNavigation = jest.mocked(useNavigation);
 const mockedUseRoute = jest.mocked(useRoute);
+const mockedNavigateToCommunityChat = jest.mocked(navigateToCommunityChat);
+const mockedNavigateToTaxiChat = jest.mocked(navigateToTaxiChat);
 
 const createFriendHubData = (
   overrides: Partial<ReturnType<typeof useFriendHubData>> = {},
@@ -200,6 +207,76 @@ describe('FriendHubScreen', () => {
 
     expect(view.getByText('친구 0 요청 0 초대')).toBeTruthy();
     expect(view.queryByText(/undefined/)).toBeNull();
+  });
+
+  it('초대 수락 완료 전에 화면을 떠났으면 대상 화면으로 이동하지 않는다', async () => {
+    const navigation = {
+      goBack: jest.fn(),
+      isFocused: jest.fn().mockReturnValue(false),
+      navigate: jest.fn(),
+      setParams: jest.fn(),
+    };
+    const invitation = {
+      createdAt: '2026-08-23T12:00:00',
+      expiresAt: null,
+      expiryReason: null,
+      id: 'party-invitation-1',
+      inviter: {
+        department: null,
+        favorite: false,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      },
+      respondedAt: null,
+      status: 'PENDING' as const,
+      target: {
+        currentMembers: 2,
+        departureName: '성결대학교',
+        departureTime: '2026-08-23T14:00:00',
+        destinationName: '안양역',
+        id: 'party-1',
+        maxMembers: 4,
+        status: 'OPEN' as const,
+        type: 'PARTY' as const,
+      },
+      type: 'PARTY' as const,
+    };
+    const acceptInvitation = jest.fn().mockResolvedValue({
+      invitationId: invitation.id,
+      status: 'ACCEPTED',
+      targetId: 'party-1',
+      type: 'PARTY',
+    });
+    mockedUseNavigation.mockReturnValue(
+      navigation as ReturnType<typeof useNavigation>,
+    );
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'invitations'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation,
+      chatError: undefined,
+      declineInvitation: jest.fn(),
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [invitation],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 1,
+      reload: jest.fn().mockResolvedValue(undefined),
+    });
+
+    const view = render(<FriendHubScreen />);
+    fireEvent.press(view.getByText('수락'));
+
+    await waitFor(() => {
+      expect(acceptInvitation).toHaveBeenCalledWith(invitation);
+    });
+    expect(mockedNavigateToTaxiChat).not.toHaveBeenCalled();
+    expect(mockedNavigateToCommunityChat).not.toHaveBeenCalled();
   });
 
   it('화면을 떠난 뒤 즐겨찾기 저장이 실패해도 오류를 표시하지 않는다', async () => {
