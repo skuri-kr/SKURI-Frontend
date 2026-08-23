@@ -25,7 +25,7 @@ import {
   TimetableDetailSkeleton,
   type SegmentedControlItem,
 } from '@/shared/design-system/components';
-import {COLORS, SPACING} from '@/shared/design-system/tokens';
+import {COLORS, RADIUS, SPACING} from '@/shared/design-system/tokens';
 import {useScreenView} from '@/shared/hooks/useScreenView';
 
 import {TimetableAddCourseSheet} from '../components/TimetableAddCourseSheet';
@@ -248,6 +248,31 @@ export const TimetableDetailScreen = () => {
             />
           ) : null}
 
+          {error && data ? (
+            <View
+              accessibilityLiveRegion="polite"
+              style={styles.refreshErrorBanner}>
+              <Icon
+                color={COLORS.accent.orange}
+                name="alert-circle-outline"
+                size={18}
+              />
+              <Text numberOfLines={2} style={styles.refreshErrorLabel}>
+                {error}
+              </Text>
+              <TouchableOpacity
+                accessibilityLabel="시간표 다시 불러오기"
+                accessibilityRole="button"
+                activeOpacity={0.82}
+                onPress={() => {
+                  reload().catch(() => undefined);
+                }}
+                style={styles.refreshRetryButton}>
+                <Text style={styles.refreshRetryLabel}>다시 시도</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
           {data && !hasAnyCourse ? (
             <StateCard
               actionLabel="수업 추가"
@@ -454,6 +479,36 @@ const styles = StyleSheet.create({
   },
   stateCard: {
     marginHorizontal: 16,
+  },
+  refreshErrorBanner: {
+    alignItems: 'center',
+    backgroundColor: COLORS.background.surface,
+    borderColor: COLORS.accent.orange,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  refreshErrorLabel: {
+    color: COLORS.text.secondary,
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  refreshRetryButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 32,
+    paddingHorizontal: SPACING.sm,
+  },
+  refreshRetryLabel: {
+    color: COLORS.brand.primaryStrong,
+    fontSize: 12,
+    fontWeight: '700',
   },
   friendTimetableContainer: {
     marginTop: SPACING.xl,
