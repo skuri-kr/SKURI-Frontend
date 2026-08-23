@@ -227,6 +227,7 @@ export const useChatDetailData = (chatRoomId: string | undefined) => {
   ]);
 
   return {
+    chatRoom,
     data,
     error,
     hasOlderMessages,
