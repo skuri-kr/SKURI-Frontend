@@ -48,6 +48,14 @@ const friends = [
   },
 ];
 
+const withFriendScope = (
+  scope: 'PRIVATE' | 'BUSY_ONLY' | 'DETAILS',
+) => friends.map(friend => ({
+  ...friend,
+  effectiveTimetableScope:
+    friend.id === 'friend-a' ? scope : ('PRIVATE' as const),
+}));
+
 describe('useFriendTimetableData', () => {
   beforeEach(() => {
     jest.resetAllMocks();
@@ -168,6 +176,171 @@ describe('useFriendTimetableData', () => {
     });
 
     expect(getFriendTimetable).toHaveBeenCalledTimes(2);
+  });
+
+  it('친구 공개 범위가 바뀌면 접힌 시간표 캐시를 폐기한다', async () => {
+    const getFriends = jest
+      .fn()
+      .mockResolvedValueOnce(withFriendScope('DETAILS'))
+      .mockResolvedValueOnce(withFriendScope('PRIVATE'));
+    const getFriendTimetable = jest
+      .fn()
+      .mockResolvedValueOnce({
+        courses: [],
+        effectiveScope: 'DETAILS',
+        hasTimetable: true,
+        semester: '2026-2',
+        slots: [],
+      })
+      .mockResolvedValueOnce({
+        courses: [],
+        effectiveScope: 'PRIVATE',
+        hasTimetable: false,
+        semester: '2026-2',
+        slots: [],
+      });
+    mockedUseFriendRepository.mockReturnValue({
+      getFriends,
+      updateFavorite: jest.fn(),
+    } as unknown as ReturnType<typeof useFriendRepository>);
+    mockedUseTimetableRepository.mockReturnValue({
+      getFriendTimetable,
+    } as unknown as ReturnType<typeof useTimetableRepository>);
+
+    const {result} = renderHook(() => useFriendTimetableData('2026-2'));
+    await waitFor(() => {
+      expect(result.current.friends).toHaveLength(2);
+    });
+
+    act(() => {
+      result.current.selectFriend('friend-a');
+    });
+    await waitFor(() => {
+      expect(result.current.selectedTimetable?.effectiveScope).toBe('DETAILS');
+    });
+    act(() => {
+      result.current.selectFriend('friend-a');
+    });
+
+    await act(async () => {
+      await result.current.reloadFriends();
+    });
+    act(() => {
+      result.current.selectFriend('friend-a');
+    });
+
+    await waitFor(() => {
+      expect(getFriendTimetable).toHaveBeenCalledTimes(2);
+      expect(result.current.selectedTimetable?.effectiveScope).toBe('PRIVATE');
+    });
+  });
+
+  it('pull-to-refresh는 접힌 친구 시간표 캐시도 폐기한다', async () => {
+    const getFriendTimetable = jest.fn().mockResolvedValue({
+      courses: [],
+      effectiveScope: 'DETAILS',
+      hasTimetable: true,
+      semester: '2026-2',
+      slots: [],
+    });
+    mockedUseFriendRepository.mockReturnValue({
+      getFriends: jest.fn().mockResolvedValue(withFriendScope('DETAILS')),
+      updateFavorite: jest.fn(),
+    } as unknown as ReturnType<typeof useFriendRepository>);
+    mockedUseTimetableRepository.mockReturnValue({
+      getFriendTimetable,
+    } as unknown as ReturnType<typeof useTimetableRepository>);
+
+    const {result} = renderHook(() => useFriendTimetableData('2026-2'));
+    await waitFor(() => {
+      expect(result.current.friends).toHaveLength(2);
+    });
+
+    act(() => {
+      result.current.selectFriend('friend-a');
+    });
+    await waitFor(() => {
+      expect(result.current.selectedTimetable?.effectiveScope).toBe('DETAILS');
+    });
+    act(() => {
+      result.current.selectFriend('friend-a');
+    });
+
+    await act(async () => {
+      await result.current.refresh();
+    });
+    act(() => {
+      result.current.selectFriend('friend-a');
+    });
+
+    await waitFor(() => {
+      expect(getFriendTimetable).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('펼친 친구의 공개 범위가 바뀌면 기존 상세를 숨기고 강제 재조회한다', async () => {
+    const privateTimetable = createDeferred<{
+      courses: [];
+      effectiveScope: 'PRIVATE';
+      hasTimetable: false;
+      semester: string;
+      slots: [];
+    }>();
+    const getFriends = jest
+      .fn()
+      .mockResolvedValueOnce(withFriendScope('DETAILS'))
+      .mockResolvedValueOnce(withFriendScope('PRIVATE'));
+    const getFriendTimetable = jest
+      .fn()
+      .mockResolvedValueOnce({
+        courses: [],
+        effectiveScope: 'DETAILS',
+        hasTimetable: true,
+        semester: '2026-2',
+        slots: [],
+      })
+      .mockReturnValueOnce(privateTimetable.promise);
+    mockedUseFriendRepository.mockReturnValue({
+      getFriends,
+      updateFavorite: jest.fn(),
+    } as unknown as ReturnType<typeof useFriendRepository>);
+    mockedUseTimetableRepository.mockReturnValue({
+      getFriendTimetable,
+    } as unknown as ReturnType<typeof useTimetableRepository>);
+
+    const {result} = renderHook(() => useFriendTimetableData('2026-2'));
+    await waitFor(() => {
+      expect(result.current.friends).toHaveLength(2);
+    });
+    act(() => {
+      result.current.selectFriend('friend-a');
+    });
+    await waitFor(() => {
+      expect(result.current.selectedTimetable?.effectiveScope).toBe('DETAILS');
+    });
+
+    let reloadPromise!: Promise<void>;
+    act(() => {
+      reloadPromise = result.current.reloadFriends();
+    });
+    await waitFor(() => {
+      expect(getFriendTimetable).toHaveBeenCalledTimes(2);
+      expect(result.current.selectedTimetable).toBeUndefined();
+      expect(result.current.loadingTimetable).toBe(true);
+    });
+
+    await act(async () => {
+      privateTimetable.resolve({
+        courses: [],
+        effectiveScope: 'PRIVATE',
+        hasTimetable: false,
+        semester: '2026-2',
+        slots: [],
+      });
+      await reloadPromise;
+    });
+
+    expect(result.current.selectedTimetable?.effectiveScope).toBe('PRIVATE');
   });
 
   it('같은 친구의 즐겨찾기 변경 요청을 한 번만 전송한다', async () => {
