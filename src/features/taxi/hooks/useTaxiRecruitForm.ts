@@ -29,9 +29,6 @@ const PRESET_TAG_OPTIONS = [
   '#여성전용',
   '#조용히',
   '#빠른출발',
-  '#흡연자환영',
-  '#짐많음',
-  '#대화환영',
 ] as const;
 
 const MAX_MEMBER_OPTIONS = [2, 3, 4, 5, 6, 7] as const;

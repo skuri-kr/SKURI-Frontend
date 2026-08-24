@@ -553,7 +553,7 @@ const styles = StyleSheet.create({
   headerActions: {flexDirection: 'row', gap: 2},
   headerButton: {alignItems: 'center', height: 36, justifyContent: 'center', width: 36},
   tabControl: {marginBottom: SPACING.lg},
-  listCard: {backgroundColor: COLORS.background.surface, borderRadius: RADIUS.lg, overflow: 'hidden', ...SHADOWS.card},
+  listCard: {backgroundColor: COLORS.background.surface, borderRadius: RADIUS.lg, ...SHADOWS.card},
   rowDivider: {borderBottomColor: COLORS.border.subtle, borderBottomWidth: 1},
   requestContent: {gap: SPACING.sm},
   invitationContent: {gap: SPACING.sm},
