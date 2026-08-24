@@ -45,6 +45,7 @@ export type TaxiHomePartyJoinActionState =
   | 'request'
   | 'pending'
   | 'joined'
+  | 'full'
   | 'blocked-by-other-party'
   | 'unavailable';
 

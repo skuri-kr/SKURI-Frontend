@@ -296,7 +296,7 @@ const loadPersonalTaxiState = async (): Promise<PersonalTaxiState> => {
   };
 };
 
-const buildJoinAction = ({
+export const buildJoinAction = ({
   party,
   activePartyId,
   pendingJoinRequest,
@@ -312,6 +312,14 @@ const buildJoinAction = ({
       helperText: '현재 내가 참여 중인 파티예요',
       label: '파티 채팅 가기',
       state: 'joined',
+    };
+  }
+
+  if (party.currentMemberCount >= party.maxMemberCount) {
+    return {
+      helperText: '파티 정원이 모두 찼어요',
+      label: '파티 정원이 가득 찼습니다',
+      state: 'full',
     };
   }
 

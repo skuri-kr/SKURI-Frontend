@@ -111,6 +111,8 @@ export const mapJoinRequestStatusDto = (
       return 'declined';
     case 'CANCELED':
       return 'canceled';
+    case 'EXPIRED':
+      return 'expired';
     case 'PENDING':
     default:
       return 'pending';
@@ -150,6 +152,8 @@ export const mapJoinRequestListItemDtoToJoinRequest = ({
   leaderId: string;
 }): JoinRequest => ({
   createdAt: normalizeDate(dto.createdAt),
+  expiryReason:
+    dto.expiryReason === 'CAPACITY_FULL' ? 'capacity-full' : undefined,
   id: dto.id,
   leaderId,
   partyId: dto.partyId,
@@ -161,6 +165,8 @@ export const mapJoinRequestListItemDtoToJoinRequest = ({
 export const mapJoinRequestListItemDtoToStatus = (
   dto: JoinRequestListItemResponseDto,
 ): JoinRequestStatus => ({
+  expiryReason:
+    dto.expiryReason === 'CAPACITY_FULL' ? 'capacity-full' : undefined,
   partyId: dto.partyId,
   requestId: dto.id,
   status: mapJoinRequestStatusDto(dto.status),

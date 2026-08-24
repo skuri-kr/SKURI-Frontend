@@ -99,6 +99,16 @@ export const AcceptancePendingScreen = () => {
           onPress: () => navigation.goBack(),
         },
       ]);
+      return;
+    }
+
+    if (data.requestState === 'expired') {
+      Alert.alert('동승 요청 종료', '파티 정원이 가득 차 요청이 종료되었습니다.', [
+        {
+          text: '확인',
+          onPress: () => navigation.goBack(),
+        },
+      ]);
     }
   }, [data, navigation]);
 
