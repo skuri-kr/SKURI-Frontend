@@ -60,7 +60,10 @@ export const FriendDetailScreen = () => {
     updateFavorite,
   } = useFriendDetailData(friendId);
   const partyInviteContext = React.useMemo<FriendInviteContext | null>(() => {
-    if (!myParty?.id || myParty.status !== 'open') {
+    if (
+      !myParty?.id ||
+      (myParty.status !== 'open' && myParty.status !== 'closed')
+    ) {
       return null;
     }
 

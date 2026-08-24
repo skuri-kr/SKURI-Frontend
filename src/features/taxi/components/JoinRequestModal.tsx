@@ -23,6 +23,7 @@ import {
 } from '@/shared/design-system/tokens';
 
 type Props = {
+  invitationInviterName?: string;
   visible: boolean;
   requesterName: string;
   onAccept: () => void | Promise<void>;
@@ -33,6 +34,7 @@ type Props = {
 const ANIMATION_DURATION = 220;
 
 export const JoinRequestModal: React.FC<Props> = ({
+  invitationInviterName,
   visible,
   requesterName,
   onAccept,
@@ -96,8 +98,9 @@ export const JoinRequestModal: React.FC<Props> = ({
 
             <Text style={styles.title}>동승 요청이 도착했어요</Text>
             <Text style={styles.description}>
-              <Text style={styles.requesterName}>{requesterName}</Text>
-              님이 현재 파티에 참여하고 싶어 해요.
+              {invitationInviterName
+                ? `${invitationInviterName}님이 ${requesterName}님을 파티에 초대했어요.`
+                : `${requesterName}님이 현재 파티에 참여하고 싶어 해요.`}
             </Text>
             <Text style={styles.caption}>
               요청을 수락하면 파티원으로 즉시 합류됩니다.
@@ -222,10 +225,6 @@ const styles = StyleSheet.create({
   primaryButtonLabel: {
     ...TYPOGRAPHY.body1,
     color: COLORS.text.inverse,
-    fontWeight: '700',
-  },
-  requesterName: {
-    color: COLORS.text.primary,
     fontWeight: '700',
   },
   secondaryButton: {

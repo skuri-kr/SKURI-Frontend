@@ -63,6 +63,7 @@ export const AppRuntimeHost = () => {
     <>
       <JoinRequestModal
         visible={Boolean(joinData)}
+        invitationInviterName={joinData?.invitationInviterName}
         requesterName={requesterName}
         onDecline={handleDecline}
         onAccept={handleAccept}

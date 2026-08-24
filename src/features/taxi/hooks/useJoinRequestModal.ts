@@ -12,6 +12,7 @@ import {useNotificationActionRepository} from './useNotificationActionRepository
 import {usePartyRepository} from './usePartyRepository';
 
 export interface JoinRequestData {
+  invitationInviterName?: string;
   partyId: string;
   requestId: string;
   requesterId?: string;
@@ -134,6 +135,7 @@ export function useJoinRequestModal({
     }
 
     return {
+      invitationInviterName: currentJoinRequest.invitationInviterName,
       partyId: currentJoinRequest.partyId,
       requestId: currentJoinRequest.id,
       requesterId: currentJoinRequest.requesterId,
