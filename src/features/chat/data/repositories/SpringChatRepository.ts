@@ -1030,6 +1030,9 @@ export class SpringChatRepository implements IChatRepository {
     const response = await chatApiClient.getChatRooms(
       this.buildListFilter(subscription.filter),
     );
+    if (this.listSubscriptions.get(subscriptionId) !== subscription) {
+      return;
+    }
     const rooms = response.data
       .map(mapChatRoomSummaryDto)
       .filter(isGeneralChatRoom);

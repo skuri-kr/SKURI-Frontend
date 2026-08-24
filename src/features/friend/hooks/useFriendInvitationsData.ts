@@ -256,6 +256,7 @@ export const useFriendInvitationsData = () => {
         return;
       }
 
+      let keepMutationLocked = false;
       try {
         if (invitation.type === 'PARTY') {
           await repository.deletePartyInvitation(invitation.id);
@@ -263,10 +264,22 @@ export const useFriendInvitationsData = () => {
           await repository.deleteChatRoomInvitation(invitation.id);
         }
         removeInvitation(invitation);
+      } catch (error) {
+        if (isUncertainMutationError(error)) {
+          pendingReconciliationRef.current.set(invitation.id, invitation.type);
+          await reload();
+          keepMutationLocked = pendingReconciliationRef.current.has(
+            invitation.id,
+          );
+        }
+        throw error;
       } finally {
-        endMutation(invitation.id);
+        if (!keepMutationLocked) {
+          pendingReconciliationRef.current.delete(invitation.id);
+          endMutation(invitation.id);
+        }
       }
-    }, [beginMutation, endMutation, removeInvitation, repository],
+    }, [beginMutation, endMutation, reload, removeInvitation, repository],
   );
 
   const invitations = React.useMemo(

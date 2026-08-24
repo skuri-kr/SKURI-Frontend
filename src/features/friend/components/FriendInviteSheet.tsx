@@ -277,6 +277,10 @@ export const FriendInviteSheet = ({
   }, [eligible?.friends, query]);
 
   const toggleFriend = React.useCallback((friendId: string) => {
+    if (sending) {
+      return;
+    }
+
     setSelectedIds(current => {
       const next = new Set(current);
       if (next.has(friendId)) {
@@ -286,7 +290,7 @@ export const FriendInviteSheet = ({
       }
       return next;
     });
-  }, []);
+  }, [sending]);
 
   const handleUnavailableCount = React.useCallback(() => {
     if (!eligible) {
@@ -486,8 +490,9 @@ export const FriendInviteSheet = ({
                 <TouchableOpacity
                   accessibilityLabel={`${friend.nickname} ${selected ? '선택 해제' : '선택'}`}
                   accessibilityRole="checkbox"
-                  accessibilityState={{checked: selected}}
+                  accessibilityState={{checked: selected, disabled: sending}}
                   activeOpacity={0.82}
+                  disabled={sending}
                   key={friend.id}
                   onPress={() => toggleFriend(friend.id)}
                   style={[
