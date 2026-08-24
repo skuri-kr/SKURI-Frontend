@@ -62,30 +62,7 @@ export const DetailCommentCard = ({
             </View>
           ) : null}
         </View>
-        <View style={styles.trailingRow}>
-          <Text style={styles.dateLabel}>{comment.dateLabel}</Text>
-          {onPressEdit || onPressDelete ? (
-            <View style={styles.trailingActionsRow}>
-              {onPressEdit ? (
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  activeOpacity={0.8}
-                  onPress={onPressEdit}>
-                  <Text style={styles.actionLabel}>수정</Text>
-                </TouchableOpacity>
-              ) : null}
-              {onPressDelete ? (
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  activeOpacity={deleteDisabled ? 1 : 0.8}
-                  disabled={deleteDisabled}
-                  onPress={onPressDelete}>
-                  <Text style={styles.deleteActionLabel}>삭제</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          ) : null}
-        </View>
+        <Text style={styles.dateLabel}>{comment.dateLabel}</Text>
       </View>
 
       {comment.replyTargetLabel ? (
@@ -140,14 +117,35 @@ export const DetailCommentCard = ({
             </TouchableOpacity>
           </View>
 
-          {onPressReport ? (
-            <TouchableOpacity
-              accessibilityRole="button"
-              activeOpacity={0.8}
-              onPress={onPressReport}
-              style={styles.reportButton}>
-              <Text style={styles.reportButtonLabel}>신고</Text>
-            </TouchableOpacity>
+          {onPressEdit || onPressDelete || onPressReport ? (
+            <View style={styles.trailingActionsRow}>
+              {onPressEdit ? (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  activeOpacity={0.8}
+                  onPress={onPressEdit}>
+                  <Text style={styles.actionLabel}>수정</Text>
+                </TouchableOpacity>
+              ) : null}
+              {onPressDelete ? (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  activeOpacity={deleteDisabled ? 1 : 0.8}
+                  disabled={deleteDisabled}
+                  onPress={onPressDelete}>
+                  <Text style={styles.deleteActionLabel}>삭제</Text>
+                </TouchableOpacity>
+              ) : null}
+              {onPressReport ? (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  activeOpacity={0.8}
+                  onPress={onPressReport}
+                  style={styles.reportButton}>
+                  <Text style={styles.reportButtonLabel}>신고</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           ) : null}
         </View>
       ) : null}
@@ -231,6 +229,7 @@ const styles = StyleSheet.create({
     color: COLORS.text.muted,
     fontSize: 12,
     lineHeight: 16,
+    marginLeft: SPACING.sm,
   },
   bodyText: {
     color: COLORS.text.strong,
@@ -275,11 +274,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     lineHeight: 14,
-  },
-  trailingRow: {
-    alignItems: 'flex-end',
-    gap: SPACING.sm,
-    marginLeft: SPACING.sm,
   },
   trailingActionsRow: {
     alignItems: 'center',
