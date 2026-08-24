@@ -1022,7 +1022,9 @@ export class SpringChatRepository implements IChatRepository {
     return this.stompConnectionPromise;
   }
 
-  private async fetchAndPublishListSubscription(subscriptionId: number) {
+  private async fetchAndPublishListSubscription(
+    subscriptionId: number,
+  ): Promise<void> {
     const subscription = this.listSubscriptions.get(subscriptionId);
 
     if (!subscription) {
@@ -1040,8 +1042,7 @@ export class SpringChatRepository implements IChatRepository {
       subscription.filter.joinedOnly &&
       membershipGeneration !== this.joinedMembershipGeneration
     ) {
-      this.publishLists();
-      return;
+      return this.fetchAndPublishListSubscription(subscriptionId);
     }
     const rooms = response.data
       .map(mapChatRoomSummaryDto)
