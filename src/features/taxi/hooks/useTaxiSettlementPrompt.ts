@@ -89,8 +89,6 @@ export const useTaxiSettlementPrompt = ({
   const [location, setLocation] = React.useState<Awaited<
     ReturnType<typeof getCurrentLocationSnapshotIfAuthorized>
   >>(null);
-  const [clipboardCandidate, setClipboardCandidate] =
-    React.useState<TaxiAccountCandidate | null>(null);
   const [sentAccountCandidate, setSentAccountCandidate] =
     React.useState<TaxiAccountCandidate | null>(null);
   const [accountMessageSent, setAccountMessageSent] = React.useState(false);
@@ -130,7 +128,6 @@ export const useTaxiSettlementPrompt = ({
     timeFallbackDue && (!hasSeenTimeFallback || timeFallbackLatched);
   const hasNonLocationPrompt = Boolean(
     composerCandidate ||
-      clipboardCandidate ||
       sentAccountCandidate ||
       accountMessageSent ||
       timeFallbackAvailable,
@@ -175,7 +172,6 @@ export const useTaxiSettlementPrompt = ({
     let mounted = true;
 
     setStorageState(undefined);
-    setClipboardCandidate(null);
     setSentAccountCandidate(null);
     setAccountMessageSent(false);
     setTimeFallbackLatched(false);
@@ -284,13 +280,6 @@ export const useTaxiSettlementPrompt = ({
       };
     }
 
-    if (clipboardCandidate) {
-      return {
-        accountCandidate: clipboardCandidate,
-        reason: 'clipboard',
-      };
-    }
-
     if (sentAccountCandidate) {
       return {
         accountCandidate: sentAccountCandidate,
@@ -313,7 +302,6 @@ export const useTaxiSettlementPrompt = ({
     return null;
   }, [
     accountMessageSent,
-    clipboardCandidate,
     composerCandidate,
     isEligible,
     nearDestination,
@@ -356,7 +344,6 @@ export const useTaxiSettlementPrompt = ({
 
     const dismissedUntilMs = Date.now() + SETTLEMENT_PROMPT_DISMISS_DURATION_MS;
 
-    setClipboardCandidate(null);
     setSentAccountCandidate(null);
     setAccountMessageSent(false);
     setTimeFallbackLatched(false);
@@ -368,34 +355,6 @@ export const useTaxiSettlementPrompt = ({
       dismissedUntilMs,
     }).catch(() => undefined);
   }, [partyId]);
-
-  const presentClipboardCandidate = React.useCallback(
-    (value: string) => {
-      const candidate = findTaxiAccountCandidate(value);
-
-      if (!candidate) {
-        return null;
-      }
-
-      setClipboardCandidate(candidate);
-      setSentAccountCandidate(null);
-      setAccountMessageSent(false);
-      setStorageState(currentState => ({
-        ...currentState,
-        dismissedUntilMs: undefined,
-      }));
-      setNowMs(Date.now());
-
-      if (partyId) {
-        updateTaxiSettlementPromptStorageState(partyId, {
-          dismissedUntilMs: undefined,
-        }).catch(() => undefined);
-      }
-
-      return candidate;
-    },
-    [partyId],
-  );
 
   const noteOutgoingText = React.useCallback((value: string) => {
     const candidate = findTaxiAccountCandidate(value);
@@ -413,7 +372,6 @@ export const useTaxiSettlementPrompt = ({
     dismissPrompt,
     noteAccountMessageSent,
     noteOutgoingText,
-    presentClipboardCandidate,
     prompt: visiblePrompt,
   } as const;
 };

@@ -30,7 +30,6 @@ const ACCOUNT_LABELS = new Set([
 
 export type TaxiSettlementPromptReason =
   | 'account-text'
-  | 'clipboard'
   | 'account-message'
   | 'near-destination'
   | 'departure-time';

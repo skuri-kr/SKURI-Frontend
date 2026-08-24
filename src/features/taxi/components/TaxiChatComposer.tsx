@@ -50,8 +50,6 @@ const getActionIconName = (actionId: TaxiChatActionTrayActionId) => {
       return 'car-outline';
     case 'sendAccount':
       return 'card-outline';
-    case 'pasteAccount':
-      return 'clipboard-outline';
     case 'close':
       return 'pause-outline';
     case 'reopen':
@@ -78,11 +76,6 @@ const getActionToneStyle = (action: TaxiChatActionTrayActionViewData) => {
       return {
         backgroundColor: COLORS.accent.blueSoft,
         iconColor: COLORS.accent.blue,
-      };
-    case 'pasteAccount':
-      return {
-        backgroundColor: COLORS.accent.purpleSoft,
-        iconColor: COLORS.accent.purple,
       };
     case 'reopen':
     case 'arrive':

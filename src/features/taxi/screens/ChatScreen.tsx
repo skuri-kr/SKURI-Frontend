@@ -282,7 +282,6 @@ export const ChatScreen = () => {
     dismissPrompt: dismissSettlementPrompt,
     noteAccountMessageSent,
     noteOutgoingText,
-    presentClipboardCandidate,
     prompt: settlementPrompt,
   } = useTaxiSettlementPrompt({
     actionInFlight: Boolean(actionInFlightId) || sendingAccount,
@@ -630,25 +629,6 @@ export const ChatScreen = () => {
     ]);
   }, [endParty, runAction]);
 
-  const handlePasteAccountFromClipboard = React.useCallback(async () => {
-    try {
-      const clipboardText = await Clipboard.getString();
-      const candidate = presentClipboardCandidate(clipboardText);
-
-      if (!candidate) {
-        Alert.alert(
-          '계좌 정보를 찾지 못했습니다',
-          '계좌번호와 은행명 또는 예금주가 함께 복사되어 있는지 확인해주세요.',
-        );
-      }
-    } catch {
-      Alert.alert(
-        '클립보드 불러오기 실패',
-        '클립보드의 계좌 정보를 불러오지 못했습니다. 직접 입력해주세요.',
-      );
-    }
-  }, [presentClipboardCandidate]);
-
   const handleActionTrayAction = React.useCallback(
     (actionId: TaxiChatActionTrayActionId) => {
       setActionTrayVisible(false);
@@ -661,11 +641,6 @@ export const ChatScreen = () => {
       if (actionId === 'sendAccount') {
         setSettlementPromptAccountPrefill(null);
         setAccountSheetVisible(true);
-        return;
-      }
-
-      if (actionId === 'pasteAccount') {
-        handlePasteAccountFromClipboard().catch(() => undefined);
         return;
       }
 
@@ -721,13 +696,7 @@ export const ChatScreen = () => {
         },
       ]);
     },
-    [
-      closeParty,
-      endParty,
-      handlePasteAccountFromClipboard,
-      reopenParty,
-      runAction,
-    ],
+    [closeParty, endParty, reopenParty, runAction],
   );
 
   const handlePromptAccountOnly = React.useCallback(() => {

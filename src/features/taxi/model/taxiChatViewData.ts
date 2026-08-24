@@ -17,7 +17,6 @@ export type TaxiChatPartyStatus = 'open' | 'closed' | 'arrived' | 'ended';
 export type TaxiChatActionTrayActionId =
   | 'callTaxi'
   | 'sendAccount'
-  | 'pasteAccount'
   | 'close'
   | 'reopen'
   | 'arrive'

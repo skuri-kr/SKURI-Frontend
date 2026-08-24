@@ -122,21 +122,6 @@ const buildActionTrayActions = (
     return actions;
   }
 
-  const hasSettlementTarget = partyChat.participants.some(
-    participant => !participant.isLeader,
-  );
-
-  if (
-    hasSettlementTarget &&
-    (partyChat.partyStatus === 'open' || partyChat.partyStatus === 'closed')
-  ) {
-    actions.push({
-      id: 'pasteAccount',
-      label: '계좌 불러오기',
-      tone: 'info',
-    });
-  }
-
   if (partyChat.partyStatus === 'open') {
     actions.push({
       id: 'close',
