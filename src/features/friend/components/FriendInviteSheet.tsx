@@ -381,7 +381,7 @@ export const FriendInviteSheet = ({
       <BottomSheetScrollView
         contentContainerStyle={[
           styles.content,
-          {paddingBottom: insets.bottom + SPACING.lg},
+          {paddingBottom: insets.bottom + SPACING.xxl},
         ]}
         showsVerticalScrollIndicator={false}>
         <View style={styles.titleRow}>
@@ -557,7 +557,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
   },
-  capacityGroup: {alignItems: 'center', flexDirection: 'row', gap: 6},
+  capacityGroup: {alignItems: 'center', flexDirection: 'row', gap: 6, marginTop: SPACING.md},
   capacityLabel: {color: COLORS.text.secondary, fontSize: 12},
   checkbox: {
     alignItems: 'center',
@@ -603,7 +603,6 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
     flexDirection: 'row',
     gap: SPACING.sm,
-    marginTop: SPACING.md,
     padding: SPACING.md,
   },
   guideText: {color: COLORS.text.secondary, flex: 1, fontSize: 12},
@@ -662,6 +661,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: SPACING.md,
     justifyContent: 'space-between',
+    marginBottom: SPACING.md,
   },
   titleText: {flex: 1},
 });

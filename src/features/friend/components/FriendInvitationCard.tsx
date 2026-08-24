@@ -127,12 +127,6 @@ export const FriendInvitationCard = ({
           ) : null}
         </View>
       </View>
-
-      {invitation.type === 'PARTY' && !expired ? (
-        <Text style={styles.helperText}>
-          초대는 좌석을 예약하지 않으며 수락 시점에 정원을 다시 확인해요.
-        </Text>
-      ) : null}
       {expired ? <Text style={styles.expiryText}>{expiryMessage}</Text> : null}
 
       {expired ? (
@@ -190,7 +184,6 @@ const styles = StyleSheet.create({
   expiryText: {color: COLORS.accent.orange, fontSize: 12, lineHeight: 18, marginTop: SPACING.sm},
   header: {alignItems: 'center', flexDirection: 'row', gap: SPACING.sm},
   headerText: {flex: 1},
-  helperText: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: SPACING.sm},
   inviterName: {color: COLORS.text.primary, fontSize: 15, fontWeight: '800', lineHeight: 21},
   targetLabel: {color: COLORS.text.primary, flex: 1, fontSize: 14, fontWeight: '700', lineHeight: 20},
   targetMeta: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: 2},
