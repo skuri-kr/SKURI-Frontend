@@ -128,23 +128,30 @@ export interface FriendInvitationBatchResponseDto {
 }
 
 export interface PartyInvitationEligibleFriendsResponseDto {
+  alreadyMemberFriends: FriendInvitationCandidateResponseDto[];
   alreadyMemberCount: number;
+  alreadyPendingFriends: FriendInvitationCandidateResponseDto[];
   alreadyPendingCount: number;
+  canInvite: boolean;
   friends: FriendInvitationCandidateResponseDto[];
   notEligibleCount: number;
   partyId: string;
   remainingCapacity: number;
   targetName: string;
+  unavailableReason: 'PARTY_FULL' | null;
 }
 
 export interface ChatRoomInvitationEligibleFriendsResponseDto {
+  alreadyMemberFriends: FriendInvitationCandidateResponseDto[];
   alreadyMemberCount: number;
+  alreadyPendingFriends: FriendInvitationCandidateResponseDto[];
   alreadyPendingCount: number;
   chatRoomId: string;
   expiresInDays: number;
   friends: FriendInvitationCandidateResponseDto[];
   notEligibleCount: number;
   remainingCapacity: number | null;
+  sameDepartmentOnly: boolean;
   targetName: string;
 }
 
@@ -200,7 +207,9 @@ export interface ChatRoomInvitationReceivedResponseDto {
 }
 
 export interface PartyInvitationMutationResponseDto {
+  result: 'JOINED' | 'LEADER_APPROVAL_PENDING' | null;
   invitationId: string;
+  joinRequestId: string | null;
   partyId: string;
   status: 'ACCEPTED' | 'DECLINED';
 }

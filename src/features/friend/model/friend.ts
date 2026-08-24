@@ -113,14 +113,19 @@ export interface FriendInvitationSendResult {
 }
 
 export interface FriendInvitationEligibleFriends {
+  alreadyMemberFriends: FriendInvitationCandidate[];
   alreadyMemberCount: number;
+  alreadyPendingFriends: FriendInvitationCandidate[];
   alreadyPendingCount: number;
+  canInvite: boolean;
   expiresInDays: number | null;
   friends: FriendInvitationCandidate[];
   notEligibleCount: number;
   remainingCapacity: number | null;
+  sameDepartmentOnly: boolean;
   targetId: string;
   targetName: string;
+  unavailableReason: 'PARTY_FULL' | null;
 }
 
 export type FriendInvitationStatus = 'PENDING' | 'EXPIRED';
@@ -172,7 +177,9 @@ export interface FriendInvitation {
 }
 
 export interface FriendInvitationMutation {
+  acceptResult: 'JOINED' | 'LEADER_APPROVAL_PENDING' | null;
   invitationId: string;
+  joinRequestId: string | null;
   status: 'ACCEPTED' | 'DECLINED';
   targetId: string;
   type: 'PARTY' | 'CHAT_ROOM';

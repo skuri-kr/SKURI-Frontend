@@ -60,6 +60,7 @@ export const PopupMenu = ({
   visible,
   width = 184,
 }: PopupMenuProps) => {
+  const pendingActionRef = React.useRef<(() => void) | null>(null);
   const [shouldRender, setShouldRender] = React.useState(visible);
   const [renderItems, setRenderItems] = React.useState(items);
   const [renderPosition, setRenderPosition] = React.useState({
@@ -68,6 +69,28 @@ export const PopupMenu = ({
     width,
   });
   const progress = useSharedValue(visible ? 1 : 0);
+
+  const finishClosing = React.useCallback(() => {
+    setShouldRender(false);
+    const pendingAction = pendingActionRef.current;
+    pendingActionRef.current = null;
+    if (pendingAction) {
+      requestAnimationFrame(pendingAction);
+    }
+  }, []);
+
+  const handleClose = React.useCallback(() => {
+    pendingActionRef.current = null;
+    onClose();
+  }, [onClose]);
+
+  const handleActionPress = React.useCallback(
+    (action: () => void) => {
+      pendingActionRef.current = action;
+      onClose();
+    },
+    [onClose],
+  );
 
   React.useEffect(() => {
     if (!visible) {
@@ -94,11 +117,11 @@ export const PopupMenu = ({
       {duration: MENU_ANIMATION_OUT_DURATION},
       finished => {
         if (finished) {
-          runOnJS(setShouldRender)(false);
+          runOnJS(finishClosing)();
         }
       },
     );
-  }, [progress, visible]);
+  }, [finishClosing, progress, visible]);
 
   const overlayAnimatedStyle = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0, 1], [0, 1]),
@@ -119,7 +142,7 @@ export const PopupMenu = ({
   return (
     <Modal
       animationType="none"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
       transparent
       visible={shouldRender}>
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
@@ -127,7 +150,7 @@ export const PopupMenu = ({
           pointerEvents="none"
           style={[styles.overlay, overlayAnimatedStyle]}
         />
-        <Pressable onPress={onClose} style={StyleSheet.absoluteFill} />
+        <Pressable onPress={handleClose} style={StyleSheet.absoluteFill} />
 
         <Animated.View
           style={[
@@ -174,10 +197,7 @@ export const PopupMenu = ({
                   <TouchableOpacity
                     accessibilityRole="button"
                     activeOpacity={0.82}
-                    onPress={() => {
-                      onClose();
-                      item.onPress();
-                    }}
+                    onPress={() => handleActionPress(item.onPress)}
                     style={styles.actionRow}>
                     <Icon
                       color={
