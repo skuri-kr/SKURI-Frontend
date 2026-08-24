@@ -172,8 +172,9 @@ describe('SpringChatRepository list filter', () => {
     const pendingResponse = deferred<{success: true; data: []}>();
     const messageSubscription = {unsubscribe: jest.fn()};
     const mutationSubscription = {unsubscribe: jest.fn()};
+    const onData = jest.fn();
     repository.listSubscriptions.set(1, {
-      callbacks: {onData: jest.fn(), onError: jest.fn()},
+      callbacks: {onData, onError: jest.fn()},
       filter: {category: 'all', joinedOnly: true, userId: 'member-1'},
       id: 1,
     });
@@ -202,5 +203,8 @@ describe('SpringChatRepository list filter', () => {
     expect(repository.roomCache.get('room-1')).toMatchObject({isJoined: true});
     expect(messageSubscription.unsubscribe).not.toHaveBeenCalled();
     expect(mutationSubscription.unsubscribe).not.toHaveBeenCalled();
+    expect(onData).toHaveBeenLastCalledWith([
+      expect.objectContaining({id: 'room-1', isJoined: true}),
+    ]);
   });
 });
