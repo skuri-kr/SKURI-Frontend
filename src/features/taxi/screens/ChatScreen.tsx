@@ -3,6 +3,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -53,6 +54,7 @@ import {TaxiChatHeaderMenu} from '../components/TaxiChatHeaderMenu';
 import {TaxiChatMessageList} from '../components/TaxiChatMessageList';
 import {TaxiChatSummaryCard} from '../components/TaxiChatSummaryCard';
 import {TaxiPartyEditSheet} from '../components/TaxiPartyEditSheet';
+import {TaxiPartyMemberSheet} from '../components/TaxiPartyMemberSheet';
 import {TaxiSettlementPromptBanner} from '../components/TaxiSettlementPromptBanner';
 import {TaxiSettlementStatusSheet} from '../components/TaxiSettlementStatusSheet';
 import {
@@ -193,6 +195,7 @@ export const ChatScreen = () => {
     endParty,
     error,
     hasOlderMessages,
+    kickMember,
     leaveParty,
     loadOlderMessages,
     loading,
@@ -211,6 +214,7 @@ export const ChatScreen = () => {
   const [composerValue, setComposerValue] = React.useState('');
   const [menuVisible, setMenuVisible] = React.useState(false);
   const [inviteSheetVisible, setInviteSheetVisible] = React.useState(false);
+  const [memberSheetVisible, setMemberSheetVisible] = React.useState(false);
   const [actionTrayVisible, setActionTrayVisible] = React.useState(false);
   const [taxiCallSheetVisible, setTaxiCallSheetVisible] = React.useState(false);
   const [accountSheetVisible, setAccountSheetVisible] = React.useState(false);
@@ -1069,7 +1073,12 @@ export const ChatScreen = () => {
             canCancelParty={data.menu.canCancelParty}
             canEditParty={data.menu.canEditParty}
             canLeave={Boolean(data.menu.canLeave)}
-            canInviteFriends={data.summary.partyStatus === 'open'}
+            canInviteFriends={
+              data.summary.partyStatus === 'open' ||
+              (data.summary.partyStatus === 'closed' &&
+                data.summary.currentMemberCount >= data.summary.maxMemberCount)
+            }
+            canManageMembers
             canReport
             destructiveActionLabel={
               data.summary.partyStatus === 'open' ||
@@ -1109,9 +1118,10 @@ export const ChatScreen = () => {
             }}
             onLeaveParty={handleLeaveParty}
             onInviteFriends={() => {
-              setMenuVisible(false);
+              Keyboard.dismiss();
               setInviteSheetVisible(true);
             }}
+            onManageMembers={() => setMemberSheetVisible(true)}
             onReport={handleOpenPartyReport}
             onToggleNotification={() => {
               toggleNotification().catch(toggleError => {
@@ -1141,6 +1151,21 @@ export const ChatScreen = () => {
           onClose={() => setInviteSheetVisible(false)}
           visible={inviteSheetVisible}
         />
+
+        {data ? (
+          <TaxiPartyMemberSheet
+            actionInFlightId={actionInFlightId}
+            canKick={
+              data.summary.management.isLeader &&
+              (data.summary.partyStatus === 'open' ||
+                data.summary.partyStatus === 'closed')
+            }
+            members={data.summary.members}
+            onClose={() => setMemberSheetVisible(false)}
+            onKick={kickMember}
+            visible={memberSheetVisible}
+          />
+        ) : null}
 
         {data ? (
           <>

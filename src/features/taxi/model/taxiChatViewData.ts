@@ -43,6 +43,7 @@ export interface TaxiChatSettlementMemberViewData {
   isCurrentUser: boolean;
   isLeader: boolean;
   label: string;
+  photoUrl?: string;
   leftAt?: string;
   leftParty?: boolean;
   settled: boolean;
@@ -63,6 +64,7 @@ export interface TaxiChatSettlementNoticeViewData {
 }
 
 export interface TaxiChatSummaryViewData {
+  currentMemberCount: number;
   departureLabel: string;
   departureLocation: PartyLocation;
   departureTimeISO: string;
@@ -73,6 +75,7 @@ export interface TaxiChatSummaryViewData {
   estimatedFareLabel: string;
   management: TaxiChatSummaryManagementViewData;
   memberSummaryLabel: string;
+  maxMemberCount: number;
   members: TaxiChatSettlementMemberViewData[];
   partyStatus: TaxiChatPartyStatus;
   settlementNotice?: TaxiChatSettlementNoticeViewData;

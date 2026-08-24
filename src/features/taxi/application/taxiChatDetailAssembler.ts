@@ -32,6 +32,7 @@ const buildSummaryMembers = (
     isCurrentUser: participant.id === currentUserId,
     isLeader: participant.isLeader,
     label: participant.name,
+    photoUrl: participant.photoUrl,
     settled: participant.isLeader ? true : participant.settled,
   }));
 
@@ -151,11 +152,13 @@ const buildActionTrayActions = (
   }
 
   if (partyChat.partyStatus === 'closed') {
-    actions.push({
-      id: 'reopen',
-      label: '모집 재개',
-      tone: 'info',
-    });
+    if (partyChat.memberCount < partyChat.maxMembers) {
+      actions.push({
+        id: 'reopen',
+        label: '모집 재개',
+        tone: 'info',
+      });
+    }
     actions.push({
       id: 'arrive',
       label: '택시 도착',
@@ -396,6 +399,7 @@ export const buildTaxiChatViewData = ({
     },
     roomId: partyChat.id,
     summary: {
+      currentMemberCount: partyChat.memberCount,
       departureLabel: partyChat.departureLocation.name,
       departureLocation: partyChat.departureLocation,
       departureTimeISO: partyChat.departureTimeISO,
@@ -408,6 +412,7 @@ export const buildTaxiChatViewData = ({
       estimatedFareLabel: partyChat.estimatedFareLabel,
       management,
       memberSummaryLabel: `${partyChat.memberCount}/${partyChat.maxMembers}명`,
+      maxMemberCount: partyChat.maxMembers,
       members,
       partyStatus: partyChat.partyStatus,
       settlementNotice,
