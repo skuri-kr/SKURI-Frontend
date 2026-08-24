@@ -18,6 +18,7 @@ import Animated from 'react-native-reanimated';
 
 import {useReportRepository} from '@/di';
 import {useAuth} from '@/features/auth';
+import {FriendInviteSheet} from '@/features/friend/components/FriendInviteSheet';
 import type {ReportCategory} from '@/features/report';
 import {StateCard} from '@/shared/design-system/components';
 import {COLORS, SPACING} from '@/shared/design-system/tokens';
@@ -209,6 +210,7 @@ export const ChatScreen = () => {
   } = useTaxiChatDetailData(route.params?.partyId);
   const [composerValue, setComposerValue] = React.useState('');
   const [menuVisible, setMenuVisible] = React.useState(false);
+  const [inviteSheetVisible, setInviteSheetVisible] = React.useState(false);
   const [actionTrayVisible, setActionTrayVisible] = React.useState(false);
   const [taxiCallSheetVisible, setTaxiCallSheetVisible] = React.useState(false);
   const [accountSheetVisible, setAccountSheetVisible] = React.useState(false);
@@ -1067,6 +1069,7 @@ export const ChatScreen = () => {
             canCancelParty={data.menu.canCancelParty}
             canEditParty={data.menu.canEditParty}
             canLeave={Boolean(data.menu.canLeave)}
+            canInviteFriends={data.summary.partyStatus === 'open'}
             canReport
             destructiveActionLabel={
               data.summary.partyStatus === 'open' ||
@@ -1105,6 +1108,10 @@ export const ChatScreen = () => {
               handleEndParty();
             }}
             onLeaveParty={handleLeaveParty}
+            onInviteFriends={() => {
+              setMenuVisible(false);
+              setInviteSheetVisible(true);
+            }}
             onReport={handleOpenPartyReport}
             onToggleNotification={() => {
               toggleNotification().catch(toggleError => {
@@ -1120,6 +1127,20 @@ export const ChatScreen = () => {
             visible={menuVisible}
           />
         ) : null}
+
+        <FriendInviteSheet
+          context={
+            data
+              ? {
+                  targetId: route.params.partyId,
+                  targetName: `${data.summary.departureLabel} → ${data.summary.destinationLabel} 파티`,
+                  type: 'PARTY',
+                }
+              : null
+          }
+          onClose={() => setInviteSheetVisible(false)}
+          visible={inviteSheetVisible}
+        />
 
         {data ? (
           <>

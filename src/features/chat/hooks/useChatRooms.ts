@@ -8,7 +8,14 @@ import { useChatRepository } from './useChatRepository';
 
 export type { ChatRoomCategory } from '../model/types';
 
-export const useChatRooms = (category: ChatRoomCategory) => {
+interface UseChatRoomsOptions {
+  joinedOnly?: boolean;
+}
+
+export const useChatRooms = (
+  category: ChatRoomCategory,
+  {joinedOnly = false}: UseChatRoomsOptions = {},
+) => {
   const { user } = useAuth();
   const chatRepository = useChatRepository();
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
@@ -33,6 +40,7 @@ export const useChatRooms = (category: ChatRoomCategory) => {
     const unsubscribe = chatRepository.subscribeToChatRoomsByCategory(
       {
         category,
+        joinedOnly,
         userId: user?.uid,
         department: user?.department ?? undefined,
       },
@@ -51,7 +59,7 @@ export const useChatRooms = (category: ChatRoomCategory) => {
     );
 
     return () => unsubscribe();
-  }, [category, chatRepository, reloadToken, user?.department, user?.uid]);
+  }, [category, chatRepository, joinedOnly, reloadToken, user?.department, user?.uid]);
 
   return { chatRooms, loading, error, refresh } as const;
 };

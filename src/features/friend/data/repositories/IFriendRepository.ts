@@ -3,6 +3,10 @@ import type {
   FriendCode,
   FriendCodePreview,
   FriendInboxCounts,
+  FriendInvitation,
+  FriendInvitationEligibleFriends,
+  FriendInvitationMutation,
+  FriendInvitationSendResult,
   FriendMinecraftAccounts,
   FriendPrivacy,
   FriendRequestDirection,
@@ -41,4 +45,29 @@ export interface IFriendRepository {
   unblockMember(friendPublicId: string): Promise<void>;
   updateFavorite(friendPublicId: string, favorite: boolean): Promise<void>;
   updateMyPrivacy(nicknameSearchable: boolean): Promise<FriendPrivacy>;
+}
+
+export interface IFriendInvitationRepository extends IFriendRepository {
+  acceptChatRoomInvitation(invitationId: string): Promise<FriendInvitationMutation>;
+  acceptPartyInvitation(invitationId: string): Promise<FriendInvitationMutation>;
+  createChatRoomInvitations(
+    chatRoomId: string,
+    friendPublicIds: string[],
+  ): Promise<FriendInvitationSendResult[]>;
+  createPartyInvitations(
+    partyId: string,
+    friendPublicIds: string[],
+  ): Promise<FriendInvitationSendResult[]>;
+  declineChatRoomInvitation(invitationId: string): Promise<FriendInvitationMutation>;
+  declinePartyInvitation(invitationId: string): Promise<FriendInvitationMutation>;
+  deleteChatRoomInvitation(invitationId: string): Promise<void>;
+  deletePartyInvitation(invitationId: string): Promise<void>;
+  getChatRoomInvitationEligibleFriends(
+    chatRoomId: string,
+  ): Promise<FriendInvitationEligibleFriends>;
+  getPartyInvitationEligibleFriends(
+    partyId: string,
+  ): Promise<FriendInvitationEligibleFriends>;
+  getReceivedChatRoomInvitations(): Promise<FriendInvitation[]>;
+  getReceivedPartyInvitations(): Promise<FriendInvitation[]>;
 }

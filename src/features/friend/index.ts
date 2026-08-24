@@ -1,4 +1,7 @@
-export type {IFriendRepository} from './data/repositories/IFriendRepository';
+export type {
+  IFriendInvitationRepository,
+  IFriendRepository,
+} from './data/repositories/IFriendRepository';
 export {SpringFriendRepository} from './data/repositories/SpringFriendRepository';
 export {FriendHubScreen} from './screens/FriendHubScreen';
 export {FriendAddScreen} from './screens/FriendAddScreen';

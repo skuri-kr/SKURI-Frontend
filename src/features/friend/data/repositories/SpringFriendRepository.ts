@@ -3,6 +3,9 @@ import {
   type FriendApiClient,
 } from '../api/friendApiClient';
 import {
+  mapChatRoomInvitationDto,
+  mapChatRoomInvitationEligibleFriendsDto,
+  mapChatRoomInvitationMutationDto,
   mapFriendBlockDto,
   mapFriendCodeDto,
   mapFriendCodePreviewDto,
@@ -13,12 +16,16 @@ import {
   mapFriendRequestPageDto,
   mapFriendSearchPageDto,
   mapFriendSummaryDto,
+  mapFriendInvitationSendResultDto,
+  mapPartyInvitationDto,
+  mapPartyInvitationEligibleFriendsDto,
+  mapPartyInvitationMutationDto,
 } from '../mappers/friendApiMappers';
 import type {
   FriendRequestDirection,
   FriendSummary,
 } from '../../model/friend';
-import type {IFriendRepository} from './IFriendRepository';
+import type {IFriendInvitationRepository} from './IFriendRepository';
 
 const FRIEND_NAME_COLLATOR = new Intl.Collator('ko');
 
@@ -31,7 +38,7 @@ const sortFriends = (friends: FriendSummary[]) =>
     return FRIEND_NAME_COLLATOR.compare(left.nickname, right.nickname) || left.id.localeCompare(right.id);
   });
 
-export class SpringFriendRepository implements IFriendRepository {
+export class SpringFriendRepository implements IFriendInvitationRepository {
   constructor(private readonly apiClient: FriendApiClient = friendApiClient) {}
 
   async getFriends() {
@@ -139,5 +146,67 @@ export class SpringFriendRepository implements IFriendRepository {
   async updateMyPrivacy(nicknameSearchable: boolean) {
     const response = await this.apiClient.updateMyPrivacy({nicknameSearchable});
     return mapFriendPrivacyDto(response.data);
+  }
+
+  async getPartyInvitationEligibleFriends(partyId: string) {
+    const response = await this.apiClient.getPartyInvitationEligibleFriends(partyId);
+    return mapPartyInvitationEligibleFriendsDto(response.data);
+  }
+
+  async createPartyInvitations(partyId: string, friendPublicIds: string[]) {
+    const response = await this.apiClient.createPartyInvitations(partyId, {
+      friendPublicIds,
+    });
+    return response.data.results.map(mapFriendInvitationSendResultDto);
+  }
+
+  async getReceivedPartyInvitations() {
+    const response = await this.apiClient.getReceivedPartyInvitations();
+    return response.data.map(mapPartyInvitationDto);
+  }
+
+  async acceptPartyInvitation(invitationId: string) {
+    const response = await this.apiClient.acceptPartyInvitation(invitationId);
+    return mapPartyInvitationMutationDto(response.data);
+  }
+
+  async declinePartyInvitation(invitationId: string) {
+    const response = await this.apiClient.declinePartyInvitation(invitationId);
+    return mapPartyInvitationMutationDto(response.data);
+  }
+
+  async deletePartyInvitation(invitationId: string) {
+    await this.apiClient.deletePartyInvitation(invitationId);
+  }
+
+  async getChatRoomInvitationEligibleFriends(chatRoomId: string) {
+    const response = await this.apiClient.getChatRoomInvitationEligibleFriends(chatRoomId);
+    return mapChatRoomInvitationEligibleFriendsDto(response.data);
+  }
+
+  async createChatRoomInvitations(chatRoomId: string, friendPublicIds: string[]) {
+    const response = await this.apiClient.createChatRoomInvitations(chatRoomId, {
+      friendPublicIds,
+    });
+    return response.data.results.map(mapFriendInvitationSendResultDto);
+  }
+
+  async getReceivedChatRoomInvitations() {
+    const response = await this.apiClient.getReceivedChatRoomInvitations();
+    return response.data.map(mapChatRoomInvitationDto);
+  }
+
+  async acceptChatRoomInvitation(invitationId: string) {
+    const response = await this.apiClient.acceptChatRoomInvitation(invitationId);
+    return mapChatRoomInvitationMutationDto(response.data);
+  }
+
+  async declineChatRoomInvitation(invitationId: string) {
+    const response = await this.apiClient.declineChatRoomInvitation(invitationId);
+    return mapChatRoomInvitationMutationDto(response.data);
+  }
+
+  async deleteChatRoomInvitation(invitationId: string) {
+    await this.apiClient.deleteChatRoomInvitation(invitationId);
   }
 }

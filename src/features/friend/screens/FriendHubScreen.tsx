@@ -22,6 +22,10 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import Animated from 'react-native-reanimated';
 
 import {type CampusStackParamList} from '@/app/navigation/types';
+import {
+  navigateToCommunityChat,
+  navigateToTaxiChat,
+} from '@/app/navigation/services/appRouteNavigation';
 import {useInvalidationVersion} from '@/app/data-freshness/dataInvalidation';
 import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {SegmentedControl, StackHeader, StateCard} from '@/shared/design-system/components';
@@ -34,12 +38,14 @@ import {
 import {useScreenView} from '@/shared/hooks/useScreenView';
 
 import {FriendRequestCard} from '../components/FriendRequestCard';
+import {FriendInvitationCard} from '../components/FriendInvitationCard';
 import {FriendRow} from '../components/FriendRow';
 import {FriendDataErrorBanner} from '../components/FriendDataErrorBanner';
 import {useFriendHubData} from '../hooks/useFriendHubData';
+import {useFriendInvitationsData} from '../hooks/useFriendInvitationsData';
 import {getDuplicateFriendProfileIds} from '../model/friendDisambiguation';
 
-type FriendHubTab = 'friends' | 'requests';
+type FriendHubTab = 'friends' | 'requests' | 'invitations';
 
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -86,6 +92,19 @@ export const FriendHubScreen = () => {
     updateFavorite,
     updatingFavoriteIds,
   } = useFriendHubData();
+  const {
+    acceptInvitation,
+    chatError: chatInvitationError,
+    declineInvitation,
+    deleteInvitation,
+    hasLoaded: hasLoadedInvitations,
+    invitations,
+    loading: invitationsLoading,
+    mutatingIds: mutatingInvitationIds,
+    partyError: partyInvitationError,
+    pendingCount: pendingInvitationCount,
+    reload: reloadInvitations,
+  } = useFriendInvitationsData();
 
   React.useEffect(() => {
     if (lastInvalidationVersionRef.current === undefined) {
@@ -98,9 +117,9 @@ export const FriendHubScreen = () => {
 
     lastInvalidationVersionRef.current = friendHubInvalidationVersion;
     if (isFocused) {
-      reload().catch(() => undefined);
+      Promise.all([reload(), reloadInvitations()]).catch(() => undefined);
     }
-  }, [friendHubInvalidationVersion, isFocused, reload]);
+  }, [friendHubInvalidationVersion, isFocused, reload, reloadInvitations]);
 
   const duplicateRequestFriendIds = React.useMemo(
     () => getDuplicateFriendProfileIds(
@@ -123,6 +142,9 @@ export const FriendHubScreen = () => {
   const hasInitialRequestLoadPending =
     (!hasLoadedReceivedRequests && !receivedRequestsError) ||
     (!hasLoadedSentRequests && !sentRequestsError);
+  const invitationTabLabel = hasLoadedInvitations && pendingInvitationCount !== undefined
+    ? `초대 ${pendingInvitationCount}`
+    : '초대';
 
   React.useEffect(() => {
     const initialTab = route.params?.initialTab;
@@ -141,8 +163,8 @@ export const FriendHubScreen = () => {
         return;
       }
 
-      reload().catch(() => undefined);
-    }, [reload]),
+      Promise.all([reload(), reloadInvitations()]).catch(() => undefined);
+    }, [reload, reloadInvitations]),
   );
 
   const showErrorAlert = React.useCallback(
@@ -203,11 +225,51 @@ export const FriendHubScreen = () => {
   const handleRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
-      await reload();
+      await Promise.all([reload(), reloadInvitations()]);
     } finally {
       setRefreshing(false);
     }
-  }, [reload]);
+  }, [reload, reloadInvitations]);
+
+  const handleAcceptInvitation = React.useCallback(
+    async (invitation: (typeof invitations)[number]) => {
+      try {
+        const mutation = await acceptInvitation(invitation);
+        if (!mutation) {
+          return;
+        }
+        if (!navigation.isFocused()) {
+          return;
+        }
+        if (mutation.type === 'PARTY') {
+          navigateToTaxiChat(mutation.targetId);
+        } else {
+          navigateToCommunityChat(mutation.targetId);
+        }
+      } catch (acceptError) {
+        showErrorAlert(acceptError, '초대를 수락하지 못했습니다. 최신 상태를 확인해 주세요.');
+      }
+    },
+    [acceptInvitation, navigation, showErrorAlert],
+  );
+
+  const handleDeclineInvitation = React.useCallback(
+    (invitation: (typeof invitations)[number]) => {
+      declineInvitation(invitation).catch(declineError => {
+        showErrorAlert(declineError, '초대를 거절하지 못했습니다.');
+      });
+    },
+    [declineInvitation, showErrorAlert],
+  );
+
+  const handleDeleteInvitation = React.useCallback(
+    (invitation: (typeof invitations)[number]) => {
+      deleteInvitation(invitation).catch(deleteError => {
+        showErrorAlert(deleteError, '초대 기록을 지우지 못했습니다.');
+      });
+    },
+    [deleteInvitation, showErrorAlert],
+  );
 
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
@@ -256,6 +318,7 @@ export const FriendHubScreen = () => {
               id: 'requests',
               label: requestTabLabel,
             },
+            {id: 'invitations', label: invitationTabLabel},
           ]}
           onSelect={setSelectedTab}
           selectedId={selectedTab}
@@ -422,6 +485,51 @@ export const FriendHubScreen = () => {
             ) : null}
           </View>
         ) : null}
+
+        {selectedTab === 'invitations' ? (
+          <View style={styles.invitationContent}>
+            {!hasLoadedInvitations && invitationsLoading ? (
+              <StateCard
+                description="받은 친구 초대를 준비하고 있습니다."
+                icon={<ActivityIndicator color={COLORS.brand.primary} />}
+                title="친구 초대를 불러오는 중"
+              />
+            ) : null}
+            {partyInvitationError ? (
+              <FriendDataErrorBanner
+                error={partyInvitationError}
+                onRetry={reloadInvitations}
+              />
+            ) : null}
+            {chatInvitationError ? (
+              <FriendDataErrorBanner
+                error={chatInvitationError}
+                onRetry={reloadInvitations}
+              />
+            ) : null}
+            {hasLoadedInvitations && invitations.length > 0
+              ? invitations.map(invitation => (
+                  <FriendInvitationCard
+                    invitation={invitation}
+                    key={`${invitation.type}-${invitation.id}`}
+                    loading={mutatingInvitationIds.has(invitation.id)}
+                    onAccept={() => {
+                      handleAcceptInvitation(invitation).catch(() => undefined);
+                    }}
+                    onDecline={() => handleDeclineInvitation(invitation)}
+                    onDelete={() => handleDeleteInvitation(invitation)}
+                  />
+                ))
+              : null}
+            {hasLoadedInvitations && invitations.length === 0 && !partyInvitationError && !chatInvitationError ? (
+              <StateCard
+                description="택시파티나 공개 채팅방 초대가 오면 이곳에서 확인할 수 있어요."
+                icon={<Icon color={COLORS.accent.blue} name="ticket-outline" size={28} />}
+                title="받은 초대가 없어요"
+              />
+            ) : null}
+          </View>
+        ) : null}
         </Animated.View>
       </ScrollView>
     </SafeAreaView>
@@ -448,6 +556,7 @@ const styles = StyleSheet.create({
   listCard: {backgroundColor: COLORS.background.surface, borderRadius: RADIUS.lg, overflow: 'hidden', ...SHADOWS.card},
   rowDivider: {borderBottomColor: COLORS.border.subtle, borderBottomWidth: 1},
   requestContent: {gap: SPACING.sm},
+  invitationContent: {gap: SPACING.sm},
   inlineLoading: {alignItems: 'center', flexDirection: 'row', gap: SPACING.xs, justifyContent: 'center', paddingVertical: SPACING.sm},
   inlineLoadingText: {color: COLORS.text.secondary, fontSize: 12},
   sectionTitle: {color: COLORS.text.primary, fontSize: 14, fontWeight: '700', lineHeight: 20, marginTop: SPACING.sm, paddingHorizontal: 4},

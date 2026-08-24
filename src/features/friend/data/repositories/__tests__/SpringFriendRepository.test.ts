@@ -4,19 +4,31 @@ import {SpringFriendRepository} from '../SpringFriendRepository';
 describe('SpringFriendRepository', () => {
   const createApiClient = (): jest.Mocked<FriendApiClient> =>
     ({
+      acceptChatRoomInvitation: jest.fn(),
       acceptFriendRequest: jest.fn(),
+      acceptPartyInvitation: jest.fn(),
       blockMember: jest.fn(),
       cancelFriendRequest: jest.fn(),
       createFriendRequest: jest.fn(),
+      createChatRoomInvitations: jest.fn(),
+      createPartyInvitations: jest.fn(),
+      declineChatRoomInvitation: jest.fn(),
       declineFriendRequest: jest.fn(),
+      declinePartyInvitation: jest.fn(),
+      deleteChatRoomInvitation: jest.fn(),
+      deletePartyInvitation: jest.fn(),
       getBlocks: jest.fn(),
       getFriend: jest.fn(),
       getFriendMinecraftAccounts: jest.fn(),
+      getChatRoomInvitationEligibleFriends: jest.fn(),
       getFriendRequests: jest.fn(),
       getFriends: jest.fn(),
       getInboxCounts: jest.fn(),
       getMyCode: jest.fn(),
       getMyPrivacy: jest.fn(),
+      getPartyInvitationEligibleFriends: jest.fn(),
+      getReceivedChatRoomInvitations: jest.fn(),
+      getReceivedPartyInvitations: jest.fn(),
       previewFriendCode: jest.fn(),
       regenerateMyCode: jest.fn(),
       removeFriend: jest.fn(),
@@ -182,5 +194,122 @@ describe('SpringFriendRepository', () => {
       requestId: 'request-1',
       status: 'PENDING',
     });
+  });
+
+  it('택시파티 초대 후보와 좌석 정보를 앱 모델로 변환한다', async () => {
+    const apiClient = createApiClient();
+    apiClient.getPartyInvitationEligibleFriends.mockResolvedValue({
+      data: {
+        alreadyMemberCount: 1,
+        alreadyPendingCount: 2,
+        friends: [
+          {
+            department: '컴퓨터공학과',
+            favorite: true,
+            friendPublicId: 'friend-1',
+            nickname: '가람',
+            photoUrl: null,
+          },
+        ],
+        notEligibleCount: 3,
+        partyId: 'party-1',
+        remainingCapacity: 1,
+        targetName: '정문 → 서울역 파티',
+      },
+      success: true,
+    });
+    const repository = new SpringFriendRepository(apiClient);
+
+    await expect(
+      repository.getPartyInvitationEligibleFriends('party-1'),
+    ).resolves.toEqual({
+      alreadyMemberCount: 1,
+      alreadyPendingCount: 2,
+      expiresInDays: null,
+      friends: [
+        {
+          department: '컴퓨터공학과',
+          favorite: true,
+          id: 'friend-1',
+          nickname: '가람',
+          photoUrl: null,
+        },
+      ],
+      notEligibleCount: 3,
+      remainingCapacity: 1,
+      targetId: 'party-1',
+      targetName: '정문 → 서울역 파티',
+    });
+  });
+
+  it('공개 채팅방 batch 결과의 nullable invitationId를 보존한다', async () => {
+    const apiClient = createApiClient();
+    apiClient.createChatRoomInvitations.mockResolvedValue({
+      data: {
+        results: [
+          {
+            friendPublicId: 'friend-1',
+            invitationId: 'invitation-1',
+            outcome: 'SENT',
+          },
+          {
+            friendPublicId: 'friend-2',
+            invitationId: null,
+            outcome: 'NOT_ELIGIBLE',
+          },
+        ],
+      },
+      success: true,
+    });
+    const repository = new SpringFriendRepository(apiClient);
+
+    await expect(
+      repository.createChatRoomInvitations('room-1', ['friend-1', 'friend-2']),
+    ).resolves.toEqual([
+      {
+        friendId: 'friend-1',
+        invitationId: 'invitation-1',
+        outcome: 'SENT',
+      },
+      {
+        friendId: 'friend-2',
+        invitationId: null,
+        outcome: 'NOT_ELIGIBLE',
+      },
+    ]);
+  });
+
+  it('받은 만료 초대의 서버 expiryReason을 재계산하지 않고 보존한다', async () => {
+    const apiClient = createApiClient();
+    apiClient.getReceivedPartyInvitations.mockResolvedValue({
+      data: [
+        {
+          createdAt: '2026-08-23T12:00:00',
+          expiryReason: 'CAPACITY_FULL',
+          invitationId: 'invitation-1',
+          invitationType: 'PARTY',
+          inviter: null,
+          respondedAt: '2026-08-23T12:10:00',
+          status: 'EXPIRED',
+          target: null,
+        },
+      ],
+      success: true,
+    });
+    const repository = new SpringFriendRepository(apiClient);
+
+    await expect(repository.getReceivedPartyInvitations()).resolves.toEqual([
+      {
+        createdAt: '2026-08-23T12:00:00',
+        expiresAt: null,
+        expiryReason: 'CAPACITY_FULL',
+        id: 'invitation-1',
+        inviter: null,
+        respondedAt: '2026-08-23T12:10:00',
+        status: 'EXPIRED',
+        target: null,
+        type: 'PARTY',
+      },
+    ]);
   });
 });

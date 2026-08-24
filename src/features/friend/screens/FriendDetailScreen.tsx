@@ -8,6 +8,8 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import {invalidateData} from '@/app/data-freshness/dataInvalidation';
 import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {type CampusStackParamList} from '@/app/navigation/types';
+import {useChatRooms} from '@/features/chat/hooks/useChatRooms';
+import {useMyParty} from '@/features/taxi/hooks/useMyParty';
 import {SettingsRow, SettingsSection, StackHeader, StateCard} from '@/shared/design-system/components';
 import {COLORS, SPACING} from '@/shared/design-system/tokens';
 import {useScreenView} from '@/shared/hooks/useScreenView';
@@ -16,6 +18,11 @@ import {RepositoryError} from '@/shared/lib/errors';
 import {FriendAvatar} from '../components/FriendAvatar';
 import {FriendDataErrorBanner} from '../components/FriendDataErrorBanner';
 import {FriendMinecraftAccountTree} from '../components/FriendMinecraftAccountTree';
+import {
+  FriendInviteSheet,
+  type FriendInviteContext,
+} from '../components/FriendInviteSheet';
+import {FriendInviteTargetSheet} from '../components/FriendInviteTargetSheet';
 import {useFriendDetailData} from '../hooks/useFriendDetailData';
 
 const getErrorMessage = (error: unknown, fallback: string) => error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -29,6 +36,17 @@ export const FriendDetailScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
   const route = useRoute<any>();
   const {friendId} = route.params as CampusStackParamList['FriendDetail'];
+  const {myParty} = useMyParty();
+  const {
+    chatRooms,
+    error: chatRoomsError,
+    loading: chatRoomsLoading,
+    refresh: refreshChatRooms,
+  } = useChatRooms('all', {joinedOnly: true});
+  const [inviteContext, setInviteContext] =
+    React.useState<FriendInviteContext | null>(null);
+  const [chatTargetSheetVisible, setChatTargetSheetVisible] =
+    React.useState(false);
   const {
     blockFriend,
     error,
@@ -43,6 +61,32 @@ export const FriendDetailScreen = () => {
     removeFriend,
     updateFavorite,
   } = useFriendDetailData(friendId);
+  const partyInviteContext = React.useMemo<FriendInviteContext | null>(() => {
+    if (!myParty?.id || myParty.status !== 'open') {
+      return null;
+    }
+
+    return {
+      targetId: myParty.id,
+      targetName: `${myParty.departure.name} → ${myParty.destination.name} 파티`,
+      type: 'PARTY',
+    };
+  }, [myParty]);
+  const chatInviteContexts = React.useMemo<FriendInviteContext[]>(
+    () =>
+      chatRooms.flatMap(room =>
+        room.id && room.isJoined && room.isPublic && room.type !== 'party'
+          ? [
+              {
+                targetId: room.id,
+                targetName: room.name,
+                type: 'CHAT_ROOM' as const,
+              },
+            ]
+          : [],
+      ),
+    [chatRooms],
+  );
 
   const showMutationError = React.useCallback(
     (actionError: unknown, fallback: string) => {
@@ -141,7 +185,57 @@ export const FriendDetailScreen = () => {
             <SettingsRow accessoryType="chevron" disabled={mutating} iconBackgroundColor={COLORS.accent.orangeSoft} iconColor={COLORS.accent.orange} iconName="person-remove-outline" onPress={handleRemove} showDivider title="친구 끊기" />
             <SettingsRow accessoryType="chevron" disabled={mutating} iconBackgroundColor={COLORS.accent.pinkSoft} iconColor={COLORS.status.danger} iconName="ban-outline" onPress={handleBlock} title="차단하기" />
           </SettingsSection>
-          <Text style={styles.note}>택시파티 및 채팅방 초대 기능은 후속 업데이트에서 제공될 예정이에요.</Text>
+          {partyInviteContext || chatInviteContexts.length > 0 || chatRoomsLoading || chatRoomsError ? (
+            <SettingsSection style={styles.section} title="친구 초대">
+              {partyInviteContext ? (
+                <SettingsRow
+                  accessoryType="chevron"
+                  iconBackgroundColor={COLORS.brand.primaryTint}
+                  iconColor={COLORS.brand.primaryStrong}
+                  iconName="car-outline"
+                  onPress={() => setInviteContext(partyInviteContext)}
+                  showDivider={chatInviteContexts.length > 0 || chatRoomsLoading || Boolean(chatRoomsError)}
+                  title="택시파티에 초대"
+                />
+              ) : null}
+              {chatInviteContexts.length > 0 ? (
+                <SettingsRow
+                  accessoryType="chevron"
+                  iconBackgroundColor={COLORS.accent.blueSoft}
+                  iconColor={COLORS.accent.blue}
+                  iconName="chatbubbles-outline"
+                  onPress={() => {
+                    if (chatInviteContexts.length === 1) {
+                      setInviteContext(chatInviteContexts[0]);
+                      return;
+                    }
+                    setChatTargetSheetVisible(true);
+                  }}
+                  title="공개 채팅방에 초대"
+                />
+              ) : null}
+              {chatRoomsLoading ? (
+                <StateCard
+                  description="참여 중인 공개 채팅방을 확인하고 있습니다."
+                  icon={<ActivityIndicator color={COLORS.brand.primary} />}
+                  style={styles.inviteTargetState}
+                  title="채팅방을 불러오는 중"
+                />
+              ) : null}
+              {!chatRoomsLoading && chatRoomsError ? (
+                <StateCard
+                  actionLabel="다시 시도"
+                  description={getErrorMessage(chatRoomsError, '참여 중인 공개 채팅방을 불러오지 못했습니다.')}
+                  icon={<Icon color={COLORS.accent.orange} name="alert-circle-outline" size={28} />}
+                  onPressAction={() => {
+                    refreshChatRooms().catch(() => undefined);
+                  }}
+                  style={styles.inviteTargetState}
+                  title="채팅방을 불러오지 못했습니다"
+                />
+              ) : null}
+            </SettingsSection>
+          ) : null}
           <View style={styles.minecraftSection}>
             <Text style={styles.minecraftTitle}>마인크래프트 계정</Text>
             {minecraftAccountsLoading ? (
@@ -182,6 +276,21 @@ export const FriendDetailScreen = () => {
           </View>
         </> : null}
       </ScrollView>
+      <FriendInviteTargetSheet
+        onClose={() => setChatTargetSheetVisible(false)}
+        onSelect={context => {
+          setChatTargetSheetVisible(false);
+          setInviteContext(context);
+        }}
+        targets={chatInviteContexts}
+        visible={chatTargetSheetVisible}
+      />
+      <FriendInviteSheet
+        context={inviteContext}
+        initialFriendPublicId={friend?.id}
+        onClose={() => setInviteContext(null)}
+        visible={Boolean(inviteContext)}
+      />
     </SafeAreaView>
   );
 };
@@ -196,6 +305,6 @@ const styles = StyleSheet.create({
   minecraftSection: {marginTop: SPACING.xl},
   minecraftTitle: {color: COLORS.text.primary, fontSize: 15, fontWeight: '800', lineHeight: 22, marginBottom: SPACING.sm, paddingHorizontal: SPACING.xs},
   minecraftAccountList: {gap: SPACING.sm},
+  inviteTargetState: {borderRadius: 0, borderWidth: 0, elevation: 0, shadowOpacity: 0},
   section: {marginTop: SPACING.xl},
-  note: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: SPACING.xl, paddingHorizontal: SPACING.md, textAlign: 'center'},
 });

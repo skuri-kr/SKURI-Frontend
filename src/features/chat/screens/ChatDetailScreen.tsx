@@ -49,6 +49,7 @@ import {
 import {isWithinChatMessageEditWindow} from '@/shared/ui/chat/chatMessageMutationPolicy';
 import {ReportReasonModal} from '@/shared/ui/ReportReasonModal';
 import {MinecraftServerGuideModal} from '@/features/minecraft/components/MinecraftServerGuideModal';
+import {FriendInviteSheet} from '@/features/friend/components/FriendInviteSheet';
 import {
   GUIDE_SERVER_ADDRESS_FALLBACK,
   MINECRAFT_CHAT_ROOM_ID,
@@ -98,6 +99,7 @@ export const ChatDetailScreen = () => {
   const insets = useSafeAreaInsets();
   const screenAnimatedStyle = useScreenEnterAnimation();
   const {
+    chatRoom,
     data,
     error,
     hasOlderMessages,
@@ -126,6 +128,7 @@ export const ChatDetailScreen = () => {
     id: string;
   } | null>(null);
   const [menuVisible, setMenuVisible] = React.useState(false);
+  const [inviteSheetVisible, setInviteSheetVisible] = React.useState(false);
   const [messageMenuState, setMessageMenuState] =
     React.useState<ChatMessageMenuState | null>(null);
   const [isReportSubmitting, setIsReportSubmitting] = React.useState(false);
@@ -713,6 +716,9 @@ export const ChatDetailScreen = () => {
 
         {data ? (
           <ChatPopupMenu
+            canInviteFriends={Boolean(
+              chatRoom?.isJoined && chatRoom.isPublic && chatRoom.type !== 'party',
+            )}
             canReport={data.menu.canReport}
             canToggleNotification={data.menu.canToggleNotification}
             leaveLabel={data.menu.leaveLabel}
@@ -720,6 +726,10 @@ export const ChatDetailScreen = () => {
             notificationEnabled={data.menu.notificationEnabled}
             onClose={() => setMenuVisible(false)}
             onLeave={data.menu.canLeave ? handleLeave : undefined}
+            onInviteFriends={() => {
+              setMenuVisible(false);
+              setInviteSheetVisible(true);
+            }}
             onReport={handleOpenRoomReport}
             onToggleNotification={() => {
               toggleNotification().catch(() => undefined);
@@ -727,6 +737,20 @@ export const ChatDetailScreen = () => {
             visible={menuVisible}
           />
         ) : null}
+
+        <FriendInviteSheet
+          context={
+            chatRoom?.id
+              ? {
+                  targetId: chatRoom.id,
+                  targetName: chatRoom.name,
+                  type: 'CHAT_ROOM',
+                }
+              : null
+          }
+          onClose={() => setInviteSheetVisible(false)}
+          visible={inviteSheetVisible}
+        />
 
         <ChatMessagePopupMenu
           canCopy={Boolean(

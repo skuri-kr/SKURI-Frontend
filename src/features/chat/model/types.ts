@@ -85,6 +85,7 @@ export type ChatRoomCategory =
 
 export interface ChatRoomFilter {
   category: ChatRoomCategory;
+  joinedOnly?: boolean;
   userId?: string;
   department?: string;
 }
