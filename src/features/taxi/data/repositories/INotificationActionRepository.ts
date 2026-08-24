@@ -2,7 +2,8 @@ export type JoinRequestStatusValue =
   | 'pending'
   | 'accepted'
   | 'declined'
-  | 'canceled';
+  | 'canceled'
+  | 'expired';
 
 export interface INotificationActionRepository {
   getJoinRequestStatus(

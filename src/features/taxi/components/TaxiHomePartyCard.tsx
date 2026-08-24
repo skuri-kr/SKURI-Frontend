@@ -109,6 +109,8 @@ const getJoinActionIconName = (
       return 'chatbubble-ellipses';
     case 'pending':
       return 'time-outline';
+    case 'full':
+      return 'people-outline';
     case 'unavailable':
       return 'refresh-outline';
     default:
@@ -183,6 +185,7 @@ export const TaxiHomePartyCard = ({
         : styles.leaderAvatarLabel,
     [party.leaderAvatar],
   );
+  const joinActionDisabled = party.joinAction.state === 'full';
 
   return (
     <Animated.View
@@ -390,15 +393,28 @@ export const TaxiHomePartyCard = ({
 
           <TouchableOpacity
             accessibilityRole="button"
-            activeOpacity={0.88}
+            accessibilityState={{disabled: joinActionDisabled}}
+            activeOpacity={joinActionDisabled ? 1 : 0.88}
+            disabled={joinActionDisabled}
             onPress={() => onPressJoinAction(party)}
-            style={styles.requestButton}>
+            style={[
+              styles.requestButton,
+              joinActionDisabled ? styles.requestButtonDisabled : undefined,
+            ]}>
             <Icon
-              color={COLORS.text.inverse}
+              color={
+                joinActionDisabled ? COLORS.text.muted : COLORS.text.inverse
+              }
               name={getJoinActionIconName(party.joinAction.state)}
               size={16}
             />
-            <Text style={styles.requestButtonLabel}>
+            <Text
+              style={[
+                styles.requestButtonLabel,
+                joinActionDisabled
+                  ? styles.requestButtonLabelDisabled
+                  : undefined,
+              ]}>
               {party.joinAction.label}
             </Text>
           </TouchableOpacity>
@@ -674,6 +690,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 21,
   },
+  requestButtonDisabled: {
+    backgroundColor: COLORS.background.gray,
+    shadowOpacity: 0,
+  },
+  requestButtonLabelDisabled: {color: COLORS.text.muted},
   requestHelperText: {
     color: COLORS.text.muted,
     fontSize: 12,

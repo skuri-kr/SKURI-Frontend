@@ -1,5 +1,6 @@
 import type {CampusStackParamList} from '@/app/navigation/types';
 import type {Party} from '@/features/taxi';
+import type {TaxiAcceptancePendingSeed} from '@/features/taxi/model/taxiAcceptancePendingViewData';
 
 import {runWhenNavigationReady, rootNavigationRef} from '../navigationRef';
 
@@ -115,6 +116,19 @@ export const navigateToTaxiAcceptancePending = (
       params: {
         screen: 'AcceptancePending',
         params: {party, requestId},
+      },
+    });
+  });
+
+export const navigateToTaxiAcceptancePendingBySeed = (
+  seed: TaxiAcceptancePendingSeed,
+) =>
+  runWhenNavigationReady(() => {
+    rootNavigationRef.navigate('Main', {
+      screen: 'TaxiTab',
+      params: {
+        screen: 'AcceptancePending',
+        params: {seed},
       },
     });
   });

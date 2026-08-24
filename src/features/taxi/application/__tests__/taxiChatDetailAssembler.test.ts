@@ -64,4 +64,43 @@ describe('taxiChatDetailAssembler', () => {
       'pasteAccount',
     );
   });
+
+  it('정원이 가득 찬 마감 파티에서는 모집 재개 액션을 제공하지 않는다', () => {
+    const view = buildTaxiChatViewData({
+      currentUserId: 'leader-1',
+      partyChat: createPartyChat({
+        maxMembers: 2,
+        memberCount: 2,
+        partyStatus: 'closed',
+      }),
+    });
+
+    expect(view.actionTrayActions.map(action => action.id)).not.toContain(
+      'reopen',
+    );
+  });
+
+  it('파티원 목록에 현재 인원과 프로필 사진 정보를 전달한다', () => {
+    const view = buildTaxiChatViewData({
+      currentUserId: 'leader-1',
+      partyChat: createPartyChat({
+        participants: [
+          {
+            id: 'leader-1',
+            isLeader: true,
+            name: '리더',
+            photoUrl: 'https://example.com/leader.png',
+            settled: true,
+          },
+          {id: 'member-1', isLeader: false, name: '멤버', settled: false},
+        ],
+      }),
+    });
+
+    expect(view.summary.currentMemberCount).toBe(2);
+    expect(view.summary.maxMemberCount).toBe(4);
+    expect(view.summary.members[0].photoUrl).toBe(
+      'https://example.com/leader.png',
+    );
+  });
 });

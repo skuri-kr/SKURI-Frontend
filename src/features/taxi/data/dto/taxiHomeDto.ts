@@ -4,7 +4,10 @@ export type JoinRequestStatusDto =
   | 'PENDING'
   | 'ACCEPTED'
   | 'DECLINED'
-  | 'CANCELED';
+  | 'CANCELED'
+  | 'EXPIRED';
+
+export type JoinRequestExpiryReasonDto = 'CAPACITY_FULL';
 
 export type TaxiHistoryRoleDto = 'LEADER' | 'MEMBER';
 
@@ -142,6 +145,7 @@ export interface PartyStatusResponseDto {
 }
 
 export interface JoinRequestResponseDto {
+  expiryReason: JoinRequestExpiryReasonDto | null;
   id: string;
   status: JoinRequestStatusDto;
 }
@@ -162,6 +166,7 @@ export interface SettlementConfirmResponseDto {
 export interface JoinRequestListItemResponseDto {
   createdAt: string;
   id: string;
+  expiryReason: JoinRequestExpiryReasonDto | null;
   partyId: string;
   requesterId: string;
   requesterName?: string | null;

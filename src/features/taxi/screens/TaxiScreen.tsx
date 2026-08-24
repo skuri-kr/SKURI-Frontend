@@ -27,6 +27,7 @@ import {
   TAXI_HOME_INVALIDATION_KEY,
 } from '@/app/data-freshness/invalidationKeys';
 import {useScreenEnterAnimation, useScreenView} from '@/shared/hooks';
+import {RepositoryError} from '@/shared/lib/errors';
 import {BOTTOM_TAB_BAR_HEIGHT} from '@/shared/constants/layout';
 import {
   COLORS,
@@ -346,6 +347,10 @@ export const TaxiScreen = () => {
         return;
       }
 
+      if (party.joinAction.state === 'full') {
+        return;
+      }
+
       if (party.joinAction.state === 'blocked-by-other-party') {
         Alert.alert(
           '이미 다른 파티에 참여중이에요.',
@@ -369,6 +374,14 @@ export const TaxiScreen = () => {
         });
       } catch (requestError) {
         console.error('동승 요청 생성 실패', requestError);
+        if (
+          requestError instanceof RepositoryError &&
+          requestError.context?.apiErrorCode === 'PARTY_FULL'
+        ) {
+          Alert.alert('동승 요청 불가', '이미 가득 찬 파티입니다');
+          refetch().catch(() => undefined);
+          return;
+        }
         Alert.alert(
           '동승 요청 실패',
           requestError instanceof Error && requestError.message
@@ -377,7 +390,7 @@ export const TaxiScreen = () => {
         );
       }
     },
-    [navigation, requestJoin],
+    [navigation, refetch, requestJoin],
   );
 
   return (

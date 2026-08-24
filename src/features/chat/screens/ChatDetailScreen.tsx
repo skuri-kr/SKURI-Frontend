@@ -2,6 +2,7 @@ import React from 'react';
 import Clipboard from '@react-native-clipboard/clipboard';
 import {
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -727,7 +728,7 @@ export const ChatDetailScreen = () => {
             onClose={() => setMenuVisible(false)}
             onLeave={data.menu.canLeave ? handleLeave : undefined}
             onInviteFriends={() => {
-              setMenuVisible(false);
+              Keyboard.dismiss();
               setInviteSheetVisible(true);
             }}
             onReport={handleOpenRoomReport}

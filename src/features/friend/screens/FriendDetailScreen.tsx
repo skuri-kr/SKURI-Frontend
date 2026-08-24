@@ -10,6 +10,7 @@ import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys
 import {type CampusStackParamList} from '@/app/navigation/types';
 import {useChatRooms} from '@/features/chat/hooks/useChatRooms';
 import {useMyParty} from '@/features/taxi/hooks/useMyParty';
+import {useFriendInvitationRepository} from '@/di';
 import {SettingsRow, SettingsSection, StackHeader, StateCard} from '@/shared/design-system/components';
 import {COLORS, SPACING} from '@/shared/design-system/tokens';
 import {useScreenView} from '@/shared/hooks/useScreenView';
@@ -18,10 +19,7 @@ import {RepositoryError} from '@/shared/lib/errors';
 import {FriendAvatar} from '../components/FriendAvatar';
 import {FriendDataErrorBanner} from '../components/FriendDataErrorBanner';
 import {FriendMinecraftAccountTree} from '../components/FriendMinecraftAccountTree';
-import {
-  FriendInviteSheet,
-  type FriendInviteContext,
-} from '../components/FriendInviteSheet';
+import type {FriendInviteContext} from '../components/FriendInviteSheet';
 import {FriendInviteTargetSheet} from '../components/FriendInviteTargetSheet';
 import {useFriendDetailData} from '../hooks/useFriendDetailData';
 
@@ -36,6 +34,7 @@ export const FriendDetailScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
   const route = useRoute<any>();
   const {friendId} = route.params as CampusStackParamList['FriendDetail'];
+  const invitationRepository = useFriendInvitationRepository();
   const {myParty} = useMyParty();
   const {
     chatRooms,
@@ -43,10 +42,9 @@ export const FriendDetailScreen = () => {
     loading: chatRoomsLoading,
     refresh: refreshChatRooms,
   } = useChatRooms('all', {joinedOnly: true});
-  const [inviteContext, setInviteContext] =
-    React.useState<FriendInviteContext | null>(null);
   const [chatTargetSheetVisible, setChatTargetSheetVisible] =
     React.useState(false);
+  const [inviting, setInviting] = React.useState(false);
   const {
     blockFriend,
     error,
@@ -110,6 +108,68 @@ export const FriendDetailScreen = () => {
       ]);
     },
     [navigation],
+  );
+
+  const sendInvitation = React.useCallback(
+    async (context: FriendInviteContext) => {
+      if (!friend || inviting) {
+        return;
+      }
+
+      setInviting(true);
+      try {
+        const outcomes =
+          context.type === 'PARTY'
+            ? await invitationRepository.createPartyInvitations(
+                context.targetId,
+                [friend.id],
+              )
+            : await invitationRepository.createChatRoomInvitations(
+                context.targetId,
+                [friend.id],
+              );
+        const outcome = outcomes[0]?.outcome;
+        if (!navigation.isFocused() || outcome === 'SENT') {
+          return;
+        }
+
+        const outcomeMessage =
+          outcome === 'ALREADY_MEMBER'
+            ? '이미 참여 중인 친구예요.'
+            : outcome === 'ALREADY_PENDING'
+              ? '이미 초대 중인 친구예요.'
+              : '지금은 이 친구를 초대할 수 없어요.';
+        Alert.alert('초대할 수 없어요', outcomeMessage);
+      } catch (inviteError) {
+        showMutationError(inviteError, '친구를 초대하지 못했습니다.');
+      } finally {
+        setInviting(false);
+      }
+    }, [friend, invitationRepository, inviting, navigation, showMutationError],
+  );
+
+  const confirmInvitation = React.useCallback(
+    (context: FriendInviteContext) => {
+      if (!friend || inviting) {
+        return;
+      }
+
+      const targetLabel =
+        context.type === 'PARTY' ? '택시파티' : '공개 채팅방';
+      Alert.alert(
+        '친구 초대',
+        `${friend.nickname} 님을 ${targetLabel}에 초대하시겠습니까?`,
+        [
+          {text: '취소', style: 'cancel'},
+          {
+            text: '초대',
+            onPress: () => {
+              sendInvitation(context).catch(() => undefined);
+            },
+          },
+        ],
+      );
+    }, [friend, inviting, sendInvitation],
   );
 
   const handleFavorite = React.useCallback(() => {
@@ -193,7 +253,8 @@ export const FriendDetailScreen = () => {
                   iconBackgroundColor={COLORS.brand.primaryTint}
                   iconColor={COLORS.brand.primaryStrong}
                   iconName="car-outline"
-                  onPress={() => setInviteContext(partyInviteContext)}
+                  disabled={inviting}
+                  onPress={() => confirmInvitation(partyInviteContext)}
                   showDivider={chatInviteContexts.length > 0 || chatRoomsLoading || Boolean(chatRoomsError)}
                   title="택시파티에 초대"
                 />
@@ -204,9 +265,10 @@ export const FriendDetailScreen = () => {
                   iconBackgroundColor={COLORS.accent.blueSoft}
                   iconColor={COLORS.accent.blue}
                   iconName="chatbubbles-outline"
+                  disabled={inviting}
                   onPress={() => {
                     if (chatInviteContexts.length === 1) {
-                      setInviteContext(chatInviteContexts[0]);
+                      confirmInvitation(chatInviteContexts[0]);
                       return;
                     }
                     setChatTargetSheetVisible(true);
@@ -279,17 +341,10 @@ export const FriendDetailScreen = () => {
       <FriendInviteTargetSheet
         onClose={() => setChatTargetSheetVisible(false)}
         onSelect={context => {
-          setChatTargetSheetVisible(false);
-          setInviteContext(context);
+          confirmInvitation(context);
         }}
         targets={chatInviteContexts}
         visible={chatTargetSheetVisible}
-      />
-      <FriendInviteSheet
-        context={inviteContext}
-        initialFriendPublicId={friend?.id}
-        onClose={() => setInviteContext(null)}
-        visible={Boolean(inviteContext)}
       />
     </SafeAreaView>
   );

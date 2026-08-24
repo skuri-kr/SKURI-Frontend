@@ -6,6 +6,7 @@ interface TaxiChatHeaderMenuProps {
   canCancelParty: boolean;
   canEditParty: boolean;
   canLeave: boolean;
+  canManageMembers?: boolean;
   canInviteFriends?: boolean;
   canReport?: boolean;
   destructiveActionLabel: string;
@@ -16,6 +17,7 @@ interface TaxiChatHeaderMenuProps {
   onEditParty: () => void;
   onLeaveParty: () => void;
   onInviteFriends?: () => void;
+  onManageMembers?: () => void;
   onReport?: () => void;
   onToggleNotification: () => void;
   visible: boolean;
@@ -25,6 +27,7 @@ export const TaxiChatHeaderMenu = ({
   canCancelParty,
   canEditParty,
   canLeave,
+  canManageMembers = false,
   canInviteFriends = false,
   canReport = false,
   destructiveActionLabel,
@@ -35,6 +38,7 @@ export const TaxiChatHeaderMenu = ({
   onEditParty,
   onLeaveParty,
   onInviteFriends,
+  onManageMembers,
   onReport,
   onToggleNotification,
   visible,
@@ -67,6 +71,17 @@ export const TaxiChatHeaderMenu = ({
             id: 'invite-friends',
             label: '친구 초대',
             onPress: onInviteFriends,
+            type: 'action' as const,
+          },
+        ]
+      : []),
+    ...(canManageMembers && onManageMembers
+      ? [
+          {
+            iconName: 'people-outline',
+            id: 'members',
+            label: '파티원 목록',
+            onPress: onManageMembers,
             type: 'action' as const,
           },
         ]

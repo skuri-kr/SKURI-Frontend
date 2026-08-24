@@ -24,6 +24,7 @@ import Animated from 'react-native-reanimated';
 import {type CampusStackParamList} from '@/app/navigation/types';
 import {
   navigateToCommunityChat,
+  navigateToTaxiAcceptancePendingBySeed,
   navigateToTaxiChat,
 } from '@/app/navigation/services/appRouteNavigation';
 import {useInvalidationVersion} from '@/app/data-freshness/dataInvalidation';
@@ -242,6 +243,33 @@ export const FriendHubScreen = () => {
           return;
         }
         if (mutation.type === 'PARTY') {
+          if (
+            mutation.acceptResult === 'LEADER_APPROVAL_PENDING' &&
+            mutation.joinRequestId &&
+            invitation.target?.type === 'PARTY'
+          ) {
+            const target = invitation.target;
+            navigateToTaxiAcceptancePendingBySeed({
+              currentMemberCount: target.currentMembers,
+              departureAt: target.departureTime,
+              departureLabel: target.departureName,
+              destinationLabel: target.destinationName,
+              estimatedFareLabel: '미정',
+              leaderAvatar: {
+                backgroundColor: COLORS.border.default,
+                iconColor: COLORS.text.muted,
+                iconName: 'person-outline',
+                id: `${target.id}-leader`,
+                kind: 'icon',
+              },
+              leaderName: '파티장',
+              maxMemberCount: target.maxMembers,
+              memberAvatars: [],
+              partyId: target.id,
+              requestId: mutation.joinRequestId,
+            });
+            return;
+          }
           navigateToTaxiChat(mutation.targetId);
         } else {
           navigateToCommunityChat(mutation.targetId);

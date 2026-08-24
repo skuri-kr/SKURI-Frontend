@@ -51,6 +51,8 @@ const mapRequestState = (
       return 'declined';
     case 'CANCELED':
       return 'canceled';
+    case 'EXPIRED':
+      return 'expired';
     case 'PENDING':
     default:
       return 'pending';
@@ -78,6 +80,12 @@ const buildPendingStatusCopy = (
         cancelButtonLabel: '확인',
         statusDescription: '요청이 취소되어 더 이상 대기하지 않습니다.',
         statusTitle: '동승 요청이 취소되었어요',
+      };
+    case 'expired':
+      return {
+        cancelButtonLabel: '확인',
+        statusDescription: '다른 파티를 찾아 다시 요청할 수 있어요.',
+        statusTitle: '파티 정원이 가득 찼어요',
       };
     case 'pending':
     default:

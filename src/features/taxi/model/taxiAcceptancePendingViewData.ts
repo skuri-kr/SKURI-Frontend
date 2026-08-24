@@ -4,7 +4,8 @@ export type TaxiAcceptancePendingRequestState =
   | 'pending'
   | 'accepted'
   | 'declined'
-  | 'canceled';
+  | 'canceled'
+  | 'expired';
 
 export type TaxiAcceptancePendingAvatarViewData =
   | {

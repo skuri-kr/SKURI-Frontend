@@ -200,8 +200,11 @@ describe('SpringFriendRepository', () => {
     const apiClient = createApiClient();
     apiClient.getPartyInvitationEligibleFriends.mockResolvedValue({
       data: {
+        alreadyMemberFriends: [],
         alreadyMemberCount: 1,
+        alreadyPendingFriends: [],
         alreadyPendingCount: 2,
+        canInvite: true,
         friends: [
           {
             department: '컴퓨터공학과',
@@ -215,6 +218,7 @@ describe('SpringFriendRepository', () => {
         partyId: 'party-1',
         remainingCapacity: 1,
         targetName: '정문 → 서울역 파티',
+        unavailableReason: null,
       },
       success: true,
     });
@@ -223,8 +227,11 @@ describe('SpringFriendRepository', () => {
     await expect(
       repository.getPartyInvitationEligibleFriends('party-1'),
     ).resolves.toEqual({
+      alreadyMemberFriends: [],
       alreadyMemberCount: 1,
+      alreadyPendingFriends: [],
       alreadyPendingCount: 2,
+      canInvite: true,
       expiresInDays: null,
       friends: [
         {
@@ -237,8 +244,10 @@ describe('SpringFriendRepository', () => {
       ],
       notEligibleCount: 3,
       remainingCapacity: 1,
+      sameDepartmentOnly: false,
       targetId: 'party-1',
       targetName: '정문 → 서울역 파티',
+      unavailableReason: null,
     });
   });
 

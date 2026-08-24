@@ -7,6 +7,7 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 import {invalidateData} from '@/app/data-freshness/dataInvalidation';
 import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {useChatRooms} from '@/features/chat/hooks/useChatRooms';
+import {useFriendInvitationRepository} from '@/di';
 import {RepositoryError, RepositoryErrorCode} from '@/shared/lib/errors';
 
 import {useFriendDetailData} from '../../hooks/useFriendDetailData';
@@ -47,6 +48,10 @@ jest.mock('@/shared/design-system/components', () => ({
 
 jest.mock('@/shared/hooks/useScreenView', () => ({useScreenView: jest.fn()}));
 
+jest.mock('@/di', () => ({
+  useFriendInvitationRepository: jest.fn(),
+}));
+
 jest.mock('@/app/data-freshness/dataInvalidation', () => ({
   invalidateData: jest.fn(),
 }));
@@ -81,6 +86,9 @@ const mockedUseNavigation = jest.mocked(useNavigation);
 const mockedUseRoute = jest.mocked(useRoute);
 const mockedUseFriendDetailData = jest.mocked(useFriendDetailData);
 const mockedUseChatRooms = jest.mocked(useChatRooms);
+const mockedUseFriendInvitationRepository = jest.mocked(
+  useFriendInvitationRepository,
+);
 const mockedInvalidateData = jest.mocked(invalidateData);
 
 const createFriendDetailData = (overrides: Partial<ReturnType<typeof useFriendDetailData>> = {}) => ({
@@ -108,6 +116,10 @@ const createFriendDetailData = (overrides: Partial<ReturnType<typeof useFriendDe
 describe('FriendDetailScreen', () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    mockedUseFriendInvitationRepository.mockReturnValue({
+      createChatRoomInvitations: jest.fn(),
+      createPartyInvitations: jest.fn(),
+    } as unknown as ReturnType<typeof useFriendInvitationRepository>);
     mockedUseChatRooms.mockReturnValue({
       chatRooms: [],
       error: null,
@@ -152,6 +164,61 @@ describe('FriendDetailScreen', () => {
     await waitFor(() => {
       expect(refresh).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('한 개의 공개 채팅방 초대는 확인 후 바로 전송하고 성공 Alert는 띄우지 않는다', async () => {
+    const navigation = {
+      goBack: jest.fn(),
+      isFocused: jest.fn().mockReturnValue(true),
+      navigate: jest.fn(),
+    };
+    const createChatRoomInvitations = jest.fn().mockResolvedValue([
+      {friendId: 'friend-1', invitationId: 'invitation-1', outcome: 'SENT'},
+    ]);
+    mockedUseNavigation.mockReturnValue(
+      navigation as ReturnType<typeof useNavigation>,
+    );
+    mockedUseRoute.mockReturnValue({
+      params: {friendId: 'friend-1'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData());
+    mockedUseFriendInvitationRepository.mockReturnValue({
+      createChatRoomInvitations,
+      createPartyInvitations: jest.fn(),
+    } as unknown as ReturnType<typeof useFriendInvitationRepository>);
+    mockedUseChatRooms.mockReturnValue({
+      chatRooms: [
+        {
+          id: 'room-1',
+          isJoined: true,
+          isPublic: true,
+          memberCount: 3,
+          name: '전체 채팅방',
+          type: 'university',
+        },
+      ],
+      error: null,
+      loading: false,
+      refresh: jest.fn(),
+    });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((...args) => {
+      args[2]?.find(button => button.text === '초대')?.onPress?.();
+    });
+
+    const view = render(<FriendDetailScreen />);
+    fireEvent.press(view.getByText('공개 채팅방에 초대'));
+
+    await waitFor(() => {
+      expect(createChatRoomInvitations).toHaveBeenCalledWith('room-1', [
+        'friend-1',
+      ]);
+    });
+    expect(alertSpy).toHaveBeenCalledTimes(1);
+    expect(alertSpy).toHaveBeenCalledWith(
+      '친구 초대',
+      '가람 님을 공개 채팅방에 초대하시겠습니까?',
+      expect.any(Array),
+    );
   });
 
   it('기존 친구 정보를 유지한 재조회 실패를 배너로 알리고 재시도할 수 있다', async () => {

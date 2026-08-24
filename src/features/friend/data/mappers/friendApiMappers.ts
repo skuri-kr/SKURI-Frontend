@@ -155,27 +155,45 @@ export const mapFriendInvitationCandidateDto = (
 export const mapPartyInvitationEligibleFriendsDto = (
   dto: PartyInvitationEligibleFriendsResponseDto,
 ): FriendInvitationEligibleFriends => ({
+  alreadyMemberFriends: dto.alreadyMemberFriends.map(
+    mapFriendInvitationCandidateDto,
+  ),
   alreadyMemberCount: dto.alreadyMemberCount,
+  alreadyPendingFriends: dto.alreadyPendingFriends.map(
+    mapFriendInvitationCandidateDto,
+  ),
   alreadyPendingCount: dto.alreadyPendingCount,
+  canInvite: dto.canInvite,
   expiresInDays: null,
   friends: dto.friends.map(mapFriendInvitationCandidateDto),
   notEligibleCount: dto.notEligibleCount,
   remainingCapacity: dto.remainingCapacity,
+  sameDepartmentOnly: false,
   targetId: dto.partyId,
   targetName: dto.targetName,
+  unavailableReason: dto.unavailableReason,
 });
 
 export const mapChatRoomInvitationEligibleFriendsDto = (
   dto: ChatRoomInvitationEligibleFriendsResponseDto,
 ): FriendInvitationEligibleFriends => ({
+  alreadyMemberFriends: dto.alreadyMemberFriends.map(
+    mapFriendInvitationCandidateDto,
+  ),
   alreadyMemberCount: dto.alreadyMemberCount,
+  alreadyPendingFriends: dto.alreadyPendingFriends.map(
+    mapFriendInvitationCandidateDto,
+  ),
   alreadyPendingCount: dto.alreadyPendingCount,
+  canInvite: true,
   expiresInDays: dto.expiresInDays,
   friends: dto.friends.map(mapFriendInvitationCandidateDto),
   notEligibleCount: dto.notEligibleCount,
   remainingCapacity: dto.remainingCapacity,
+  sameDepartmentOnly: dto.sameDepartmentOnly,
   targetId: dto.chatRoomId,
   targetName: dto.targetName,
+  unavailableReason: null,
 });
 
 export const mapFriendInvitationSendResultDto = (
@@ -237,7 +255,9 @@ export const mapChatRoomInvitationDto = (
 export const mapPartyInvitationMutationDto = (
   dto: PartyInvitationMutationResponseDto,
 ): FriendInvitationMutation => ({
+  acceptResult: dto.result,
   invitationId: dto.invitationId,
+  joinRequestId: dto.joinRequestId,
   status: dto.status,
   targetId: dto.partyId,
   type: 'PARTY',
@@ -246,7 +266,9 @@ export const mapPartyInvitationMutationDto = (
 export const mapChatRoomInvitationMutationDto = (
   dto: ChatRoomInvitationMutationResponseDto,
 ): FriendInvitationMutation => ({
+  acceptResult: null,
   invitationId: dto.invitationId,
+  joinRequestId: null,
   status: dto.status,
   targetId: dto.chatRoomId,
   type: 'CHAT_ROOM',

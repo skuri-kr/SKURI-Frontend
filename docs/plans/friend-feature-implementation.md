@@ -1,9 +1,9 @@
 # SKURI 친구 기능 모바일 구현 계획
 
-> 문서 상태: Friend 관계 Core, Core 출시 준비, 친구 화면 완성, 시간표 공유 전달 완료. 4단계 친구 초대는 Backend [#85](https://github.com/skuri-kr/SKURI-Backend/pull/85)·Frontend [#27](https://github.com/skuri-kr/SKURI-Frontend/pull/27) 리뷰 중이며, 알림·탈퇴 정리는 후속 단계다.
+> 문서 상태: Friend 관계 Core, Core 출시 준비, 친구 화면 완성, 시간표 공유, 4단계 친구 초대 Backend [#85](https://github.com/skuri-kr/SKURI-Backend/pull/85)·Frontend [#27](https://github.com/skuri-kr/SKURI-Frontend/pull/27) 전달 완료. 초대·정원·파티원 UX 보완 진행 중이며 알림·탈퇴 정리는 후속 단계다.
 > 기준일: 2026-08-24
 > 정책 기준: SKURI-Backend docs/features/friends.md
-> 구현 게이트: 승인된 V1의 1·2·3단계 전달이 완료됐고, 4단계 친구 초대 구현 승인을 받아 Backend·Frontend를 저장소당 1개 PR로 진행한다.
+> 구현 게이트: 승인된 V1의 1~4단계 전달이 완료됐고, 초대·정원·파티원 UX 보완 승인을 받아 Backend·Frontend를 저장소당 1개 PR로 진행한다.
 
 백엔드 기준 문서:
 
@@ -25,17 +25,19 @@
 | Backend | [#82](https://github.com/skuri-kr/SKURI-Backend/pull/82) | 친구 출시 운영 postcheck CTE 검증 보정 |
 | Backend | [#83](https://github.com/skuri-kr/SKURI-Backend/pull/83) | 친구 Minecraft 안전 projection과 목록·수락 응답 요약 |
 | Backend | [#84](https://github.com/skuri-kr/SKURI-Backend/pull/84) | 시간표 공개 범위·친구별 예외·친구 시간표 projection과 관계 종료 cleanup |
+| Backend | [#85](https://github.com/skuri-kr/SKURI-Backend/pull/85) | 택시파티·공개방 친구 초대와 받은 초대 mutation·만료 정합성 |
 | Frontend | [#22](https://github.com/skuri-kr/SKURI-Frontend/pull/22) | 친구 기능 모바일 정보 구조·화면·상태·검증 계획 문서화 |
 | Frontend | [#23](https://github.com/skuri-kr/SKURI-Frontend/pull/23) | FriendHub·FriendAdd·FriendDetail·FriendSettings, 관계 Core API 연동, navigation·badge·테스트 |
 | Frontend | [#24](https://github.com/skuri-kr/SKURI-Frontend/pull/24) | Core 출시 준비 UX, 회원가입·프로필 닉네임 정책과 수동 QA 보완 |
 | Frontend | [#25](https://github.com/skuri-kr/SKURI-Frontend/pull/25) | 친구 QR 생성·스캔과 친구 Minecraft SELF·FRIEND 계정 표시 |
 | Frontend | [#26](https://github.com/skuri-kr/SKURI-Frontend/pull/26) | 시간표 공유 설정과 친구 시간표 accordion·공통 공강·같이 듣는 수업 |
+| Frontend | [#27](https://github.com/skuri-kr/SKURI-Frontend/pull/27) | 택시파티·공개방 친구 초대 sheet와 FriendHub 받은 초대 흐름 |
 
 PR #23 병합 후 실제 기기·시뮬레이터 수동 QA에서 발견된 가입 완료 판정, 닉네임 정책, 검색·요청 상태와 UI 문제는 #81·#24의 1단계 Core 출시 준비에서 보완했다. 완료 PR에 대한 보완은 기존 완료 범위를 취소하지 않으며, 출시 전 계약을 운영 가능한 상태로 강화한 작업이다.
 
-남은 구현 단계:
+현재·후속 구현 단계:
 
-1. 친구 초대: 택시파티와 공개 채팅방 초대 (Backend #85·Frontend #27 리뷰 중)
+1. 초대·정원·파티원 UX 보완: 수락 권한 분리, 정원 만료, 상태별 초대 목록, 파티원 관리 (진행 중)
 2. 알림·탈퇴 정리: 친구·초대 알림, badge·이동, 최종 cleanup (후속)
 
 시간표 공유는 [Backend #84](https://github.com/skuri-kr/SKURI-Backend/pull/84)와 [Frontend #26](https://github.com/skuri-kr/SKURI-Frontend/pull/26)에서 구현·테스트·문서 정합성 점검과 리뷰 보완까지 마쳐 전달 완료로 기록한다. 실제 기기 QA는 아직 완료로 표시하지 않는다.
@@ -395,7 +397,8 @@ CampusStackParamList에 다음 화면을 추가하고 기존 TimetableDetail par
 - 현재 사용자가 OPEN 택시파티에 참여 중일 때만 택시파티 초대 버튼을 표시한다.
 - 사용자가 참여 중인 초대 가능한 공개방이 있을 때만 공개방 초대 버튼을 표시한다.
 - 여러 공개방이 있으면 방 선택 sheet를 먼저 연다.
-- 택시파티·공개방 대상이 정해지면 `FriendInviteSheet`에 현재 `friendPublicId`를 `initialFriendPublicId`로 전달한다.
+- FriendDetail의 택시파티 초대는 친구 이름이 포함된 확인 Alert 뒤 해당 친구 한 명을 바로 전송한다.
+- FriendDetail의 공개방 초대는 방이 여러 개면 대상 방을 먼저 고르고, 확인 Alert 뒤 해당 친구 한 명을 바로 전송한다. 성공 Alert는 띄우지 않고 오류만 안내한다.
 - 친구 시간표 보기는 `TimetableDetail`에 `targetFriendPublicId=friendPublicId`를 전달한다.
 - TimetableDetail은 자신의 시간표와 친구 요약 목록이 준비되면 친구 section으로 스크롤하고 해당 친구 accordion을 펼친다.
 - 대상 친구 accordion 전개와 친구 section scroll이 모두 끝난 뒤 `targetFriendPublicId`를 한 번 소비해 rerender·학기 변경·화면 복귀 시 자동 이동을 반복하지 않는다.
@@ -566,32 +569,32 @@ FriendSettings에서 다음을 제공한다. FriendHub 헤더 설정 아이콘�
 
 ---
 
-## 9. 공통 친구 초대 sheet
+## 9. 채팅방 메뉴 친구 초대 sheet
 
 ### 9.1 재사용 범위
 
-FriendInviteSheet는 다음 진입점에서 같은 컴포넌트를 사용한다.
+FriendInviteSheet는 다음 채팅방 메뉴 진입점에서 같은 컴포넌트를 사용한다.
 
-- FriendDetail의 택시파티 초대
 - 택시파티 ChatScreen 우측 상단 메뉴
-- FriendDetail의 공개 채팅방 초대
 - 공개 ChatDetailScreen 우측 상단 메뉴
 
-`context`는 party 또는 publicChatRoom으로 전달한다. FriendDetail 진입은 선택적 `initialFriendPublicId`도 전달하고, 채팅방 메뉴 진입은 전달하지 않는다.
+`context`는 party 또는 publicChatRoom으로 전달한다. FriendDetail은 공통 다중 선택 sheet를 사용하지 않고 대상 방 선택과 단건 확인 전송만 재사용한다.
 
 ### 9.2 UI
 
 ~~~text
 친구 초대
-컴퓨터공학과 3호차 파티
+컴퓨터공학과 3호차 파티             남은 자리 [2석]
 
-[ 친구 이름 검색 ]
-
+초대 가능
 ★ [사진] 김민수                 ✓
-★ [사진] 박서연
-  [사진] 이지훈                 ✓
+  [사진] 박서연
 
-초대할 수 없는 친구 3명
+초대 중
+  [사진] 이지훈                 초대 중
+
+참여 중
+  [사진] 홍길동                 참여 중
 
 [ 2명 초대하기 ]
 ~~~
@@ -599,33 +602,39 @@ FriendInviteSheet는 다음 진입점에서 같은 컴포넌트를 사용한다.
 - BottomSheetModal 패턴을 재사용한다.
 - 즐겨찾기 우선, 이후 가나다순이다.
 - 여러 명 선택을 지원한다.
-- 서버의 eligible 목록만 기본 목록에 표시한다.
-- eligible 조회가 끝난 뒤 `initialFriendPublicId`가 목록에 있으면 해당 친구를 최초 한 번 자동 선택하고 행으로 스크롤·강조한다. 사용자는 다른 친구를 추가 선택하거나 초기 선택을 해제할 수 있다.
-- `initialFriendPublicId`가 eligible 목록에 없으면 `지금은 이 친구를 초대할 수 없어요`라는 일반 안내만 표시하고 민감한 사유를 추측하지 않는다. sheet는 닫지 않고 다른 eligible 친구를 선택할 수 있게 유지한다.
-- 이미 참여, 중복 초대, 차단, 자격 불충족 인원은 초대할 수 없는 친구 count로 안내한다.
-- count를 누르면 개인정보를 노출하지 않는 범위에서 사유별 개수만 보여준다.
-- footer 버튼은 선택 수를 포함하고 keyboard와 safe area를 고려해 고정한다.
+- 검색 입력은 제공하지 않는다. 친구 수가 많아질 때의 검색 재도입은 sheet keyboard UX를 별도로 검증한 뒤 결정한다.
+- 서버의 `friends`, `alreadyPendingFriends`, `alreadyMemberFriends`를 각각 `초대 가능`, `초대 중`, `참여 중`으로 표시한다.
+- 차단, 다른 활성 파티, 학과 불일치 등 민감하거나 부적격한 친구는 목록에 표시하지 않고 count Alert도 띄우지 않는다.
+- 버튼은 absolute footer가 아니라 sheet 콘텐츠 최하단에 배치하며 선택 수를 포함한다.
 - sheet 대상이 파티에서 채팅방으로 바뀌거나 닫힌 뒤 도착한 이전 eligible·발송 응답은 현재 대상의 목록·선택·닫기 상태를 변경하지 않는다. 같은 대상을 닫았다 다시 여는 경우까지 구분하는 sheet session 세대와 요청 세대로 비동기 응답을 폐기한다.
-- 요청 중 재탭을 막고 일부 실패 시 친구별 실패 사유를 표시한다.
+- 요청 중 재탭을 막고 성공 결과 Alert는 띄우지 않는다. 실패한 요청만 일반화된 오류로 안내한다.
 - batch 응답은 요청 순서대로 SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE을 반환한다. `invitationId`는 SENT와 현재 사용자가 발송한 기존 ALREADY_PENDING에만 존재할 수 있으므로 nullable로 처리한다.
-- SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE의 확정 결과는 친구 닉네임과 함께 안내하되, 차단·관계 상실을 포함할 수 있는 NOT_ELIGIBLE의 구체적인 사유는 `초대할 수 없음`으로 일반화한다. 확정 결과는 선택 상태에서 제거하고 eligible 목록을 다시 조회한다.
+- 전송 뒤 선택을 해제하고 eligible 목록을 다시 조회해 각 친구를 `초대 중`·`참여 중` 상태로 자연스럽게 이동시킨다.
 - timeout·연결 끊김처럼 서버 처리 여부를 알 수 없는 transport 오류에서만 해당 선택을 임시 유지한다. 재조회 결과 더 이상 eligible하지 않은 친구는 자동 해제하고, 계속 eligible한 친구만 사용자가 다시 시도할 수 있다. 재조회도 실패하면 중복 발송 위험을 피하도록 전송 버튼을 비활성화하고 eligible 재조회가 성공한 뒤에만 다시 전송할 수 있다.
 - 차단·관계 상실처럼 민감한 사유는 NOT_ELIGIBLE로 통합해 구체적인 차단 상태를 표시하지 않는다.
 
 ### 9.3 택시 context
 
-- OPEN 파티에서만 메뉴 item을 표시한다.
+- OPEN 파티와 정원이 가득 찬 CLOSED 파티에서 메뉴 item을 표시한다. 정원 마감 상태에서도 목록은 확인할 수 있다.
 - 리더 여부와 관계없이 현재 참가자면 표시한다.
-- sheet 상단에 남은 좌석과 좌석 미예약 안내를 표시한다.
+- sheet 제목 row 우측에 `남은 자리` 텍스트와 좌석 badge만 표시한다.
 - 남은 자리보다 많은 친구를 선택할 수 있다.
-- 수신자가 먼저 수락해 정원에 들어가야 참여가 확정됨을 안내한다.
+- 정원이 가득 차면 목록은 그대로 표시하고 버튼을 `파티 정원이 가득 찼습니다`로 비활성화한다.
+- 파티장이 보낸 초대는 수신자 수락 후 즉시 참가한다. 일반 참가자가 보낸 초대는 수신자 수락 후 기존 동승 요청이 생성되고 파티장 승인을 기다린다.
 
 ### 9.4 공개 채팅 context
 
 - public이고 PARTY가 아닌 방에서만 메뉴 item을 표시한다.
 - 현재 방 참여자만 초대할 수 있다.
-- 학과방 자격 등은 서버 eligible 응답을 따른다.
+- 학과방은 `같은 학과 친구만 초대할 수 있어요.` 안내를 표시하고 다른 학과 친구는 목록에 표시하지 않는다.
 - 초대가 7일 후 만료된다는 안내를 표시한다.
+
+### 9.5 파티원 목록과 강퇴
+
+- 파티 채팅방 우측 상단 메뉴에서 모든 현재 참가자가 파티원 목록을 볼 수 있다.
+- 파티장만 OPEN·CLOSED 상태에서 본인과 파티장을 제외한 일반 파티원을 강퇴할 수 있다.
+- 강퇴는 대상 이름이 포함된 destructive 확인 Alert 뒤 기존 `DELETE /v1/parties/{partyId}/members/{memberId}` 계약을 사용한다.
+- 파티원이 아닌 사용자는 서버에서 거부되며, 클라이언트 노출 여부와 별개로 서버 권한 검증을 최종 기준으로 한다.
 
 ---
 
@@ -802,9 +811,10 @@ API client / DTO / Mapper
 | 2. 친구 화면 완성 | 1 | 1 | QR, Minecraft SELF·FRIEND 표시 |
 | 3. 시간표 공유 | 1 | 1 | 공개 범위, 친구별 예외, 친구 시간표, 공통 공강·같이 듣는 수업 (전달 완료) |
 | 4. 친구 초대 | 1 | 1 | 택시파티·공개방 초대, FriendHub 초대 탭, 공통 선택 sheet |
+| 4-a. 초대 UX 보완 | 1 | 1 | 수락 권한 분리, 정원 만료, 상태별 목록, 파티원 목록·리더 강퇴 |
 | 5. 알림·탈퇴 정리 | 1 | 1 | 요청·수락·거절·초대 알림, FCM·인박스·SSE·이동, 최종 cleanup |
 
-기존 완료 이력을 포함하면 Backend #78~#83·Frontend #22~#25가 1·2단계를 전달했다. 시간표 공유는 Backend #84·Frontend #26에서 구현을 완료했다. 4단계 친구 초대는 Backend #85·Frontend #27에서 리뷰 중이며, 이후 5단계 알림·탈퇴 정리에 저장소별 1개 PR을 추가한다. 관리자 친구 관계망 UI는 V1 제외 범위이므로 Admin PR은 만들지 않는다.
+기존 완료 이력을 포함하면 Backend #78~#85·Frontend #22~#27이 1~4단계를 전달했다. 현재 4-a 초대 UX 보완을 저장소별 한 PR로 진행하고, 이후 5단계 알림·탈퇴 정리에 저장소별 1개 PR을 추가한다. 관리자 친구 관계망 UI는 V1 제외 범위이므로 Admin PR은 만들지 않는다.
 
 ### 15.1 1단계: Core 출시 준비 (완료)
 
@@ -833,7 +843,7 @@ Backend는 `PRIVATE` 기본값·친구별 예외·친구 시간표 projection과
 
 Academic 공개 projection과 개인정보 노출 계약, 복잡한 시간표 UI를 함께 검증해야 하므로 다른 단계와 합치지 않는다.
 
-### 15.4 4단계: 친구 초대 (Backend #85·Frontend #27 리뷰 중)
+### 15.4 4단계: 친구 초대 (Backend #85·Frontend #27 전달 완료)
 
 - TaxiParty 참가자 전원의 친구 초대와 마지막 좌석 동시 수락
 - 공개 non-PARTY 채팅방 초대와 입장 자격·7일 만료
@@ -842,6 +852,14 @@ Academic 공개 projection과 개인정보 노출 계약, 복잡한 시간표 UI
 - FriendHub 초대 탭과 받은 PENDING 초대 badge
 
 택시와 공개방 구현은 같은 초대 UX와 상태 계약을 공유하므로 저장소별 한 PR로 묶고 도메인별 커밋으로 나눈다. 이 단계에서는 초대 원본·목록·mutation을 구현하고 인박스·FCM·SSE는 5단계로 미룬다.
+
+### 15.4-a 초대·정원·파티원 UX 보완 (진행 중)
+
+- 파티장 초대는 수신자 수락 즉시 참가하고 일반 참가자 초대는 동승 요청·파티장 승인을 거친다.
+- 정원이 가득 차면 모집 재개와 새 동승 요청을 막고, 남은 PENDING 동승 요청을 `EXPIRED + CAPACITY_FULL`로 종료한다.
+- 친구 초대 sheet는 검색·결과 Alert를 제거하고 초대 가능·초대 중·참여 중 목록과 학과방 안내를 표시한다.
+- 파티원 목록은 모든 참가자에게 제공하고 강퇴는 파티장에게만 노출한다.
+- PopupMenu action은 메뉴 Modal이 닫힌 뒤 다음 Alert·BottomSheet를 열어 중첩 Modal의 투명 overlay가 화면 입력을 막지 않도록 한다.
 
 ### 15.5 5단계: 알림·탈퇴 정리
 
@@ -877,10 +895,13 @@ Academic 공개 projection과 개인정보 노출 계약, 복잡한 시간표 UI
 - 공식 courseId 기준 같이 듣는 수업
 - accordion 단일 open과 favorite hit target 분리
 - party·public chat context별 menu 표시
-- FriendInviteSheet initialFriendPublicId 자동 선택·스크롤, 대상 부적격 일반 안내와 채팅 메뉴 무초기값 진입
-- FriendInviteSheet 수신자별 SENT·ALREADY_PENDING·ALREADY_MEMBER·NOT_ELIGIBLE 부분 성공, outcome별 nullable invitationId와 확정 결과 선택 해제
+- FriendDetail 단건 초대의 대상 선택·확인·성공 Alert 미노출과 오류 안내
+- FriendInviteSheet의 초대 가능·초대 중·참여 중 목록, 학과방 필터·안내, 정원 마감 버튼 비활성화
+- FriendInviteSheet 수신자별 SENT·ALREADY_PENDING·ALREADY_MEMBER·NOT_ELIGIBLE 응답 뒤 목록 재조회와 성공 Alert 미노출
 - FriendInviteSheet transport 오류 선택 유지와 eligible 재조회 후 자동 해제
 - FriendInviteSheet 같은 대상 close/reopen의 이전 응답 폐기와 불확실 발송 후 eligible 재조회 성공 전 재전송 차단
+- 파티장·일반 참가자 초대 수락 결과의 즉시 채팅 이동·승인 대기 화면 분기
+- 파티원 목록 전원 노출과 파티장 전용 강퇴, 가득 찬 CLOSED 파티 모집 재개 미노출
 - FriendSettings privacy GET loading·disabled 상태, PATCH 최종값 반영과 실패 원복
 - 내 친구 코드 action sheet의 표시·복사·공유·재발급 확인과 FriendAdd 이동
 - Minecraft SELF·FRIEND grouping
@@ -963,24 +984,27 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 
 ## 19. 4단계 구현 진행과 다음 구현 경계
 
-Core 출시 준비와 친구 화면 완성은 #24·#25에서, 시간표 공유는 Backend #84·Frontend #26에서 전달을 완료했다. 친구 초대는 Backend [#85](https://github.com/skuri-kr/SKURI-Backend/pull/85)와 Frontend [#27](https://github.com/skuri-kr/SKURI-Frontend/pull/27)에서 리뷰 중이다.
+Core 출시 준비와 친구 화면 완성은 #24·#25에서, 시간표 공유는 Backend #84·Frontend #26에서, 친구 초대는 Backend [#85](https://github.com/skuri-kr/SKURI-Backend/pull/85)와 Frontend [#27](https://github.com/skuri-kr/SKURI-Frontend/pull/27)에서 전달을 완료했다. 현재 초대·정원·파티원 UX 보완을 진행 중이다.
 
-4단계에 포함된 현재 변경:
+현재 보완 PR에 포함된 변경:
 
-- 택시·공개방 친구 초대 런타임 코드
+- 초대 상태별 목록·키보드·sheet 레이아웃과 FriendDetail 단건 확인 전송
+- 파티장·일반 참가자 초대 수락 분기와 정원 도달 동승 요청 만료
+- 가득 찬 파티의 목록·동승 요청·모집 재개 차단
+- 파티원 목록과 파티장 강퇴, PopupMenu 중첩 modal 보완
 
-4단계에 포함하지 않고 별도 승인이 필요한 다음 변경:
+현재 보완 PR에 포함하지 않고 별도 단계로 유지하는 다음 변경:
 
 - 친구·초대 알림 인박스·FCM·SSE와 알림 이동 런타임 코드
 
-3~5단계는 앞 단계의 Backend 계약·배포와 별도 단계 착수 확인 후 진행한다. 새로운 정책이나 기존 공통 UI로 표현하기 어려운 선택이 발견되면 임의로 확장하지 않고 사용자 승인을 받는다.
+보완 단계와 5단계는 앞 단계의 Backend 계약·배포와 별도 단계 착수 확인 후 진행한다. 새로운 정책이나 기존 공통 UI로 표현하기 어려운 선택이 발견되면 임의로 확장하지 않고 사용자 승인을 받는다.
 
 ---
 
 ## 20. 문서 검토 체크리스트
 
-- [x] Backend #78·#79·#80·#81·#82·#83·#84와 Frontend #22·#23·#24·#25·#26의 완료 범위가 후속 단계와 구분되어 있다.
-- [x] 승인 V1의 1·2·3단계 전달 완료, 남은 2단계와 저장소별 단계당 최대 1개 PR 계획이 구분되어 있다.
+- [x] Backend #78~#85와 Frontend #22~#27의 완료 범위가 후속 단계와 구분되어 있다.
+- [x] 승인 V1의 1~4단계 전달 완료, 현재 보완과 마지막 후속 단계의 저장소별 최대 1개 PR 계획이 구분되어 있다.
 - [x] 프로필 완료 회원만 FriendProfile·코드를 갖고 미완료 회원 데이터는 출시 전 정리하는 gate가 반영되어 있다.
 - [x] 검색 기본 true·1글자·검색 버튼 실행과 관계 상태별 행동이 반영되어 있다.
 - [x] ACTIVE 닉네임 중복·예약어 정책과 기존 중복 유지가 반영되어 있다.
@@ -1004,7 +1028,7 @@ Core 출시 준비와 친구 화면 완성은 #24·#25에서, 시간표 공유�
 - [x] 닉네임 검색은 페이지당 20건의 cursor 계약과 안정 정렬을 사용한다.
 - [x] 공통 공강은 야간 수업을 포함한 1~15교시를 계산한다.
 - [x] 친구 Minecraft projection의 DTO·model·mapper 경계와 내부 식별자 미노출이 명시되어 있다.
-- [x] FriendDetail 초대의 initialFriendPublicId와 부적격 fallback이 명시되어 있다.
+- [x] FriendDetail 초대의 대상 선택·단건 확인·성공 Alert 미노출과 오류 fallback이 명시되어 있다.
 - [x] 확정 batch outcome과 transport 오류의 선택 유지 정책이 구분되어 있다.
 - [x] nicknameSearchable은 서버 GET 완료 후 표시하고 PATCH 최종값을 사용한다.
 - [x] 요청 목록은 PENDING 전용 20건 opaque cursor 계약을 사용한다.
@@ -1029,7 +1053,7 @@ Core 출시 준비와 친구 화면 완성은 #24·#25에서, 시간표 공유�
 | 2026-08-18 | 다중 초대는 수신자별 부분 성공 결과를 사용하고 차단 등 민감 사유는 NOT_ELIGIBLE로 통합 |
 | 2026-08-18 | FriendDetail의 친구 시간표 보기는 targetFriendPublicId로 해당 accordion을 한 번 자동 전개 |
 | 2026-08-18 | action badge는 받은 PENDING 요청·초대만 합산하고 보낸 요청은 제외 |
-| 2026-08-18 | FriendDetail 초대는 initialFriendPublicId를 자동 선택하고 부적격이면 민감 사유 없는 일반 안내를 표시 |
+| 2026-08-18 | FriendDetail 초대는 initialFriendPublicId 자동 선택 방식으로 결정했으나, 2026-08-24 단건 확인 전송 결정으로 대체 |
 | 2026-08-18 | 확정된 batch outcome은 선택을 해제하며 transport 오류에서만 eligible 재조회 전까지 선택을 유지 |
 | 2026-08-18 | FriendSettings는 서버의 nicknameSearchable 조회 완료 전 toggle 값을 추측하지 않음 |
 | 2026-08-18 | 친구 요청 탭은 PENDING 전용 20건 opaque cursor 목록이며 terminal 이력은 후속 TODO |
@@ -1056,3 +1080,7 @@ Core 출시 준비와 친구 화면 완성은 #24·#25에서, 시간표 공유�
 | 2026-08-23 | FriendHub 친구 행에서는 Minecraft 정보를 모두 숨기고 친구 상세 최하단에서만 SELF·FRIEND 계층을 표시하도록 변경 |
 | 2026-08-23 | 4단계 친구 초대 구현 승인을 받아 택시·공개방 batch 초대, 공통 sheet, FriendHub 초대 탭을 저장소당 1개 PR로 진행 |
 | 2026-08-24 | 4단계 친구 초대를 Backend #85·Frontend #27로 생성하고 알림·탈퇴 정리를 다음 단계로 유지 |
+| 2026-08-24 | Backend #85·Frontend #27 전달 완료 후 초대·정원·파티원 UX 보완을 저장소별 한 PR로 진행 |
+| 2026-08-24 | FriendInviteSheet 검색·결과 Alert·고정 footer를 제거하고 초대 가능·초대 중·참여 중 목록과 일반 하단 버튼으로 전환 |
+| 2026-08-24 | FriendDetail은 공통 다중 선택 sheet 대신 방 선택 후 친구 한 명을 확인 Alert로 즉시 초대 |
+| 2026-08-24 | 파티장 초대는 수락 즉시 참가, 일반 참가자 초대는 동승 요청과 파티장 승인으로 분리하고 파티원 목록은 전원 조회·리더만 강퇴로 확정 |

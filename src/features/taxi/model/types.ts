@@ -63,11 +63,13 @@ export interface JoinRequest {
   requesterId: string;
   requesterName?: string;
   leaderId: string;
-  status: 'pending' | 'accepted' | 'declined' | 'canceled';
+  expiryReason?: 'capacity-full';
+  status: 'pending' | 'accepted' | 'declined' | 'canceled' | 'expired';
   createdAt: unknown;
 }
 
 export interface JoinRequestStatus {
+  expiryReason?: 'capacity-full';
   requestId: string;
   partyId: string;
   status: JoinRequest['status'];

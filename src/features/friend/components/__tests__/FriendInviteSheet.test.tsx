@@ -85,7 +85,7 @@ jest.mock('@/shared/ui/Button', () => {
   }) =>
     ReactModule.createElement(
       ReactNative.TouchableOpacity,
-      {disabled, onPress},
+      {accessibilityLabel: title, disabled, onPress},
       ReactModule.createElement(ReactNative.Text, null, title),
     );
 });
@@ -111,8 +111,11 @@ const eligible = (
   targetName: string,
   nickname: string,
 ): FriendInvitationEligibleFriends => ({
+  alreadyMemberFriends: [],
   alreadyMemberCount: 0,
+  alreadyPendingFriends: [],
   alreadyPendingCount: 0,
+  canInvite: true,
   expiresInDays: targetId.startsWith('room') ? 7 : null,
   friends: [
     {
@@ -125,8 +128,10 @@ const eligible = (
   ],
   notEligibleCount: 0,
   remainingCapacity: 2,
+  sameDepartmentOnly: false,
   targetId,
   targetName,
+  unavailableReason: null,
 });
 
 describe('FriendInviteSheet', () => {
@@ -288,7 +293,7 @@ describe('FriendInviteSheet', () => {
     });
   });
 
-  it('혼합 발송 결과에 친구 이름과 일반화된 결과를 표시한다', async () => {
+  it('발송 결과 Alert 없이 최신 목록을 다시 불러온다', async () => {
     const mixedEligible: FriendInvitationEligibleFriends = {
       ...eligible('party-1', '택시파티', '가람'),
       friends: [
@@ -336,12 +341,102 @@ describe('FriendInviteSheet', () => {
     fireEvent.press(view.getByText('나래'));
     fireEvent.press(view.getByText('2명 초대하기'));
 
-    await waitFor(() => {
-      expect(alertSpy).toHaveBeenCalledWith(
-        '친구 초대 결과',
-        '초대할 수 없음: 나래\n전송 완료: 가람',
-      );
-    });
+    await waitFor(() =>
+      expect(repository.getPartyInvitationEligibleFriends).toHaveBeenCalledTimes(
+        2,
+      ),
+    );
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+
+  it('초대 중인 친구와 참여 중인 친구를 목록에 구분해 표시한다', async () => {
+    const response: FriendInvitationEligibleFriends = {
+      ...eligible('room-1', '학과 채팅방', '가람'),
+      alreadyMemberCount: 1,
+      alreadyMemberFriends: [
+        {
+          department: '컴퓨터공학과',
+          favorite: false,
+          id: 'member-1',
+          nickname: '나래',
+          photoUrl: null,
+        },
+      ],
+      alreadyPendingCount: 1,
+      alreadyPendingFriends: [
+        {
+          department: '컴퓨터공학과',
+          favorite: false,
+          id: 'pending-1',
+          nickname: '다온',
+          photoUrl: null,
+        },
+      ],
+      sameDepartmentOnly: true,
+    };
+    const repository = {
+      createChatRoomInvitations: jest.fn(),
+      createPartyInvitations: jest.fn(),
+      getChatRoomInvitationEligibleFriends: jest
+        .fn()
+        .mockResolvedValue(response),
+      getPartyInvitationEligibleFriends: jest.fn(),
+    };
+    mockedUseRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useFriendInvitationRepository>,
+    );
+
+    const view = render(
+      <FriendInviteSheet
+        context={{targetId: 'room-1', type: 'CHAT_ROOM'}}
+        onClose={jest.fn()}
+        visible
+      />,
+    );
+
+    await waitFor(() => expect(view.getByText('가람')).toBeTruthy());
+    expect(view.getByText('같은 학과 친구만 초대할 수 있어요.')).toBeTruthy();
+    expect(view.getByText('다온')).toBeTruthy();
+    expect(view.getByText('나래')).toBeTruthy();
+    expect(view.getAllByText('초대 중')).toHaveLength(2);
+    expect(view.getAllByText('참여 중')).toHaveLength(2);
+  });
+
+  it('정원이 가득 찬 파티도 친구 상태를 표시하고 초대 버튼만 비활성화한다', async () => {
+    const response: FriendInvitationEligibleFriends = {
+      ...eligible('party-1', '택시파티', '가람'),
+      canInvite: false,
+      remainingCapacity: 0,
+      unavailableReason: 'PARTY_FULL',
+    };
+    const repository = {
+      createChatRoomInvitations: jest.fn(),
+      createPartyInvitations: jest.fn(),
+      getChatRoomInvitationEligibleFriends: jest.fn(),
+      getPartyInvitationEligibleFriends: jest.fn().mockResolvedValue(response),
+    };
+    mockedUseRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useFriendInvitationRepository>,
+    );
+
+    const view = render(
+      <FriendInviteSheet
+        context={{targetId: 'party-1', type: 'PARTY'}}
+        onClose={jest.fn()}
+        visible
+      />,
+    );
+
+    await waitFor(() => expect(view.getByText('가람')).toBeTruthy());
+    expect(view.getByText('0석')).toBeTruthy();
+    expect(
+      view.UNSAFE_getByProps({
+        accessibilityLabel: '파티 정원이 가득 찼습니다',
+      }).props.disabled,
+    ).toBe(true);
+    expect(
+      view.UNSAFE_getByProps({accessibilityLabel: '가람 선택'}).props.disabled,
+    ).toBe(true);
   });
 
   it('발송 실패 후 최신 목록 확인도 실패하면 재전송을 막는다', async () => {
@@ -426,12 +521,8 @@ describe('FriendInviteSheet', () => {
     fireEvent.press(view.getByText('가람'));
     fireEvent.press(view.getByText('1명 초대하기'));
 
-    await waitFor(() => {
-      expect(alertSpy).toHaveBeenCalledWith(
-        '친구 초대 결과',
-        expect.stringContaining('최신 상태를 확인하지 못했습니다.'),
-      );
-    });
+    await waitFor(() => expect(view.getByText('refresh failed')).toBeTruthy());
+    expect(alertSpy).not.toHaveBeenCalled();
     const candidate = view.UNSAFE_getByProps({
       accessibilityLabel: '가람 선택',
     });

@@ -26,6 +26,7 @@ export const FriendInviteTargetSheet = ({
   visible,
 }: FriendInviteTargetSheetProps) => {
   const modalRef = React.useRef<BottomSheetModal>(null);
+  const pendingTargetRef = React.useRef<FriendInviteContext | null>(null);
 
   React.useEffect(() => {
     if (visible) {
@@ -56,6 +57,12 @@ export const FriendInviteTargetSheet = ({
       enablePanDownToClose
       handleIndicatorStyle={styles.handleIndicator}
       onDismiss={() => {
+        const pendingTarget = pendingTargetRef.current;
+        pendingTargetRef.current = null;
+        if (pendingTarget) {
+          onSelect(pendingTarget);
+          return;
+        }
         if (visible) {
           onClose();
         }
@@ -71,7 +78,10 @@ export const FriendInviteTargetSheet = ({
               accessibilityRole="button"
               activeOpacity={0.82}
               key={target.targetId}
-              onPress={() => onSelect(target)}
+              onPress={() => {
+                pendingTargetRef.current = target;
+                onClose();
+              }}
               style={styles.targetRow}>
               <View style={styles.iconContainer}>
                 <Icon color={COLORS.brand.primaryStrong} name="chatbubbles-outline" size={20} />
