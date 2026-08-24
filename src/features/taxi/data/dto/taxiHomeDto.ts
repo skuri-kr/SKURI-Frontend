@@ -168,6 +168,7 @@ export interface JoinRequestListItemResponseDto {
   id: string;
   expiryReason: JoinRequestExpiryReasonDto | null;
   partyId: string;
+  invitationInviterName?: string | null;
   requesterId: string;
   requesterName?: string | null;
   requesterPhotoUrl?: string | null;

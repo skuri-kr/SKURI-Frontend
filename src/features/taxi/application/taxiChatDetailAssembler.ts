@@ -137,13 +137,11 @@ const buildActionTrayActions = (
   }
 
   if (partyChat.partyStatus === 'closed') {
-    if (partyChat.memberCount < partyChat.maxMembers) {
-      actions.push({
-        id: 'reopen',
-        label: '모집 재개',
-        tone: 'info',
-      });
-    }
+    actions.push({
+      id: 'reopen',
+      label: '모집 재개',
+      tone: 'info',
+    });
     actions.push({
       id: 'arrive',
       label: '택시 도착',

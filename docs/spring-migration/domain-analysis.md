@@ -197,12 +197,12 @@ Hooks:
   - `perPersonAmount`는 `taxiFare / (정산대상인원 + 리더 1명)` 정수 나눗셈(버림)으로 계산
   - 정수 나눗셈으로 생기는 잔여 1원 단위 금액은 서버에서 분배하지 않음(리더 현장 정산 정책)
   - 동승 요청 승인, 모집 마감/재개, 멤버 나가기, 도착 처리, 취소/종료는 서버가 파티 채팅방 안내 메시지(`SYSTEM`/`ARRIVED`/`END`)를 생성한다
-  - 동승 요청 승인으로 파티가 정원에 도달하면 `SYSTEM` 메시지는 `합류 안내 -> 모집 마감 안내` 순서로 같은 트랜잭션 안에서 저장되고, 커밋 후 같은 순서로 브로드캐스트된다
+  - 동승 요청 승인으로 파티가 정원에 도달해도 모집 마감 `SYSTEM` 메시지와 파티 상태는 자동 변경되지 않으며, 모집 마감·재개는 리더의 명시적 action에서만 처리한다
 
 상태 머신:
   Party:
     OPEN → CLOSED       (리더: 모집 마감)
-    CLOSED → OPEN       (리더: 모집 재개)
+    CLOSED → OPEN       (리더: 모집 재개, 현재 정원과 무관)
     OPEN|CLOSED 내 정보 수정 (리더: departureTime/detail만)
     OPEN|CLOSED → ARRIVED  (리더: 도착 처리 → 정산 시작)
     ARRIVED 상태에서 멤버 정산 완료 처리 (모든 멤버 완료 시 settlementStatus=COMPLETED)
@@ -213,7 +213,7 @@ Hooks:
   JoinRequest: PENDING → ACCEPTED | DECLINED | CANCELED
     - CANCELED: 요청자 본인만 취소 가능 (PENDING 상태에서만)
     - 리더는 DECLINE으로 거절 (CANCEL 아님)
-    - ACCEPTED 처리로 멤버가 정원(`maxMembers`)에 도달하면 Party 상태를 자동으로 CLOSED 전이
+    - ACCEPTED 처리로 멤버가 정원(`maxMembers`)에 도달해도 Party 상태는 유지하고 남은 PENDING 동승 요청·친구 초대만 CAPACITY_FULL로 만료
 
 동시성 제어:
   - Party 엔티티의 `@Version` 기반 Optimistic Lock으로 동시 동승 요청/수락 충돌을 방어

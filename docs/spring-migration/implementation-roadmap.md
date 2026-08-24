@@ -243,7 +243,7 @@ com.skuri.skuri_backend
 |------|------|
 | 파티 상태 머신 | `OPEN → CLOSED → ARRIVED → ENDED` 전이 규칙 |
 | 파티 수정 정책 | `PATCH /v1/parties/{id}`는 `departureTime`, `detail`만 허용 (리더, OPEN/CLOSED) |
-| 정원 자동 마감 | 동승 요청 수락 후 `currentMembers == maxMembers` 시 자동 `CLOSED` 전이 |
+| 정원 입장 경계 | 동승 요청 수락 후 `currentMembers == maxMembers`면 새 참여·수락만 차단하고, 모집 상태는 리더의 명시적 마감/재개만 전이 |
 | 동시성 제어 | Optimistic Lock (`@Version`) — 동시 동승 신청 방어 |
 | Aggregate 저장 정책 | `PartyMember/PartyTag/MemberSettlement`는 `Party` aggregate(cascade/orphanRemoval)로 일괄 저장 |
 | 정산 | 도착 시 택시비 입력 → 인원수 자동 나눔(정수 나눗셈/버림) → 멤버별 정산 확인 → 전체 완료 시 정산 상태 `COMPLETED` (파티 종료는 `/end`에서만) |

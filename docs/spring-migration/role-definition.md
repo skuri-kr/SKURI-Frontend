@@ -428,7 +428,7 @@ Spring 백엔드는 Access Token / Refresh Token을 직접 발급하거나 관�
 - 파티 채팅의 `SYSTEM`/`ARRIVED`/`END`는 서버만 생성하며, 클라이언트는 `TEXT`/`IMAGE`/`ACCOUNT`만 전송한다.
 - 파티 `SYSTEM` 메시지는 동승 승인, 모집 마감, 모집 재개, 멤버 나가기 같은 상태 변화 안내에 사용한다.
 - `ACCOUNT` 메시지는 snapshot payload와 `remember` 의미를 포함하고, `ARRIVED` 메시지는 서버가 정산 snapshot을 채워 넣는다.
-- 동승 요청 수락으로 파티가 자동 `CLOSED` 되면 `SYSTEM` 메시지는 `합류 안내 -> 모집 마감 안내` 순서로 저장/브로드캐스트한다.
+- 동승 요청 수락으로 정원에 도달해도 파티는 자동 `CLOSED` 전이하거나 모집 마감 `SYSTEM` 메시지를 생성하지 않는다. 모집 마감·재개는 리더의 명시적 action만 수행한다.
 - 파티 채팅 `CHAT_MESSAGE` 알림은 `ACCOUNT`/`SYSTEM`/`ARRIVED`/`END`도 포함하며, push payload 이동 식별자는 `chatRoomId`를 canonical로 사용한다.
 - 마인크래프트 상세 화면은 채팅과 상태 채널을 분리한다.
   - 채팅: 기존 WebSocket 채널

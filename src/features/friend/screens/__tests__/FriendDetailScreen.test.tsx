@@ -7,6 +7,7 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 import {invalidateData} from '@/app/data-freshness/dataInvalidation';
 import {FRIEND_HUB_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {useChatRooms} from '@/features/chat/hooks/useChatRooms';
+import {useMyParty} from '@/features/taxi/hooks/useMyParty';
 import {useFriendInvitationRepository} from '@/di';
 import {RepositoryError, RepositoryErrorCode} from '@/shared/lib/errors';
 
@@ -71,7 +72,7 @@ jest.mock('../../components/FriendInviteTargetSheet', () => ({
 }));
 
 jest.mock('@/features/taxi/hooks/useMyParty', () => ({
-  useMyParty: () => ({myParty: null}),
+  useMyParty: jest.fn(),
 }));
 
 jest.mock('@/features/chat/hooks/useChatRooms', () => ({
@@ -86,6 +87,7 @@ const mockedUseNavigation = jest.mocked(useNavigation);
 const mockedUseRoute = jest.mocked(useRoute);
 const mockedUseFriendDetailData = jest.mocked(useFriendDetailData);
 const mockedUseChatRooms = jest.mocked(useChatRooms);
+const mockedUseMyParty = jest.mocked(useMyParty);
 const mockedUseFriendInvitationRepository = jest.mocked(
   useFriendInvitationRepository,
 );
@@ -126,6 +128,9 @@ describe('FriendDetailScreen', () => {
       loading: false,
       refresh: jest.fn(),
     });
+    mockedUseMyParty.mockReturnValue({
+      myParty: null,
+    } as ReturnType<typeof useMyParty>);
   });
 
   it('마인크래프트 계정은 친구 관리 기능보다 아래에 표시한다', () => {
@@ -219,6 +224,25 @@ describe('FriendDetailScreen', () => {
       '가람 님을 공개 채팅방에 초대하시겠습니까?',
       expect.any(Array),
     );
+  });
+
+  it('모집 마감된 현재 택시파티에서도 친구 초대를 제공한다', () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true), navigate: jest.fn()};
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseRoute.mockReturnValue({params: {friendId: 'friend-1'}} as ReturnType<typeof useRoute>);
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData());
+    mockedUseMyParty.mockReturnValue({
+      myParty: {
+        departure: {name: '명학역'},
+        destination: {name: '성결대학교'},
+        id: 'party-1',
+        status: 'closed',
+      },
+    } as ReturnType<typeof useMyParty>);
+
+    const view = render(<FriendDetailScreen />);
+
+    expect(view.getByText('택시파티에 초대')).toBeTruthy();
   });
 
   it('기존 친구 정보를 유지한 재조회 실패를 배너로 알리고 재시도할 수 있다', async () => {

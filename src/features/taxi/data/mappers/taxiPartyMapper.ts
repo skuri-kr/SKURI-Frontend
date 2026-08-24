@@ -157,6 +157,7 @@ export const mapJoinRequestListItemDtoToJoinRequest = ({
   id: dto.id,
   leaderId,
   partyId: dto.partyId,
+  invitationInviterName: dto.invitationInviterName?.trim() || undefined,
   requesterId: dto.requesterId,
   requesterName: dto.requesterName?.trim() || undefined,
   status: mapJoinRequestStatusDto(dto.status),

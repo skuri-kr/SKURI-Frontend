@@ -1057,8 +1057,7 @@ export const ChatScreen = () => {
             canLeave={Boolean(data.menu.canLeave)}
             canInviteFriends={
               data.summary.partyStatus === 'open' ||
-              (data.summary.partyStatus === 'closed' &&
-                data.summary.currentMemberCount >= data.summary.maxMemberCount)
+              data.summary.partyStatus === 'closed'
             }
             canManageMembers
             canReport

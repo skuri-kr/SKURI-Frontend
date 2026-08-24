@@ -62,6 +62,7 @@ export interface JoinRequest {
   partyId: string;
   requesterId: string;
   requesterName?: string;
+  invitationInviterName?: string;
   leaderId: string;
   expiryReason?: 'capacity-full';
   status: 'pending' | 'accepted' | 'declined' | 'canceled' | 'expired';
