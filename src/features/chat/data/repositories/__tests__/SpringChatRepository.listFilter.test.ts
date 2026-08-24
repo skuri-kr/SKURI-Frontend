@@ -166,45 +166,114 @@ describe('SpringChatRepository list filter', () => {
     expect(repository.roomCache.get('room-1')).toMatchObject({isJoined: true});
   });
 
-  it('참여 상태가 바뀐 뒤 도착한 참여 방 목록 응답은 새 가입 상태를 덮어쓰지 않는다', async () => {
+  it('참여 상태가 바뀐 뒤 도착한 참여 방 목록 응답은 최신 목록으로 다시 조회한다', async () => {
+    mockedChatApiClient.getChatRooms.mockReset();
     const repository =
       new SpringChatRepository() as unknown as ListSubscriptionRepository;
-    const pendingResponse = deferred<{success: true; data: []}>();
-    const messageSubscription = {unsubscribe: jest.fn()};
-    const mutationSubscription = {unsubscribe: jest.fn()};
+    const pendingResponse = deferred<{
+      success: true;
+      data: Array<{
+        id: string;
+        isMuted: boolean;
+        isPublic: boolean;
+        joined: boolean;
+        memberCount: number;
+        name: string;
+        type: 'UNIVERSITY';
+        unreadCount: number;
+      }>;
+    }>();
     const onData = jest.fn();
     repository.listSubscriptions.set(1, {
       callbacks: {onData, onError: jest.fn()},
       filter: {category: 'all', joinedOnly: true, userId: 'member-1'},
       id: 1,
     });
-    repository.roomCache.set('room-1', {
-      id: 'room-1',
+    repository.roomCache.set('room-c', {
+      id: 'room-c',
       isJoined: false,
       isPublic: true,
       memberCount: 3,
-      name: '전체 채팅방',
+      name: '채팅방 C',
       type: 'university',
     });
-    repository.messageRealtimeStates.set('room-1', {
-      mutationSubscription,
-      subscription: messageSubscription,
-    });
-    mockedChatApiClient.getChatRooms.mockReturnValueOnce(pendingResponse.promise);
+    mockedChatApiClient.getChatRooms
+      .mockReturnValueOnce(pendingResponse.promise)
+      .mockResolvedValueOnce({
+        success: true,
+        data: [
+          {
+            id: 'room-a',
+            isMuted: false,
+            isPublic: true,
+            joined: true,
+            memberCount: 3,
+            name: '채팅방 A',
+            type: 'UNIVERSITY',
+            unreadCount: 0,
+          },
+          {
+            id: 'room-b',
+            isMuted: false,
+            isPublic: true,
+            joined: true,
+            memberCount: 3,
+            name: '채팅방 B',
+            type: 'UNIVERSITY',
+            unreadCount: 0,
+          },
+          {
+            id: 'room-c',
+            isMuted: false,
+            isPublic: true,
+            joined: true,
+            memberCount: 3,
+            name: '채팅방 C',
+            type: 'UNIVERSITY',
+            unreadCount: 0,
+          },
+        ],
+      });
 
     const fetch = repository.fetchAndPublishListSubscription(1);
-    repository.setCachedRoom('room-1', {
-      ...repository.roomCache.get('room-1')!,
+    repository.setCachedRoom('room-c', {
+      ...repository.roomCache.get('room-c')!,
       isJoined: true,
     });
-    pendingResponse.resolve({success: true, data: []});
+    pendingResponse.resolve({
+      success: true,
+      data: [
+        {
+          id: 'room-a',
+          isMuted: false,
+          isPublic: true,
+          joined: true,
+          memberCount: 3,
+          name: '채팅방 A',
+          type: 'UNIVERSITY',
+          unreadCount: 0,
+        },
+        {
+          id: 'room-b',
+          isMuted: false,
+          isPublic: true,
+          joined: true,
+          memberCount: 3,
+          name: '채팅방 B',
+          type: 'UNIVERSITY',
+          unreadCount: 0,
+        },
+      ],
+    });
     await fetch;
 
-    expect(repository.roomCache.get('room-1')).toMatchObject({isJoined: true});
-    expect(messageSubscription.unsubscribe).not.toHaveBeenCalled();
-    expect(mutationSubscription.unsubscribe).not.toHaveBeenCalled();
-    expect(onData).toHaveBeenLastCalledWith([
-      expect.objectContaining({id: 'room-1', isJoined: true}),
-    ]);
+    expect(mockedChatApiClient.getChatRooms).toHaveBeenCalledTimes(2);
+    expect(onData).toHaveBeenLastCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({id: 'room-a', isJoined: true}),
+        expect.objectContaining({id: 'room-b', isJoined: true}),
+        expect.objectContaining({id: 'room-c', isJoined: true}),
+      ]),
+    );
   });
 });
