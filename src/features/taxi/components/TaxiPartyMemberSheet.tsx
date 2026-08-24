@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 import {DefaultProfileAvatar} from '@/shared/design-system/components';
@@ -43,6 +44,7 @@ export const TaxiPartyMemberSheet = ({
   onKick,
   visible,
 }: TaxiPartyMemberSheetProps) => {
+  const insets = useSafeAreaInsets();
   const modalRef = React.useRef<BottomSheetModal>(null);
 
   React.useEffect(() => {
@@ -107,7 +109,11 @@ export const TaxiPartyMemberSheet = ({
       }}
       ref={modalRef}
       style={styles.sheet}>
-      <BottomSheetScrollView contentContainerStyle={styles.content}>
+      <BottomSheetScrollView
+        contentContainerStyle={[
+          styles.content,
+          {paddingBottom: insets.bottom + SPACING.xxl},
+        ]}>
         <Text style={styles.title}>
           {canKick ? '파티원 관리' : '파티원 목록'}
         </Text>
@@ -167,7 +173,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: RADIUS.lg,
   },
   avatar: {borderRadius: 21, height: 42, width: 42},
-  content: {paddingBottom: SPACING.xxl, paddingHorizontal: SPACING.lg},
+  content: {paddingHorizontal: SPACING.lg},
   description: {color: COLORS.text.secondary, fontSize: 13, marginTop: 2},
   handleIndicator: {backgroundColor: COLORS.border.default},
   kickButton: {

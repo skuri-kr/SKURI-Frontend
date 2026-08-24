@@ -102,7 +102,7 @@ export const TaxiChatBottomSheet = ({
       <BottomSheetScrollView
         contentContainerStyle={[
           styles.content,
-          {paddingBottom: insets.bottom + SPACING.lg + keyboardHeight},
+          {paddingBottom: insets.bottom + SPACING.xxl + keyboardHeight},
           contentStyle,
         ]}
         keyboardShouldPersistTaps="handled"
