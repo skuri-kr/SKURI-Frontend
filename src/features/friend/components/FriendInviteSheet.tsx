@@ -277,7 +277,7 @@ export const FriendInviteSheet = ({
   }, [eligible?.friends, query]);
 
   const toggleFriend = React.useCallback((friendId: string) => {
-    if (sending) {
+    if (sending || requiresEligibilityRefresh) {
       return;
     }
 
@@ -290,7 +290,7 @@ export const FriendInviteSheet = ({
       }
       return next;
     });
-  }, [sending]);
+  }, [requiresEligibilityRefresh, sending]);
 
   const handleUnavailableCount = React.useCallback(() => {
     if (!eligible) {
@@ -313,7 +313,8 @@ export const FriendInviteSheet = ({
       !contextTargetId ||
       !contextType ||
       selectedIds.size === 0 ||
-      sending
+      sending ||
+      requiresEligibilityRefresh
     ) {
       return;
     }
@@ -335,8 +336,19 @@ export const FriendInviteSheet = ({
         return;
       }
       setSelectedIds(new Set());
-      Alert.alert('친구 초대 결과', buildOutcomeMessage(results, candidates));
-      await loadEligible();
+      const refreshed = await loadEligible();
+      if (!isCurrentContext()) {
+        return;
+      }
+      Alert.alert(
+        '친구 초대 결과',
+        refreshed
+          ? buildOutcomeMessage(results, candidates)
+          : `${buildOutcomeMessage(results, candidates)}\n\n초대 전송은 완료됐지만 최신 상태를 확인하지 못했습니다. 목록을 다시 불러온 뒤 계속해 주세요.`,
+      );
+      if (!refreshed) {
+        setRequiresEligibilityRefresh(true);
+      }
     } catch (sendError) {
       if (!isCurrentContext()) {
         return;
@@ -357,7 +369,7 @@ export const FriendInviteSheet = ({
         setSending(false);
       }
     }
-  }, [contextKey, contextTargetId, contextType, eligible?.friends, loadEligible, repository, selectedIds, sending]);
+  }, [contextKey, contextTargetId, contextType, eligible?.friends, loadEligible, repository, requiresEligibilityRefresh, selectedIds, sending]);
 
   const unavailableCount = eligible
     ? eligible.alreadyMemberCount +
@@ -490,9 +502,12 @@ export const FriendInviteSheet = ({
                 <TouchableOpacity
                   accessibilityLabel={`${friend.nickname} ${selected ? '선택 해제' : '선택'}`}
                   accessibilityRole="checkbox"
-                  accessibilityState={{checked: selected, disabled: sending}}
+                  accessibilityState={{
+                    checked: selected,
+                    disabled: sending || requiresEligibilityRefresh,
+                  }}
                   activeOpacity={0.82}
-                  disabled={sending}
+                  disabled={sending || requiresEligibilityRefresh}
                   key={friend.id}
                   onPress={() => toggleFriend(friend.id)}
                   style={[
