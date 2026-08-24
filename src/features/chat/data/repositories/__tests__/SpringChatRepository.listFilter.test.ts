@@ -33,6 +33,7 @@ type ListSubscriptionRepository = {
     }
   >;
   roomCache: Map<string, ChatRoom>;
+  setCachedRoom: (chatRoomId: string, room: ChatRoom) => void;
 };
 
 const mockedChatApiClient = jest.mocked(chatApiClient);
@@ -163,5 +164,43 @@ describe('SpringChatRepository list filter', () => {
     await fetch;
 
     expect(repository.roomCache.get('room-1')).toMatchObject({isJoined: true});
+  });
+
+  it('참여 상태가 바뀐 뒤 도착한 참여 방 목록 응답은 새 가입 상태를 덮어쓰지 않는다', async () => {
+    const repository =
+      new SpringChatRepository() as unknown as ListSubscriptionRepository;
+    const pendingResponse = deferred<{success: true; data: []}>();
+    const messageSubscription = {unsubscribe: jest.fn()};
+    const mutationSubscription = {unsubscribe: jest.fn()};
+    repository.listSubscriptions.set(1, {
+      callbacks: {onData: jest.fn(), onError: jest.fn()},
+      filter: {category: 'all', joinedOnly: true, userId: 'member-1'},
+      id: 1,
+    });
+    repository.roomCache.set('room-1', {
+      id: 'room-1',
+      isJoined: false,
+      isPublic: true,
+      memberCount: 3,
+      name: '전체 채팅방',
+      type: 'university',
+    });
+    repository.messageRealtimeStates.set('room-1', {
+      mutationSubscription,
+      subscription: messageSubscription,
+    });
+    mockedChatApiClient.getChatRooms.mockReturnValueOnce(pendingResponse.promise);
+
+    const fetch = repository.fetchAndPublishListSubscription(1);
+    repository.setCachedRoom('room-1', {
+      ...repository.roomCache.get('room-1')!,
+      isJoined: true,
+    });
+    pendingResponse.resolve({success: true, data: []});
+    await fetch;
+
+    expect(repository.roomCache.get('room-1')).toMatchObject({isJoined: true});
+    expect(messageSubscription.unsubscribe).not.toHaveBeenCalled();
+    expect(mutationSubscription.unsubscribe).not.toHaveBeenCalled();
   });
 });
