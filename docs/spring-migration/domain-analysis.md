@@ -202,7 +202,7 @@ Hooks:
 상태 머신:
   Party:
     OPEN → CLOSED       (리더: 모집 마감)
-    CLOSED → OPEN       (리더: 모집 재개)
+    CLOSED → OPEN       (리더: 모집 재개, 현재 정원과 무관)
     OPEN|CLOSED 내 정보 수정 (리더: departureTime/detail만)
     OPEN|CLOSED → ARRIVED  (리더: 도착 처리 → 정산 시작)
     ARRIVED 상태에서 멤버 정산 완료 처리 (모든 멤버 완료 시 settlementStatus=COMPLETED)
@@ -213,7 +213,7 @@ Hooks:
   JoinRequest: PENDING → ACCEPTED | DECLINED | CANCELED
     - CANCELED: 요청자 본인만 취소 가능 (PENDING 상태에서만)
     - 리더는 DECLINE으로 거절 (CANCEL 아님)
-    - ACCEPTED 처리로 멤버가 정원(`maxMembers`)에 도달하면 Party 상태를 자동으로 CLOSED 전이
+    - ACCEPTED 처리로 멤버가 정원(`maxMembers`)에 도달해도 Party 상태는 유지하고 남은 PENDING 동승 요청·친구 초대만 CAPACITY_FULL로 만료
 
 동시성 제어:
   - Party 엔티티의 `@Version` 기반 Optimistic Lock으로 동시 동승 요청/수락 충돌을 방어
