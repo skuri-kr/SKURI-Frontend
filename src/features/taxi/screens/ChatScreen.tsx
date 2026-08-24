@@ -202,6 +202,7 @@ export const ChatScreen = () => {
     loadingOlderMessages,
     notificationTogglePending,
     reload,
+    removedFromParty,
     reopenParty,
     sendAccountMessage,
     sendImageMessage,
@@ -301,6 +302,18 @@ export const ChatScreen = () => {
       setActionTrayVisible(false);
     }
   }, [actionTrayVisible, data?.actionTrayActions.length]);
+
+  React.useEffect(() => {
+    if (!removedFromParty || !isScreenFocused) {
+      return;
+    }
+
+    Keyboard.dismiss();
+    navigation.reset({
+      index: 0,
+      routes: [{name: 'TaxiMain'}],
+    });
+  }, [isScreenFocused, navigation, removedFromParty]);
 
   const handlePressBack = React.useCallback(() => {
     if (navigation.canGoBack()) {

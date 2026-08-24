@@ -70,6 +70,7 @@ export const useTaxiChatDetailData = (partyId: string | undefined) => {
   const partyRepository = usePartyRepository();
   const taxiChatRepository = useTaxiChatRepository();
   const {user} = useAuth();
+  const authenticatedUserId = user?.uid;
   const currentUserId = user?.uid ?? TAXI_CHAT_CURRENT_USER_ID;
   const [sourceData, setSourceData] = React.useState<TaxiChatSourceData | null>(
     null,
@@ -83,6 +84,7 @@ export const useTaxiChatDetailData = (partyId: string | undefined) => {
     React.useState(false);
   const [optimisticNotificationEnabled, setOptimisticNotificationEnabled] =
     React.useState<boolean | null>(null);
+  const [removedFromParty, setRemovedFromParty] = React.useState(false);
   const hasDataRef = React.useRef(false);
   const isLeavingRef = React.useRef(false);
 
@@ -90,6 +92,7 @@ export const useTaxiChatDetailData = (partyId: string | undefined) => {
     isLeavingRef.current = false;
     setNotificationTogglePending(false);
     setOptimisticNotificationEnabled(null);
+    setRemovedFromParty(false);
   }, [partyId]);
 
   React.useEffect(() => {
@@ -154,6 +157,22 @@ export const useTaxiChatDetailData = (partyId: string | undefined) => {
 
     applyPartyChat(partyChat);
   }, [applyPartyChat, partyId, taxiChatRepository]);
+
+  const handleRemovedFromParty = React.useCallback(() => {
+    if (isLeavingRef.current) {
+      return;
+    }
+
+    isLeavingRef.current = true;
+    setSourceData(null);
+    setError(null);
+    setLoading(false);
+    setRemovedFromParty(true);
+
+    taxiChatRepository.resetSession().catch(resetError => {
+      console.warn('강퇴된 파티 채팅 세션을 정리하지 못했습니다.', resetError);
+    });
+  }, [taxiChatRepository]);
 
   const reload = React.useCallback(async () => {
     if (isLeavingRef.current) {
@@ -242,8 +261,17 @@ export const useTaxiChatDetailData = (partyId: string | undefined) => {
     }
 
     return partyRepository.subscribeToParty(partyId, {
-      onData: () => {
+      onData: party => {
         if (isLeavingRef.current) {
+          return;
+        }
+
+        if (
+          authenticatedUserId &&
+          party &&
+          !party.members.includes(authenticatedUserId)
+        ) {
+          handleRemovedFromParty();
           return;
         }
 
@@ -262,7 +290,13 @@ export const useTaxiChatDetailData = (partyId: string | undefined) => {
         console.warn('파티 상태 SSE 신호를 처리하지 못했습니다.', syncError);
       },
     });
-  }, [partyId, partyRepository, refreshPartySnapshot]);
+  }, [
+    authenticatedUserId,
+    handleRemovedFromParty,
+    partyId,
+    partyRepository,
+    refreshPartySnapshot,
+  ]);
 
   const runPartyAction = React.useCallback(
     async (
@@ -558,6 +592,7 @@ export const useTaxiChatDetailData = (partyId: string | undefined) => {
     loadingOlderMessages: sourceData?.loadingOlderMessages ?? false,
     notificationTogglePending,
     reload,
+    removedFromParty,
     reopenParty,
     sendAccountMessage,
     sendImageMessage,
