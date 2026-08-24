@@ -28,7 +28,7 @@ const createPartyChat = (
 });
 
 describe('taxiChatDetailAssembler', () => {
-  it('정산 대상이 있는 리더의 모집 중/마감 파티에만 계좌 불러오기 액션을 추가한다', () => {
+  it('계좌 불러오기 액션을 제공하지 않는다', () => {
     const openLeaderView = buildTaxiChatViewData({
       currentUserId: 'leader-1',
       partyChat: createPartyChat(),
@@ -51,17 +51,12 @@ describe('taxiChatDetailAssembler', () => {
       }),
     });
 
-    expect(openLeaderView.actionTrayActions.map(action => action.id)).toContain(
-      'pasteAccount',
-    );
-    expect(closedLeaderView.actionTrayActions.map(action => action.id)).toContain(
-      'pasteAccount',
-    );
-    expect(memberView.actionTrayActions.map(action => action.id)).not.toContain(
-      'pasteAccount',
-    );
-    expect(soloLeaderView.actionTrayActions.map(action => action.id)).not.toContain(
-      'pasteAccount',
+    [openLeaderView, closedLeaderView, memberView, soloLeaderView].forEach(
+      view => {
+        expect(view.actionTrayActions.map(action => action.id)).not.toContain(
+          'pasteAccount',
+        );
+      },
     );
   });
 
