@@ -392,4 +392,52 @@ describe('FriendInviteSheet', () => {
       expect(repository.createPartyInvitations).toHaveBeenCalledTimes(2),
     );
   });
+
+  it('발송 성공 뒤 최신 목록 확인이 실패하면 다시 불러오기 전까지 후보 선택을 잠근다', async () => {
+    const repository = {
+      createChatRoomInvitations: jest.fn(),
+      createPartyInvitations: jest.fn().mockResolvedValue([
+        {
+          friendId: 'friend-party-1',
+          invitationId: 'invitation-1',
+          outcome: 'SENT',
+        },
+      ]),
+      getChatRoomInvitationEligibleFriends: jest.fn(),
+      getPartyInvitationEligibleFriends: jest
+        .fn()
+        .mockResolvedValueOnce(eligible('party-1', '택시파티', '가람'))
+        .mockRejectedValueOnce(new Error('refresh failed'))
+        .mockResolvedValueOnce(eligible('party-1', '택시파티', '가람')),
+    };
+    mockedUseRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useFriendInvitationRepository>,
+    );
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const view = render(
+      <FriendInviteSheet
+        context={{targetId: 'party-1', type: 'PARTY'}}
+        onClose={jest.fn()}
+        visible
+      />,
+    );
+
+    await waitFor(() => expect(view.getByText('가람')).toBeTruthy());
+    fireEvent.press(view.getByText('가람'));
+    fireEvent.press(view.getByText('1명 초대하기'));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith(
+        '친구 초대 결과',
+        expect.stringContaining('최신 상태를 확인하지 못했습니다.'),
+      );
+    });
+    const candidate = view.UNSAFE_getByProps({
+      accessibilityLabel: '가람 선택',
+    });
+    expect(candidate.props.disabled).toBe(true);
+
+    fireEvent.press(view.getByText('목록 다시 불러오기'));
+    await waitFor(() => expect(candidate.props.disabled).toBe(false));
+  });
 });
