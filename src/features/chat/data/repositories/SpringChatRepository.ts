@@ -218,6 +218,8 @@ export class SpringChatRepository implements IChatRepository {
 
   private listSubscriptionSequence = 0;
 
+  private joinedMembershipGeneration = 0;
+
   private stompClient: MinimalStompClient | null = null;
 
   private stompClientGeneration = 0;
@@ -330,7 +332,7 @@ export class SpringChatRepository implements IChatRepository {
       this.roomCache.get(response.data.id),
     );
 
-    this.roomCache.set(mapped.id!, mapped);
+    this.setCachedRoom(mapped.id!, mapped);
     this.publishRoom(mapped.id!);
     this.publishLists();
     this.publishNotifications();
@@ -350,7 +352,7 @@ export class SpringChatRepository implements IChatRepository {
         this.roomCache.get(chatRoomId),
       );
 
-      this.roomCache.set(chatRoomId, mapped);
+      this.setCachedRoom(chatRoomId, mapped);
       this.publishRoom(chatRoomId);
       this.publishLists();
       this.publishNotifications();
@@ -382,10 +384,10 @@ export class SpringChatRepository implements IChatRepository {
     this.releaseRoomMessageSubscription(chatRoomId);
 
     if (mapped.isPublic) {
-      this.roomCache.set(chatRoomId, mapped);
+      this.setCachedRoom(chatRoomId, mapped);
       this.publishRoom(chatRoomId);
     } else {
-      this.roomCache.delete(chatRoomId);
+      this.deleteCachedRoom(chatRoomId);
       this.publishRoom(chatRoomId, null);
     }
 
@@ -542,7 +544,7 @@ export class SpringChatRepository implements IChatRepository {
     const existing = this.roomCache.get(chatRoomId);
 
     if (existing) {
-      this.roomCache.set(chatRoomId, {
+      this.setCachedRoom(chatRoomId, {
         ...existing,
         isMuted: response.data.muted,
       });
@@ -643,7 +645,7 @@ export class SpringChatRepository implements IChatRepository {
       const nextLastReadAt = response.data.lastReadAt;
       const shouldClearUnread = hasReadThroughRoom(existing, nextLastReadAt);
 
-      this.roomCache.set(chatRoomId, {
+      this.setCachedRoom(chatRoomId, {
         ...existing,
         lastReadAt: nextLastReadAt,
         unreadCount: shouldClearUnread ? 0 : existing.unreadCount,
@@ -1027,10 +1029,15 @@ export class SpringChatRepository implements IChatRepository {
       return;
     }
 
+    const membershipGeneration = this.joinedMembershipGeneration;
     const response = await chatApiClient.getChatRooms(
       this.buildListFilter(subscription.filter),
     );
-    if (this.listSubscriptions.get(subscriptionId) !== subscription) {
+    if (
+      this.listSubscriptions.get(subscriptionId) !== subscription ||
+      (subscription.filter.joinedOnly &&
+        membershipGeneration !== this.joinedMembershipGeneration)
+    ) {
       return;
     }
     const rooms = response.data
@@ -1049,7 +1056,7 @@ export class SpringChatRepository implements IChatRepository {
 
       const existing = this.roomCache.get(room.id);
 
-      this.roomCache.set(
+      this.setCachedRoom(
         room.id,
         existing
           ? {
@@ -1082,7 +1089,7 @@ export class SpringChatRepository implements IChatRepository {
     const room = this.roomCache.get(chatRoomId);
 
     if (room) {
-      this.roomCache.set(chatRoomId, {
+      this.setCachedRoom(chatRoomId, {
         ...room,
         lastMessage: {
           createdAt: message.createdAt,
@@ -1129,10 +1136,10 @@ export class SpringChatRepository implements IChatRepository {
       this.releaseRoomMessageSubscription(payload.chatRoomId);
 
       if (existing?.isPublic) {
-        this.roomCache.set(payload.chatRoomId, toLeftRoom(existing));
+        this.setCachedRoom(payload.chatRoomId, toLeftRoom(existing));
         this.publishRoom(payload.chatRoomId);
       } else {
-        this.roomCache.delete(payload.chatRoomId);
+        this.deleteCachedRoom(payload.chatRoomId);
         this.publishRoom(payload.chatRoomId, null);
       }
 
@@ -1152,7 +1159,7 @@ export class SpringChatRepository implements IChatRepository {
       return;
     }
 
-    this.roomCache.set(
+    this.setCachedRoom(
       payload.chatRoomId,
       mergeChatRoomSummaryEvent(existing, payload),
     );
@@ -1193,7 +1200,7 @@ export class SpringChatRepository implements IChatRepository {
 
     rooms.forEach(room => {
       if (room.id) {
-        this.roomCache.set(room.id, room);
+        this.setCachedRoom(room.id, room);
       }
     });
 
@@ -1207,12 +1214,12 @@ export class SpringChatRepository implements IChatRepository {
         }
 
         if (room.isPublic) {
-          this.roomCache.set(room.id, toLeftRoom(room));
+          this.setCachedRoom(room.id, toLeftRoom(room));
           this.publishRoom(room.id);
           return;
         }
 
-        this.roomCache.delete(room.id);
+        this.deleteCachedRoom(room.id);
         this.publishRoom(room.id, null);
       });
 
@@ -1263,7 +1270,7 @@ export class SpringChatRepository implements IChatRepository {
           this.roomCache.get(chatRoomId),
         );
 
-        this.roomCache.set(chatRoomId, mapped);
+        this.setCachedRoom(chatRoomId, mapped);
         this.publishRoom(chatRoomId);
         this.publishNotifications();
         this.publishStates();
@@ -1277,7 +1284,7 @@ export class SpringChatRepository implements IChatRepository {
             error.code === RepositoryErrorCode.PERMISSION_DENIED)
         ) {
           this.releaseRoomMessageSubscription(chatRoomId);
-          this.roomCache.delete(chatRoomId);
+          this.deleteCachedRoom(chatRoomId);
           this.publishRoom(chatRoomId, null);
           this.publishNotifications();
           this.publishStates();
@@ -1385,11 +1392,11 @@ export class SpringChatRepository implements IChatRepository {
 
         if (filter.joinedOnly && room.isPublic) {
           this.releaseRoomMessageSubscription(room.id);
-          this.roomCache.set(room.id, toLeftRoom(room));
+          this.setCachedRoom(room.id, toLeftRoom(room));
           this.publishRoom(room.id);
         } else {
           this.releaseRoomMessageSubscription(room.id);
-          this.roomCache.delete(room.id);
+          this.deleteCachedRoom(room.id);
           this.publishRoom(room.id, null);
         }
       });
@@ -1405,6 +1412,24 @@ export class SpringChatRepository implements IChatRepository {
       realtimeState.subscription = null;
       realtimeState.mutationSubscription = null;
     }
+  }
+
+  private setCachedRoom(chatRoomId: string, room: ChatRoom) {
+    const previous = this.roomCache.get(chatRoomId);
+
+    if ((previous?.isJoined ?? false) !== (room.isJoined ?? false)) {
+      this.joinedMembershipGeneration += 1;
+    }
+
+    this.roomCache.set(chatRoomId, room);
+  }
+
+  private deleteCachedRoom(chatRoomId: string) {
+    if (this.roomCache.get(chatRoomId)?.isJoined) {
+      this.joinedMembershipGeneration += 1;
+    }
+
+    this.roomCache.delete(chatRoomId);
   }
 
   private getCachedGeneralChatRooms() {
