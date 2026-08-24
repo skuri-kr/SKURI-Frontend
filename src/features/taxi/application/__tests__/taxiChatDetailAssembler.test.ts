@@ -60,7 +60,7 @@ describe('taxiChatDetailAssembler', () => {
     );
   });
 
-  it('정원이 가득 찬 마감 파티에서는 모집 재개 액션을 제공하지 않는다', () => {
+  it('정원이 가득 찬 마감 파티에서도 모집 재개 액션을 제공한다', () => {
     const view = buildTaxiChatViewData({
       currentUserId: 'leader-1',
       partyChat: createPartyChat({
@@ -70,7 +70,7 @@ describe('taxiChatDetailAssembler', () => {
       }),
     });
 
-    expect(view.actionTrayActions.map(action => action.id)).not.toContain(
+    expect(view.actionTrayActions.map(action => action.id)).toContain(
       'reopen',
     );
   });
