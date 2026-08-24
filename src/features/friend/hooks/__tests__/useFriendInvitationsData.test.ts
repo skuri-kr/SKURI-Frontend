@@ -215,6 +215,61 @@ describe('useFriendInvitationsData', () => {
     expect(result.current.invitations).toContainEqual(partyInvitation);
   });
 
+  it('삭제 응답이 불확실하면 목록을 재조회해 서버에서 제거된 카드를 반영한다', async () => {
+    const repository = createRepository();
+    const responseUnavailable = new RepositoryError(
+      RepositoryErrorCode.NETWORK_ERROR,
+      'delete response unavailable',
+    );
+    repository.deletePartyInvitation.mockRejectedValueOnce(responseUnavailable);
+    mockedUseRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendInvitationRepository>,
+    );
+    const {result} = renderHook(() => useFriendInvitationsData());
+    await waitFor(() => expect(result.current.hasLoaded).toBe(true));
+    repository.getReceivedPartyInvitations.mockResolvedValueOnce([]);
+
+    await act(async () => {
+      await expect(
+        result.current.deleteInvitation(partyInvitation),
+      ).rejects.toBe(responseUnavailable);
+    });
+
+    expect(result.current.invitations).toEqual([chatInvitation]);
+    expect(result.current.mutatingIds.has(partyInvitation.id)).toBe(false);
+  });
+
+  it('삭제 응답과 목록 보정이 모두 불확실하면 재조회 전까지 카드를 잠근다', async () => {
+    const repository = createRepository();
+    const responseUnavailable = new RepositoryError(
+      RepositoryErrorCode.NETWORK_ERROR,
+      'delete response unavailable',
+    );
+    repository.deletePartyInvitation.mockRejectedValueOnce(responseUnavailable);
+    mockedUseRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendInvitationRepository>,
+    );
+    const {result} = renderHook(() => useFriendInvitationsData());
+    await waitFor(() => expect(result.current.hasLoaded).toBe(true));
+    repository.getReceivedPartyInvitations.mockRejectedValueOnce(
+      new Error('party reload unavailable'),
+    );
+
+    await act(async () => {
+      await expect(
+        result.current.deleteInvitation(partyInvitation),
+      ).rejects.toBe(responseUnavailable);
+    });
+
+    expect(result.current.mutatingIds.has(partyInvitation.id)).toBe(true);
+
+    await act(async () => {
+      await result.current.reload();
+    });
+
+    expect(result.current.mutatingIds.has(partyInvitation.id)).toBe(false);
+  });
+
   it('다른 초대 성공이 진행 중인 목록 보정을 무효화하면 새 보정을 시작한다', async () => {
     const repository = createRepository();
     const firstError = new RepositoryError(

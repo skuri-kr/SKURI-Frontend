@@ -236,6 +236,58 @@ describe('FriendInviteSheet', () => {
     );
   });
 
+  it('초대 전송 중에는 후보 선택을 바꾸지 않는다', async () => {
+    const pendingSend = deferred<
+      Array<{friendId: string; invitationId: string; outcome: 'SENT'}>
+    >();
+    const repository = {
+      createChatRoomInvitations: jest.fn(),
+      createPartyInvitations: jest.fn().mockReturnValue(pendingSend.promise),
+      getChatRoomInvitationEligibleFriends: jest.fn(),
+      getPartyInvitationEligibleFriends: jest
+        .fn()
+        .mockResolvedValue(eligible('party-1', '택시파티', '가람')),
+    };
+    mockedUseRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useFriendInvitationRepository>,
+    );
+    const view = render(
+      <FriendInviteSheet
+        context={{targetId: 'party-1', type: 'PARTY'}}
+        onClose={jest.fn()}
+        visible
+      />,
+    );
+
+    await waitFor(() => expect(view.getByText('가람')).toBeTruthy());
+    fireEvent.press(view.getByText('가람'));
+    fireEvent.press(view.getByText('1명 초대하기'));
+    await waitFor(() =>
+      expect(repository.createPartyInvitations).toHaveBeenCalledWith(
+        'party-1',
+        ['friend-party-1'],
+      ),
+    );
+
+    const candidate = view.UNSAFE_getByProps({
+      accessibilityLabel: '가람 선택 해제',
+    });
+    expect(candidate.props.disabled).toBe(true);
+    fireEvent.press(candidate);
+    expect(view.getByText('1명 초대하기')).toBeTruthy();
+
+    await act(async () => {
+      pendingSend.resolve([
+        {
+          friendId: 'friend-party-1',
+          invitationId: 'invitation-1',
+          outcome: 'SENT',
+        },
+      ]);
+      await pendingSend.promise;
+    });
+  });
+
   it('혼합 발송 결과에 친구 이름과 일반화된 결과를 표시한다', async () => {
     const mixedEligible: FriendInvitationEligibleFriends = {
       ...eligible('party-1', '택시파티', '가람'),
