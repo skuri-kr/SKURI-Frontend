@@ -1384,6 +1384,7 @@ export class SpringChatRepository implements IChatRepository {
         }
 
         if (filter.joinedOnly && room.isPublic) {
+          this.releaseRoomMessageSubscription(room.id);
           this.roomCache.set(room.id, toLeftRoom(room));
           this.publishRoom(room.id);
         } else {
