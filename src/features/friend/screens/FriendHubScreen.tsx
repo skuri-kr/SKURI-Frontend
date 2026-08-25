@@ -284,6 +284,7 @@ export const FriendHubScreen = () => {
       };
       reloadTargetInvitations().catch(() => undefined);
     } else {
+      invitationTargetReloadVersionRef.current += 1;
       setHighlightedInvitationTarget(null);
       setIsInvitationTargetReloadPending(false);
       if (initialTab === 'friends') {
@@ -574,22 +575,36 @@ export const FriendHubScreen = () => {
 
   const handleDeclineInvitation = React.useCallback(
     (invitation: (typeof invitations)[number]) => {
+      const friendHubRouteVersion = friendHubRouteVersionRef.current;
       clearHighlightedInvitationTarget(invitation);
       declineInvitation(invitation).catch(declineError => {
+        if (
+          friendHubRouteVersion !== friendHubRouteVersionRef.current ||
+          !navigation.isFocused()
+        ) {
+          return;
+        }
         showErrorAlert(declineError, '초대를 거절하지 못했습니다.');
       });
     },
-    [clearHighlightedInvitationTarget, declineInvitation, showErrorAlert],
+    [clearHighlightedInvitationTarget, declineInvitation, navigation, showErrorAlert],
   );
 
   const handleDeleteInvitation = React.useCallback(
     (invitation: (typeof invitations)[number]) => {
+      const friendHubRouteVersion = friendHubRouteVersionRef.current;
       clearHighlightedInvitationTarget(invitation);
       deleteInvitation(invitation).catch(deleteError => {
+        if (
+          friendHubRouteVersion !== friendHubRouteVersionRef.current ||
+          !navigation.isFocused()
+        ) {
+          return;
+        }
         showErrorAlert(deleteError, '초대 기록을 지우지 못했습니다.');
       });
     },
-    [clearHighlightedInvitationTarget, deleteInvitation, showErrorAlert],
+    [clearHighlightedInvitationTarget, deleteInvitation, navigation, showErrorAlert],
   );
 
   return (
