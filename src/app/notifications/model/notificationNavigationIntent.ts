@@ -4,7 +4,7 @@ export type NotificationNavigationIntent =
   | {kind: 'communityChat'; chatRoomId: string}
   | {
       kind: 'friendHub';
-      initialTab: 'requests' | 'invitations';
+      initialTab: 'friends' | 'requests' | 'invitations';
       targetInvitation?: {id: string; type: 'PARTY' | 'CHAT_ROOM'};
     }
   | {kind: 'friendDetail'; friendPublicId: string}

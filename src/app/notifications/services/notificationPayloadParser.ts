@@ -121,8 +121,12 @@ const parseCanonicalNotification = ({
       return {type, requestId};
     case 'FRIEND_ACCEPTED':
       if (!friendPublicId) {
-        warnInvalidNotification(source, type, 'friendPublicId가 없습니다.');
-        return null;
+        warnInvalidNotification(
+          source,
+          type,
+          'friendPublicId가 없어 친구 허브로 이동합니다.',
+        );
+        return {type};
       }
 
       return {type, friendPublicId};

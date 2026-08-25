@@ -54,7 +54,9 @@ export const getNotificationNavigationIntent = (
     case 'FRIEND_DECLINED':
       return {kind: 'friendHub', initialTab: 'requests'};
     case 'FRIEND_ACCEPTED':
-      return {kind: 'friendDetail', friendPublicId: payload.friendPublicId};
+      return payload.friendPublicId
+        ? {kind: 'friendDetail', friendPublicId: payload.friendPublicId}
+        : {kind: 'friendHub', initialTab: 'friends'};
     case 'PARTY_INVITATION':
     case 'CHAT_ROOM_INVITATION':
       return {

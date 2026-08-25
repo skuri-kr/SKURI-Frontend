@@ -88,6 +88,9 @@ export const FriendHubScreen = () => {
     React.useState<InvitationTarget | null>(() =>
       getRouteInvitationTarget(route.params),
     );
+  const [isInvitationTargetReloadPending, setIsInvitationTargetReloadPending] =
+    React.useState(() => getRouteInvitationTarget(route.params) !== null);
+  const invitationTargetReloadVersionRef = React.useRef(0);
   const [refreshing, setRefreshing] = React.useState(false);
   const {
     acceptRequest,
@@ -180,16 +183,33 @@ export const FriendHubScreen = () => {
     setSelectedTab(invitationTarget ? 'invitations' : initialTab ?? 'friends');
     if (invitationTarget) {
       setHighlightedInvitationTarget(invitationTarget);
+      setIsInvitationTargetReloadPending(true);
+      const reloadVersion = invitationTargetReloadVersionRef.current + 1;
+      invitationTargetReloadVersionRef.current = reloadVersion;
+      reloadInvitations()
+        .catch(() => undefined)
+        .finally(() => {
+          if (invitationTargetReloadVersionRef.current === reloadVersion) {
+            setIsInvitationTargetReloadPending(false);
+          }
+        });
     }
     navigation.setParams({
       initialTab: undefined,
       targetInvitationId: undefined,
       targetInvitationType: undefined,
     });
-  }, [navigation, route.params]);
+  }, [navigation, reloadInvitations, route.params]);
 
   React.useEffect(() => {
-    if (!highlightedInvitationTarget || !hasLoadedInvitations) {
+    if (
+      !highlightedInvitationTarget ||
+      !hasLoadedInvitations ||
+      invitationsLoading ||
+      isInvitationTargetReloadPending ||
+      partyInvitationError ||
+      chatInvitationError
+    ) {
       return;
     }
 
@@ -202,7 +222,15 @@ export const FriendHubScreen = () => {
     if (!targetExists) {
       setHighlightedInvitationTarget(null);
     }
-  }, [hasLoadedInvitations, highlightedInvitationTarget, invitations]);
+  }, [
+    chatInvitationError,
+    hasLoadedInvitations,
+    highlightedInvitationTarget,
+    invitations,
+    invitationsLoading,
+    isInvitationTargetReloadPending,
+    partyInvitationError,
+  ]);
 
   const handleInvitationLayout = React.useCallback(
     (invitation: (typeof invitations)[number], y: number) => {
