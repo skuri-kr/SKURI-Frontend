@@ -461,13 +461,20 @@ export const FriendHubScreen = () => {
 
   const handleFavorite = React.useCallback(
     async (friend: (typeof friends)[number]) => {
+      const friendHubRouteVersion = friendHubRouteVersionRef.current;
       try {
         await updateFavorite(friend);
       } catch (updateError) {
+        if (
+          friendHubRouteVersion !== friendHubRouteVersionRef.current ||
+          !navigation.isFocused()
+        ) {
+          return;
+        }
         showErrorAlert(updateError, '즐겨찾기를 변경하지 못했습니다.');
       }
     },
-    [showErrorAlert, updateFavorite],
+    [navigation, showErrorAlert, updateFavorite],
   );
 
   const handleAccept = React.useCallback(
