@@ -237,6 +237,68 @@ describe('FriendDetailScreen', () => {
     );
   });
 
+  it('다른 친구로 전환된 뒤 이전 친구 초대 확인 Alert를 눌러도 요청을 시작하지 않는다', () => {
+    const navigation = {
+      goBack: jest.fn(),
+      isFocused: jest.fn().mockReturnValue(true),
+      navigate: jest.fn(),
+    };
+    const createChatRoomInvitations = jest.fn();
+    mockedUseNavigation.mockReturnValue(
+      navigation as ReturnType<typeof useNavigation>,
+    );
+    mockedUseRoute.mockReturnValue({
+      params: {friendId: 'friend-1'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData());
+    mockedUseFriendInvitationRepository.mockReturnValue({
+      createChatRoomInvitations,
+      createPartyInvitations: jest.fn(),
+    } as unknown as ReturnType<typeof useFriendInvitationRepository>);
+    mockedUseChatRooms.mockReturnValue({
+      chatRooms: [
+        {
+          id: 'room-1',
+          isJoined: true,
+          isPublic: true,
+          memberCount: 3,
+          name: '전체 채팅방',
+          type: 'university',
+        },
+      ],
+      error: null,
+      loading: false,
+      refresh: jest.fn(),
+    });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+    const view = render(<FriendDetailScreen />);
+    fireEvent.press(view.getByText('공개 채팅방에 초대'));
+    const inviteAction = alertSpy.mock.calls
+      .find(([title]) => title === '친구 초대')?.[2]
+      ?.find(button => button.text === '초대');
+
+    mockedUseRoute.mockReturnValue({
+      params: {friendId: 'friend-2'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData({
+      friend: {
+        department: null,
+        favorite: false,
+        id: 'friend-2',
+        nickname: '나래',
+        photoUrl: null,
+      },
+    }));
+    view.rerender(<FriendDetailScreen />);
+
+    act(() => {
+      inviteAction?.onPress?.();
+    });
+
+    expect(createChatRoomInvitations).not.toHaveBeenCalled();
+  });
+
   it('다른 친구로 전환된 뒤 이전 친구 초대 결과는 표시하지 않는다', async () => {
     const navigation = {
       goBack: jest.fn(),
