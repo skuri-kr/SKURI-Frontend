@@ -93,6 +93,15 @@ const mockedUseFriendInvitationRepository = jest.mocked(
 );
 const mockedInvalidateData = jest.mocked(invalidateData);
 
+const createDeferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(resolvePromise => {
+    resolve = resolvePromise;
+  });
+
+  return {promise, resolve};
+};
+
 const createFriendDetailData = (overrides: Partial<ReturnType<typeof useFriendDetailData>> = {}) => ({
   blockFriend: jest.fn(),
   error: undefined,
@@ -309,6 +318,68 @@ describe('FriendDetailScreen', () => {
     expect(mockedInvalidateData).toHaveBeenCalledTimes(2);
     expect(mockedInvalidateData).toHaveBeenNthCalledWith(1, FRIEND_HUB_INVALIDATION_KEY);
     expect(mockedInvalidateData).toHaveBeenNthCalledWith(2, FRIEND_HUB_INVALIDATION_KEY);
+  });
+
+  it('다른 친구로 전환된 뒤 이전 친구 관리 요청이 완료되어도 현재 상세를 닫지 않는다', async () => {
+    const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true)};
+    const removeDeferred = createDeferred<boolean>();
+    const blockDeferred = createDeferred<boolean>();
+    const removeFriend = jest.fn().mockReturnValue(removeDeferred.promise);
+    const blockFriend = jest.fn().mockReturnValue(blockDeferred.promise);
+    mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
+    mockedUseRoute.mockReturnValue({params: {friendId: 'friend-1'}} as ReturnType<typeof useRoute>);
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData({
+      blockFriend,
+      removeFriend,
+    }));
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+    const view = render(<FriendDetailScreen />);
+    fireEvent.press(view.getByText('친구 끊기'));
+    fireEvent.press(view.getByText('차단하기'));
+
+    const removeAction = alertSpy.mock.calls
+      .find(([title]) => title === '친구 끊기')?.[2]
+      ?.find(button => button.text === '친구 끊기');
+    const blockAction = alertSpy.mock.calls
+      .find(([title]) => title === '친구 차단')?.[2]
+      ?.find(button => button.text === '차단');
+    act(() => {
+      removeAction?.onPress?.();
+      blockAction?.onPress?.();
+    });
+
+    await waitFor(() => {
+      expect(removeFriend).toHaveBeenCalledTimes(1);
+      expect(blockFriend).toHaveBeenCalledTimes(1);
+    });
+
+    mockedUseRoute.mockReturnValue({params: {friendId: 'friend-2'}} as ReturnType<typeof useRoute>);
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData({
+      friend: {
+        department: null,
+        favorite: false,
+        id: 'friend-2',
+        nickname: '나래',
+        photoUrl: null,
+      },
+    }));
+    view.rerender(<FriendDetailScreen />);
+
+    await act(async () => {
+      removeDeferred.resolve(true);
+      blockDeferred.resolve(true);
+    });
+
+    expect(mockedInvalidateData).toHaveBeenNthCalledWith(
+      1,
+      FRIEND_HUB_INVALIDATION_KEY,
+    );
+    expect(mockedInvalidateData).toHaveBeenNthCalledWith(
+      2,
+      FRIEND_HUB_INVALIDATION_KEY,
+    );
+    expect(navigation.goBack).not.toHaveBeenCalled();
   });
 
   it('화면을 떠난 뒤 친구 끊기와 차단이 실패해도 오류를 표시하지 않는다', async () => {
