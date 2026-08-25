@@ -287,6 +287,7 @@ export const FriendHubScreen = () => {
       invitationTargetReloadVersionRef.current += 1;
       setHighlightedInvitationTarget(null);
       setIsInvitationTargetReloadPending(false);
+      scrollViewRef.current?.scrollTo({animated: false, y: 0});
       if (initialTab === 'friends') {
         reload({
           friends: true,
