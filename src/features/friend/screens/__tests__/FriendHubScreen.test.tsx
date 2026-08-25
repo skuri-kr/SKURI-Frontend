@@ -265,6 +265,21 @@ describe('FriendHubScreen', () => {
     expect(view.queryByText(/undefined/)).toBeNull();
   });
 
+  it('대상 없는 알림 route는 친구 허브 스크롤을 최상단으로 되돌린다', () => {
+    const scrollToSpy = jest
+      .spyOn(ScrollView.prototype, 'scrollTo')
+      .mockImplementation(() => undefined);
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'requests'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+
+    render(<FriendHubScreen />);
+
+    expect(scrollToSpy).toHaveBeenCalledWith({animated: false, y: 0});
+    scrollToSpy.mockRestore();
+  });
+
   it('알림에서 연 초대는 초대 탭의 해당 카드에 강조 표시한다', () => {
     const invitation = {
       createdAt: '2026-08-25T09:00:00',
