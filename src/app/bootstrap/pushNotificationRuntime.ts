@@ -1,4 +1,9 @@
 import {getNotificationNavigationIntent} from '@/app/notifications/services/notificationRouter';
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {
+  FRIEND_HUB_INVALIDATION_KEY,
+  FRIEND_INBOX_COUNTS_INVALIDATION_KEY,
+} from '@/app/data-freshness/invalidationKeys';
 import type {NotificationPayload} from '@/app/notifications/model/notificationPayload';
 import type {NotificationNavigationIntent} from '@/app/notifications/model/notificationNavigationIntent';
 import {parsePushNotificationPayload} from '@/app/notifications/services/notificationPayloadParser';
@@ -15,6 +20,14 @@ type PartyJoinRequestPayload = Extract<
   NotificationPayload,
   {type: 'PARTY_JOIN_REQUEST'}
 >;
+
+const FRIEND_NOTIFICATION_TYPES = new Set<NotificationPayload['type']>([
+  'FRIEND_REQUEST',
+  'FRIEND_ACCEPTED',
+  'FRIEND_DECLINED',
+  'PARTY_INVITATION',
+  'CHAT_ROOM_INVITATION',
+]);
 
 export interface ForegroundNotificationDescriptor {
   body: string;
@@ -262,6 +275,13 @@ export function initForegroundMessageHandler(
 
     if (!payload) {
       return;
+    }
+
+    if (FRIEND_NOTIFICATION_TYPES.has(payload.type)) {
+      invalidateData([
+        FRIEND_HUB_INVALIDATION_KEY,
+        FRIEND_INBOX_COUNTS_INVALIDATION_KEY,
+      ]);
     }
 
     switch (payload.type) {
