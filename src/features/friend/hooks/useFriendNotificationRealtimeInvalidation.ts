@@ -59,6 +59,12 @@ export const useFriendNotificationRealtimeInvalidation = ({
           previousFriendNotificationIdsRef.current = nextFriendNotificationIds;
 
           if (!previousFriendNotificationIds) {
+            if (nextFriendNotificationIds.size > 0) {
+              invalidateData([
+                FRIEND_HUB_INVALIDATION_KEY,
+                FRIEND_INBOX_COUNTS_INVALIDATION_KEY,
+              ]);
+            }
             return;
           }
 

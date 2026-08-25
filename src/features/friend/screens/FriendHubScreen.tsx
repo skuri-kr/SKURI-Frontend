@@ -197,12 +197,20 @@ export const FriendHubScreen = () => {
     } else {
       setHighlightedInvitationTarget(null);
       setIsInvitationTargetReloadPending(false);
-      if (initialTab === 'requests') {
+      if (initialTab === 'friends') {
+        reload({
+          friends: true,
+          receivedRequests: false,
+          sentRequests: false,
+        }).catch(() => undefined);
+      } else if (initialTab === 'requests') {
         reload({
           friends: false,
           receivedRequests: true,
           sentRequests: true,
         }).catch(() => undefined);
+      } else if (initialTab === 'invitations') {
+        reloadInvitations().catch(() => undefined);
       }
     }
     navigation.setParams({
