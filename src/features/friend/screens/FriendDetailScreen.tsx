@@ -138,6 +138,9 @@ export const FriendDetailScreen = () => {
       }
 
       const mutationFriendId = friend.id;
+      if (mutationFriendId !== currentFriendIdRef.current) {
+        return;
+      }
       setInviting(true);
       try {
         const outcomes =
