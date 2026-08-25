@@ -445,4 +445,57 @@ describe('useFriendInvitationsData', () => {
     expect(result.current.invitations).toEqual([chatInvitation]);
     expect(result.current.pendingCount).toBe(0);
   });
+
+  it('초대 처리 중 폐기된 새로고침은 완료 뒤 최신 목록으로 다시 조회한다', async () => {
+    const repository = createRepository();
+    const acceptance = deferred<{
+      invitationId: string;
+      status: 'ACCEPTED';
+      targetId: string;
+      type: 'PARTY';
+    }>();
+    const stalePartyResult = deferred<typeof partyInvitation[]>();
+    repository.acceptPartyInvitation.mockReturnValue(acceptance.promise);
+    mockedUseRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendInvitationRepository>,
+    );
+    const {result} = renderHook(() => useFriendInvitationsData());
+    await waitFor(() => expect(result.current.hasLoaded).toBe(true));
+    repository.getReceivedPartyInvitations
+      .mockReturnValueOnce(stalePartyResult.promise)
+      .mockResolvedValueOnce([secondPartyInvitation]);
+
+    let acceptancePromise!: Promise<unknown>;
+    let notificationReloadPromise!: Promise<boolean>;
+    act(() => {
+      acceptancePromise = result.current.acceptInvitation(partyInvitation);
+      notificationReloadPromise = result.current.reload();
+    });
+
+    await waitFor(() =>
+      expect(result.current.mutatingIds.has(partyInvitation.id)).toBe(true),
+    );
+
+    await act(async () => {
+      acceptance.resolve({
+        invitationId: partyInvitation.id,
+        status: 'ACCEPTED',
+        targetId: 'party-1',
+        type: 'PARTY',
+      });
+      await acceptancePromise;
+    });
+
+    await waitFor(() =>
+      expect(repository.getReceivedPartyInvitations).toHaveBeenCalledTimes(3),
+    );
+    await waitFor(() =>
+      expect(result.current.invitations).toContainEqual(secondPartyInvitation),
+    );
+
+    await act(async () => {
+      stalePartyResult.resolve([partyInvitation]);
+      expect(await notificationReloadPromise).toBe(false);
+    });
+  });
 });
