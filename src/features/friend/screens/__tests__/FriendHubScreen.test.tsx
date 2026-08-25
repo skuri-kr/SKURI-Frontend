@@ -385,6 +385,59 @@ describe('FriendHubScreen', () => {
     });
   });
 
+  it('대상 없는 초대 탭 경로는 이전 대상 재조회의 재시도를 취소한다', async () => {
+    const invitation = createPartyInvitation('party-invitation-reload-a', 'party-reload-a');
+    const targetReload = createDeferred<boolean>();
+    const fallbackReload = createDeferred<boolean>();
+    const reloadInvitations = jest
+      .fn()
+      .mockReturnValueOnce(targetReload.promise)
+      .mockReturnValueOnce(fallbackReload.promise);
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitation.id,
+        targetInvitationType: invitation.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation: jest.fn(),
+      chatError: undefined,
+      declineInvitation: jest.fn(),
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [invitation],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 1,
+      reload: reloadInvitations,
+    });
+
+    const view = render(<FriendHubScreen />);
+    await waitFor(() => {
+      expect(reloadInvitations).toHaveBeenCalledTimes(1);
+    });
+
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'invitations'},
+    } as ReturnType<typeof useRoute>);
+    view.rerender(<FriendHubScreen />);
+    await waitFor(() => {
+      expect(reloadInvitations).toHaveBeenCalledTimes(2);
+    });
+
+    await act(async () => {
+      targetReload.resolve(false);
+    });
+
+    expect(reloadInvitations).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      fallbackReload.resolve(true);
+    });
+  });
+
   it('같은 초대 알림을 다시 열면 저장된 카드 위치로 다시 스크롤한다', async () => {
     const invitation = {
       createdAt: '2026-08-25T09:00:00',
@@ -715,6 +768,118 @@ describe('FriendHubScreen', () => {
     view.rerender(<FriendHubScreen />);
 
     expect(view.getByText('받은 초대가 없어요')).toBeTruthy();
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+
+  it('다른 초대 알림으로 전환된 뒤 이전 초대 거절 실패 오류는 표시하지 않는다', async () => {
+    const invitationA = createPartyInvitation('party-invitation-decline-a', 'party-decline-a');
+    const invitationB = {
+      ...invitationA,
+      id: 'party-invitation-decline-b',
+      inviter: {...invitationA.inviter, id: 'friend-decline-b', nickname: '나래'},
+      target: {...invitationA.target, id: 'party-decline-b'},
+    };
+    const declineDeferred = createDeferred<void>();
+    const declineInvitation = jest.fn().mockReturnValue(declineDeferred.promise);
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitationA.id,
+        targetInvitationType: invitationA.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation: jest.fn(),
+      chatError: undefined,
+      declineInvitation,
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [invitationA, invitationB],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 2,
+      reload: jest.fn().mockResolvedValue(true),
+    });
+
+    const view = render(<FriendHubScreen />);
+    fireEvent.press(view.getAllByText('거절')[0]);
+    await waitFor(() => {
+      expect(declineInvitation).toHaveBeenCalledWith(invitationA);
+    });
+
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitationB.id,
+        targetInvitationType: invitationB.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    view.rerender(<FriendHubScreen />);
+    alertSpy.mockClear();
+
+    await act(async () => {
+      declineDeferred.reject(new Error('decline failed'));
+    });
+
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+
+  it('다른 초대 알림으로 전환된 뒤 이전 초대 삭제 실패 오류는 표시하지 않는다', async () => {
+    const invitationA = {
+      ...createPartyInvitation('party-invitation-delete-a', 'party-delete-a'),
+      expiresAt: '2026-08-25T10:00:00',
+      expiryReason: 'CAPACITY_FULL' as const,
+      status: 'EXPIRED' as const,
+    };
+    const invitationB = createPartyInvitation('party-invitation-delete-b', 'party-delete-b');
+    const deleteDeferred = createDeferred<void>();
+    const deleteInvitation = jest.fn().mockReturnValue(deleteDeferred.promise);
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitationA.id,
+        targetInvitationType: invitationA.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation: jest.fn(),
+      chatError: undefined,
+      declineInvitation: jest.fn(),
+      deleteInvitation,
+      hasLoaded: true,
+      invitations: [invitationA, invitationB],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 1,
+      reload: jest.fn().mockResolvedValue(true),
+    });
+
+    const view = render(<FriendHubScreen />);
+    fireEvent.press(view.getByText('목록에서 지우기'));
+    await waitFor(() => {
+      expect(deleteInvitation).toHaveBeenCalledWith(invitationA);
+    });
+
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitationB.id,
+        targetInvitationType: invitationB.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    view.rerender(<FriendHubScreen />);
+    alertSpy.mockClear();
+
+    await act(async () => {
+      deleteDeferred.reject(new Error('delete failed'));
+    });
+
     expect(alertSpy).not.toHaveBeenCalled();
   });
 
