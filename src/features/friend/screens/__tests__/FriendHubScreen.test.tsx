@@ -282,6 +282,69 @@ describe('FriendHubScreen', () => {
     });
   });
 
+  it('대상 없는 초대 탭 경로는 이전 알림 초대 강조를 유지하지 않는다', async () => {
+    const invitation = {
+      createdAt: '2026-08-25T09:00:00',
+      expiresAt: null,
+      expiryReason: null,
+      id: 'party-invitation-1',
+      inviter: {
+        department: '소프트웨어학과',
+        favorite: false,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      },
+      respondedAt: null,
+      status: 'PENDING' as const,
+      target: {
+        currentMembers: 2,
+        departureName: '성결대학교',
+        departureTime: '2026-08-25T14:00:00',
+        destinationName: '안양역',
+        id: 'party-1',
+        maxMembers: 4,
+        status: 'OPEN' as const,
+        type: 'PARTY' as const,
+      },
+      type: 'PARTY' as const,
+    };
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitation.id,
+        targetInvitationType: invitation.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation: jest.fn(),
+      chatError: undefined,
+      declineInvitation: jest.fn(),
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [invitation],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 1,
+      reload: jest.fn(() => new Promise<void>(() => undefined)),
+    });
+
+    const view = render(<FriendHubScreen />);
+
+    expect(view.getByLabelText('알림에서 선택한 초대')).toBeTruthy();
+
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'invitations'},
+    } as ReturnType<typeof useRoute>);
+    view.rerender(<FriendHubScreen />);
+
+    await waitFor(() => {
+      expect(view.queryByLabelText('알림에서 선택한 초대')).toBeNull();
+    });
+  });
+
   it('이미 열린 허브에서는 새 초대 목록을 받기 전 대상 강조를 지우지 않는다', () => {
     const invitation = {
       createdAt: '2026-08-25T09:00:00',
@@ -704,6 +767,24 @@ describe('FriendHubScreen', () => {
     expect(view.getByText('대기 중인 요청이 없어요')).toBeTruthy();
     expect(view.queryByText('받은 요청')).toBeNull();
     expect(view.queryByText('보낸 요청')).toBeNull();
+  });
+
+  it('요청 알림 경로는 이미 열린 화면의 받은·보낸 요청을 다시 불러온다', async () => {
+    const reload = jest.fn().mockResolvedValue(undefined);
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'requests'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData({reload}));
+
+    render(<FriendHubScreen />);
+
+    await waitFor(() => {
+      expect(reload).toHaveBeenCalledWith({
+        friends: false,
+        receivedRequests: true,
+        sentRequests: true,
+      });
+    });
   });
 
   it('한 방향의 초기 요청 조회가 아직 끝나지 않았으면 빈 화면 대신 로딩 상태를 표시한다', () => {
