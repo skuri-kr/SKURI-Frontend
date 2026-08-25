@@ -1585,6 +1585,45 @@ describe('FriendHubScreen', () => {
     });
   });
 
+  it('다른 FriendHub 알림 route로 전환된 뒤 이전 즐겨찾기 저장 실패 오류는 표시하지 않는다', async () => {
+    const friend = {
+      department: null,
+      favorite: false,
+      id: 'friend-favorite-a',
+      nickname: '가람',
+      photoUrl: null,
+    };
+    const favoriteDeferred = createDeferred<void>();
+    const updateFavorite = jest.fn().mockReturnValue(favoriteDeferred.promise);
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'friends'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(
+      createFriendHubData({
+        friends: [friend],
+        updateFavorite,
+      }),
+    );
+
+    const view = render(<FriendHubScreen />);
+    fireEvent.press(view.getByLabelText('가람 즐겨찾기 추가'));
+    await waitFor(() => {
+      expect(updateFavorite).toHaveBeenCalledWith(friend);
+    });
+
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'requests'},
+    } as ReturnType<typeof useRoute>);
+    view.rerender(<FriendHubScreen />);
+
+    await act(async () => {
+      favoriteDeferred.reject(new Error('favorite failed'));
+    });
+
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+
   it('받은 요청과 보낸 요청이 모두 없으면 통합 빈 상태만 표시한다', () => {
     mockedUseRoute.mockReturnValue({
       params: {initialTab: 'requests'},
