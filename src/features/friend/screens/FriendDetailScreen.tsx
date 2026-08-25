@@ -211,7 +211,7 @@ export const FriendDetailScreen = () => {
         });
       }},
     ]);
-  }, [friend?.nickname, navigation, removeFriend, showMutationError]);
+  }, [friend?.id, friend?.nickname, navigation, removeFriend, showMutationError]);
 
   const handleBlock = React.useCallback(() => {
     const mutationFriendId = friend?.id;
@@ -234,7 +234,7 @@ export const FriendDetailScreen = () => {
         });
       }},
     ]);
-  }, [blockFriend, friend?.nickname, navigation, showMutationError]);
+  }, [blockFriend, friend?.id, friend?.nickname, navigation, showMutationError]);
 
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>

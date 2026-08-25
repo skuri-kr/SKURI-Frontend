@@ -1,5 +1,5 @@
 import React from 'react';
-import {Alert, ScrollView, View} from 'react-native';
+import {Alert, ScrollView, View as RNView} from 'react-native';
 import {act, fireEvent, render, waitFor} from '@testing-library/react-native';
 
 import {useIsFocused, useNavigation, useRoute} from '@react-navigation/native';
@@ -409,7 +409,7 @@ describe('FriendHubScreen', () => {
     await waitFor(() => {
       expect(reloadInvitations).toHaveBeenCalledTimes(1);
     });
-    const invitationLayout = view.UNSAFE_getAllByType(View).find(
+    const invitationLayout = view.UNSAFE_getAllByType(RNView).find(
       node => typeof node.props.onLayout === 'function',
     );
 
