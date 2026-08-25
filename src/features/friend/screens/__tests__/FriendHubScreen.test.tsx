@@ -269,7 +269,7 @@ describe('FriendHubScreen', () => {
       mutatingIds: new Set(),
       partyError: undefined,
       pendingCount: 1,
-      reload: jest.fn().mockResolvedValue(undefined),
+      reload: jest.fn(() => new Promise<void>(() => undefined)),
     });
 
     const view = render(<FriendHubScreen />);
@@ -280,6 +280,80 @@ describe('FriendHubScreen', () => {
       targetInvitationId: undefined,
       targetInvitationType: undefined,
     });
+  });
+
+  it('이미 열린 허브에서는 새 초대 목록을 받기 전 대상 강조를 지우지 않는다', () => {
+    const invitation = {
+      createdAt: '2026-08-25T09:00:00',
+      expiresAt: null,
+      expiryReason: null,
+      id: 'party-invitation-1',
+      inviter: {
+        department: '소프트웨어학과',
+        favorite: false,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      },
+      respondedAt: null,
+      status: 'PENDING' as const,
+      target: {
+        currentMembers: 2,
+        departureName: '성결대학교',
+        departureTime: '2026-08-25T14:00:00',
+        destinationName: '안양역',
+        id: 'party-1',
+        maxMembers: 4,
+        status: 'OPEN' as const,
+        type: 'PARTY' as const,
+      },
+      type: 'PARTY' as const,
+    };
+    const reloadInvitations = jest.fn(
+      () => new Promise<void>(() => undefined),
+    );
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitation.id,
+        targetInvitationType: invitation.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation: jest.fn(),
+      chatError: undefined,
+      declineInvitation: jest.fn(),
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [],
+      loading: true,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 0,
+      reload: reloadInvitations,
+    });
+
+    const view = render(<FriendHubScreen />);
+
+    expect(reloadInvitations).toHaveBeenCalledTimes(1);
+
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation: jest.fn(),
+      chatError: undefined,
+      declineInvitation: jest.fn(),
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [invitation],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 1,
+      reload: reloadInvitations,
+    });
+    view.rerender(<FriendHubScreen />);
+
+    expect(view.getByLabelText('알림에서 선택한 초대')).toBeTruthy();
   });
 
   it('초대 수락 완료 전에 화면을 떠났으면 대상 화면으로 이동하지 않는다', async () => {

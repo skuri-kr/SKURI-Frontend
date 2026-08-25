@@ -112,6 +112,15 @@ describe('notificationPayloadParser', () => {
     });
   });
 
+  it('친구 수락의 friendPublicId가 없으면 친구 허브 fallback payload를 만든다', () => {
+    expect(
+      parsePushNotificationPayload({
+        contractVersion: '1',
+        type: 'FRIEND_ACCEPTED',
+      }),
+    ).toEqual({type: 'FRIEND_ACCEPTED'});
+  });
+
   it('초대 type과 invitationType이 일치하지 않으면 무시한다', () => {
     expect(
       parsePushNotificationPayload({

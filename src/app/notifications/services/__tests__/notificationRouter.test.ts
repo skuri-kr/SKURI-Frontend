@@ -43,6 +43,29 @@ describe('notificationRouter', () => {
     });
   });
 
+  it('친구 수락 알림에 friendPublicId가 없으면 친구 탭으로 안전하게 이동한다', () => {
+    const warning = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const notification = mapNotificationResponseDto({
+      createdAt: '2026-08-25T09:00:00.000Z',
+      data: {},
+      id: 'notification-friend-accepted-without-public-id',
+      isRead: false,
+      message: '친구가 되었어요.',
+      title: '친구 수락',
+      type: 'FRIEND_ACCEPTED',
+    });
+    const intent = getStoredNotificationNavigationIntent(notification);
+
+    expect(intent).toEqual({kind: 'friendHub', initialTab: 'friends'});
+
+    openNotificationNavigationIntent(intent);
+
+    expect(mockedNavigateToCampusScreen).toHaveBeenCalledWith('FriendHub', {
+      initialTab: 'friends',
+    });
+    warning.mockRestore();
+  });
+
   it('초대 알림은 초대 카드 대상까지 보존해 친구 허브로 이동한다', () => {
     const notification = mapNotificationResponseDto({
       createdAt: '2026-08-25T09:00:00.000Z',
