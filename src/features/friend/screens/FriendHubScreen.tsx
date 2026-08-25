@@ -202,14 +202,19 @@ export const FriendHubScreen = () => {
     });
   }, [navigation, reloadInvitations, route.params]);
 
+  const highlightedInvitationError = highlightedInvitationTarget
+    ? highlightedInvitationTarget.type === 'PARTY'
+      ? partyInvitationError
+      : chatInvitationError
+    : undefined;
+
   React.useEffect(() => {
     if (
       !highlightedInvitationTarget ||
       !hasLoadedInvitations ||
       invitationsLoading ||
       isInvitationTargetReloadPending ||
-      partyInvitationError ||
-      chatInvitationError
+      highlightedInvitationError
     ) {
       return;
     }
@@ -235,14 +240,13 @@ export const FriendHubScreen = () => {
       setHighlightedInvitationTarget(null);
     }
   }, [
-    chatInvitationError,
     hasLoadedInvitations,
+    highlightedInvitationError,
     highlightedInvitationTarget,
     invitations,
     invitationsLoading,
     isInvitationTargetReloadPending,
     navigation,
-    partyInvitationError,
   ]);
 
   const handleInvitationLayout = React.useCallback(
@@ -283,6 +287,23 @@ export const FriendHubScreen = () => {
       }
     },
     [navigation],
+  );
+
+  const clearHighlightedInvitationTarget = React.useCallback(
+    (invitation: (typeof invitations)[number]) => {
+      setHighlightedInvitationTarget(currentTarget => {
+        if (
+          !currentTarget ||
+          getInvitationTargetKey(currentTarget) !==
+            getInvitationTargetKey({id: invitation.id, type: invitation.type})
+        ) {
+          return currentTarget;
+        }
+
+        return null;
+      });
+    },
+    [],
   );
 
   const handleFavorite = React.useCallback(
@@ -342,6 +363,7 @@ export const FriendHubScreen = () => {
 
   const handleAcceptInvitation = React.useCallback(
     async (invitation: (typeof invitations)[number]) => {
+      clearHighlightedInvitationTarget(invitation);
       try {
         const mutation = await acceptInvitation(invitation);
         if (!mutation) {
@@ -386,25 +408,27 @@ export const FriendHubScreen = () => {
         showErrorAlert(acceptError, '초대를 수락하지 못했습니다. 최신 상태를 확인해 주세요.');
       }
     },
-    [acceptInvitation, navigation, showErrorAlert],
+    [acceptInvitation, clearHighlightedInvitationTarget, navigation, showErrorAlert],
   );
 
   const handleDeclineInvitation = React.useCallback(
     (invitation: (typeof invitations)[number]) => {
+      clearHighlightedInvitationTarget(invitation);
       declineInvitation(invitation).catch(declineError => {
         showErrorAlert(declineError, '초대를 거절하지 못했습니다.');
       });
     },
-    [declineInvitation, showErrorAlert],
+    [clearHighlightedInvitationTarget, declineInvitation, showErrorAlert],
   );
 
   const handleDeleteInvitation = React.useCallback(
     (invitation: (typeof invitations)[number]) => {
+      clearHighlightedInvitationTarget(invitation);
       deleteInvitation(invitation).catch(deleteError => {
         showErrorAlert(deleteError, '초대 기록을 지우지 못했습니다.');
       });
     },
-    [deleteInvitation, showErrorAlert],
+    [clearHighlightedInvitationTarget, deleteInvitation, showErrorAlert],
   );
 
   return (
