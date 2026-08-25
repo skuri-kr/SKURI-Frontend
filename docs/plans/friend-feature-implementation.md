@@ -662,7 +662,7 @@ FriendInviteSheet는 다음 채팅방 메뉴 진입점에서 같은 컴포넌트
 - foreground banner, 저장된 알림 인박스, background·cold start가 모두 같은 intent와 FriendDetail route를 사용한다.
 - FRIEND_ACCEPTED에 friendPublicId가 없거나 유효하지 않으면 FriendHub 친구 탭으로 안전 fallback한다.
 - FRIEND_DECLINED는 원 요청자에게 전달하고 FriendHub 요청 탭으로 이동한다. V1은 terminal 요청 이력을 목록에 노출하지 않으므로 거절된 카드를 재구성하거나 강조하지 않는다.
-- 초대 payload의 `invitationType`과 `invitationId`를 검증해 FriendHub target params로 변환한다.
+- 초대 payload의 `invitationType`과 `invitationId`를 검증해 FriendHub target params로 변환한다. 둘 중 하나가 없거나 type과 일치하지 않으면 target 강조 없이 FriendHub 초대 탭으로 안전 fallback한다.
 - FriendHub는 target 카드 로딩 후 스크롤·강조하고, 이미 처리·만료되어 찾을 수 없으면 상태 안내 후 초대 목록을 유지한다.
 - unknown type은 기존 안전 fallback을 유지한다.
 - 요청 취소, 친구 끊기, 차단은 푸시하지 않는다. 친구 요청 거절은 원 요청자에게 알린다.
