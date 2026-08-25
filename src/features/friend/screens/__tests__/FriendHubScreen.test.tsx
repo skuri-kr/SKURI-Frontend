@@ -317,6 +317,7 @@ describe('FriendHubScreen', () => {
       },
     } as ReturnType<typeof useRoute>);
     mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    const reloadInvitations = jest.fn(() => new Promise<void>(() => undefined));
     mockedUseFriendInvitationsData.mockReturnValue({
       acceptInvitation: jest.fn(),
       chatError: undefined,
@@ -328,7 +329,7 @@ describe('FriendHubScreen', () => {
       mutatingIds: new Set(),
       partyError: undefined,
       pendingCount: 1,
-      reload: jest.fn(() => new Promise<void>(() => undefined)),
+      reload: reloadInvitations,
     });
 
     const view = render(<FriendHubScreen />);
@@ -342,6 +343,7 @@ describe('FriendHubScreen', () => {
 
     await waitFor(() => {
       expect(view.queryByLabelText('알림에서 선택한 초대')).toBeNull();
+      expect(reloadInvitations).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -783,6 +785,24 @@ describe('FriendHubScreen', () => {
         friends: false,
         receivedRequests: true,
         sentRequests: true,
+      });
+    });
+  });
+
+  it('식별자 없는 친구 수락 경로는 친구 목록을 다시 불러온다', async () => {
+    const reload = jest.fn().mockResolvedValue(undefined);
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'friends'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData({reload}));
+
+    render(<FriendHubScreen />);
+
+    await waitFor(() => {
+      expect(reload).toHaveBeenCalledWith({
+        friends: true,
+        receivedRequests: false,
+        sentRequests: false,
       });
     });
   });

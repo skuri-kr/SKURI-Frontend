@@ -79,4 +79,42 @@ describe('useFriendNotificationRealtimeInvalidation', () => {
     unmount();
     expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
+
+  it('초기 기준을 받기 전에 친구 알림이 도착해도 친구 화면과 badge를 갱신한다', () => {
+    let onData:
+      | ((notifications: Array<{id: string; type: string}>) => void)
+      | undefined;
+    const notificationRepository = {
+      subscribeToNotifications: jest.fn(
+        (
+          _userId: string,
+          _limit: number,
+          callbacks: {
+            onData: (notifications: Array<{id: string; type: string}>) => void;
+          },
+        ) => {
+          onData = callbacks.onData;
+          return jest.fn();
+        },
+      ),
+    };
+    mockedUseNotificationRepository.mockReturnValue(
+      notificationRepository as unknown as ReturnType<
+        typeof useNotificationRepository
+      >,
+    );
+
+    renderHook(() =>
+      useFriendNotificationRealtimeInvalidation({enabled: true}),
+    );
+
+    act(() => {
+      onData?.([{id: 'notification-friend-request', type: 'FRIEND_REQUEST'}]);
+    });
+
+    expect(mockedInvalidateData).toHaveBeenCalledWith([
+      'friend.hub',
+      'friend.inboxCounts',
+    ]);
+  });
 });
