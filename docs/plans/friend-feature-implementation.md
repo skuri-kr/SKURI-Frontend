@@ -1,6 +1,6 @@
 # SKURI 친구 기능 모바일 구현 계획
 
-> 문서 상태: Friend 관계 Core부터 초대·정원·파티원 UX 보완까지 전달 완료. 친구·초대 알림과 Friend 파생 데이터 탈퇴 정리 Backend [#88](https://github.com/skuri-kr/SKURI-Backend/pull/88)은 병합됐고, 이를 소비하는 Frontend 알림 통합과 최종 통합 QA가 남아 있다.
+> 문서 상태: Friend 관계 Core부터 초대·정원·파티원 UX 보완까지 전달 완료. 친구·초대 알림과 Friend 파생 데이터 탈퇴 정리 Backend [#88](https://github.com/skuri-kr/SKURI-Backend/pull/88)은 병합됐고, 이를 소비하는 Frontend [#30](https://github.com/skuri-kr/SKURI-Frontend/pull/30) 알림 통합 검토와 최종 통합 QA가 남아 있다.
 > 기준일: 2026-08-25
 > 정책 기준: SKURI-Backend docs/features/friends.md
 > 구현 게이트: Backend #88 계약 병합 후 Frontend 최종 통합 PR을 진행한다. 이 PR의 자동 검증·문서 정합성 점검 뒤 실제 기기 통합 QA를 별도 gate로 수행한다.
@@ -37,13 +37,14 @@
 | Frontend | [#27](https://github.com/skuri-kr/SKURI-Frontend/pull/27) | 택시파티·공개방 친구 초대 sheet와 FriendHub 받은 초대 흐름 |
 | Frontend | [#28](https://github.com/skuri-kr/SKURI-Frontend/pull/28) | 친구 초대와 택시파티 정원 UX 보완 |
 | Frontend | [#29](https://github.com/skuri-kr/SKURI-Frontend/pull/29) | 택시파티 정원과 친구 초대 상태 정정 |
+| Frontend | [#30](https://github.com/skuri-kr/SKURI-Frontend/pull/30) | 친구·초대 알림 설정·인박스·FCM/SSE 이동과 FriendHub 동기화 (검토 중) |
 
 PR #23 병합 후 실제 기기·시뮬레이터 수동 QA에서 발견된 가입 완료 판정, 닉네임 정책, 검색·요청 상태와 UI 문제는 #81·#24의 1단계 Core 출시 준비에서 보완했다. 완료 PR에 대한 보완은 기존 완료 범위를 취소하지 않으며, 출시 전 계약을 운영 가능한 상태로 강화한 작업이다.
 
 현재·후속 구현 단계:
 
 1. 초대·정원·파티원 UX 보완: 수락 권한 분리, 정원 만료, 상태별 초대 목록, 파티원 관리 (전달 완료)
-2. 알림·탈퇴 정리: Backend #88 전달 완료, Frontend 알림 설정·인박스/FCM/SSE 이동과 최종 통합 QA 진행
+2. 알림·탈퇴 정리: Backend #88 전달 완료, Frontend #30 알림 설정·인박스/FCM/SSE 이동 검토와 최종 통합 QA 진행
 
 시간표 공유는 [Backend #84](https://github.com/skuri-kr/SKURI-Backend/pull/84)와 [Frontend #26](https://github.com/skuri-kr/SKURI-Frontend/pull/26)에서 구현·테스트·문서 정합성 점검과 리뷰 보완까지 마쳐 전달 완료로 기록한다. 실제 기기 QA는 아직 완료로 표시하지 않는다.
 
@@ -818,9 +819,9 @@ API client / DTO / Mapper
 | 3. 시간표 공유 | 1 | 1 | 공개 범위, 친구별 예외, 친구 시간표, 공통 공강·같이 듣는 수업 (전달 완료) |
 | 4. 친구 초대 | 1 | 1 | 택시파티·공개방 초대, FriendHub 초대 탭, 공통 선택 sheet |
 | 4-a. 초대 UX 보완 | 1 | 1 | 수락 권한 분리, 정원 만료, 상태별 목록, 파티원 목록·리더 강퇴 (전달 완료) |
-| 5. 알림·탈퇴 정리 | 1 | 1 | Backend #88 전달 완료, Frontend 요청·수락·거절·초대 알림, FCM·인박스·SSE·이동과 최종 QA 진행 |
+| 5. 알림·탈퇴 정리 | 1 | 1 | Backend #88 전달 완료, Frontend #30 요청·수락·거절·초대 알림, FCM·인박스·SSE·이동과 최종 QA 진행 |
 
-기존 완료 이력을 포함하면 Backend #78~#88·Frontend #22~#29가 1~4-a 단계를 전달했다. 5단계는 Backend #88 계약을 소비하는 Frontend 최종 통합 PR 하나와 실제 기기 통합 QA만 남았다. 관리자 친구 관계망 UI는 V1 제외 범위이므로 Admin PR은 만들지 않는다.
+기존 완료 이력을 포함하면 Backend #78~#88·Frontend #22~#29가 1~4-a 단계를 전달했다. 5단계는 Backend #88 계약을 소비하는 Frontend #30 최종 통합 PR과 실제 기기 통합 QA만 남았다. 관리자 친구 관계망 UI는 V1 제외 범위이므로 Admin PR은 만들지 않는다.
 
 ### 15.1 1단계: Core 출시 준비 (완료)
 
@@ -867,7 +868,7 @@ Academic 공개 projection과 개인정보 노출 계약, 복잡한 시간표 UI
 - 파티원 목록은 모든 참가자에게 제공하고 강퇴는 파티장에게만 노출한다.
 - PopupMenu action은 메뉴 Modal이 닫힌 뒤 다음 Alert·BottomSheet를 열어 중첩 Modal의 투명 overlay가 화면 입력을 막지 않도록 한다.
 
-### 15.5 5단계: 알림·탈퇴 정리 (Backend #88 전달 완료, Frontend 진행 중)
+### 15.5 5단계: 알림·탈퇴 정리 (Backend #88 전달 완료, Frontend #30 검토 중)
 
 - Backend #88: FRIEND_REQUEST, FRIEND_ACCEPTED, FRIEND_DECLINED, PARTY_INVITATION, CHAT_ROOM_INVITATION 저장·SSE·FCM, friendAndInvitationNotifications, 회원 탈퇴 시 관계·요청·즐겨찾기·차단·공유·초대·FriendProfile cleanup
 - Frontend: NotificationData DTO·mapper·canonical parser와 FRIEND_ACCEPTED `friendPublicId`, 초대 `invitationId`·`invitationType` 이동 계약을 연결한다.
@@ -1000,7 +1001,7 @@ Core 출시 준비와 친구 화면 완성은 #24·#25에서, 시간표 공유�
 - 가득 찬 파티의 목록·동승 요청 차단, 모집 상태 자동 전이 제거와 수동 재개 허용
 - 파티원 목록과 파티장 강퇴, PopupMenu 중첩 modal 보완
 
-현재 Frontend 최종 통합 PR 범위:
+현재 Frontend [#30](https://github.com/skuri-kr/SKURI-Frontend/pull/30) 최종 통합 PR 범위:
 
 - 친구·초대 알림 인박스 표시, foreground FCM 및 cold·warm start 이동
 - 친구·초대 알림 설정과 새 알림 SSE 기반 FriendHub·badge 동기화
