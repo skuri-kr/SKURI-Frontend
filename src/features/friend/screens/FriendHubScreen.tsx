@@ -95,6 +95,7 @@ export const FriendHubScreen = () => {
   const [invitationTargetScrollVersion, setInvitationTargetScrollVersion] =
     React.useState(0);
   const invitationTargetReloadVersionRef = React.useRef(0);
+  const invitationRouteVersionRef = React.useRef(0);
   const missingInvitationAlertTargetKeyRef = React.useRef<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
   const {
@@ -194,6 +195,12 @@ export const FriendHubScreen = () => {
   const invitationTabLabel = hasLoadedInvitations && pendingInvitationCount !== undefined
     ? `초대 ${pendingInvitationCount}`
     : '초대';
+
+  React.useLayoutEffect(() => {
+    if (getRouteInvitationTarget(route.params)) {
+      invitationRouteVersionRef.current += 1;
+    }
+  }, [route.params]);
 
   React.useEffect(() => {
     const initialTab = route.params?.initialTab;
@@ -443,13 +450,17 @@ export const FriendHubScreen = () => {
 
   const handleAcceptInvitation = React.useCallback(
     async (invitation: (typeof invitations)[number]) => {
+      const invitationRouteVersion = invitationRouteVersionRef.current;
       clearHighlightedInvitationTarget(invitation);
       try {
         const mutation = await acceptInvitation(invitation);
         if (!mutation) {
           return;
         }
-        if (!navigation.isFocused()) {
+        if (
+          invitationRouteVersion !== invitationRouteVersionRef.current ||
+          !navigation.isFocused()
+        ) {
           return;
         }
         if (mutation.type === 'PARTY') {
@@ -485,6 +496,12 @@ export const FriendHubScreen = () => {
           navigateToCommunityChat(mutation.targetId);
         }
       } catch (acceptError) {
+        if (
+          invitationRouteVersion !== invitationRouteVersionRef.current ||
+          !navigation.isFocused()
+        ) {
+          return;
+        }
         showErrorAlert(acceptError, '초대를 수락하지 못했습니다. 최신 상태를 확인해 주세요.');
       }
     },

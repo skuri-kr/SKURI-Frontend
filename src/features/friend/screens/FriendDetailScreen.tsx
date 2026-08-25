@@ -151,7 +151,11 @@ export const FriendDetailScreen = () => {
                 [friend.id],
               );
         const outcome = outcomes[0]?.outcome;
-        if (!navigation.isFocused() || outcome === 'SENT') {
+        if (
+          mutationFriendId !== currentFriendIdRef.current ||
+          !navigation.isFocused() ||
+          outcome === 'SENT'
+        ) {
           return;
         }
 
