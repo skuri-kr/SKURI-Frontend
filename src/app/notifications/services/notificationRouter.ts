@@ -1,10 +1,9 @@
-import {
-  navigateToAcademicCalendarDetail,
-} from '@/features/campus/services/academicNavigationService';
+import {navigateToAcademicCalendarDetail} from '@/features/campus/services/academicNavigationService';
 
 import {
   navigateToAppNoticeDetail,
   navigateToBoardDetail,
+  navigateToCampusScreen,
   navigateToCommunityChat,
   navigateToNoticeDetail,
   navigateToTaxiChat,
@@ -51,6 +50,27 @@ export const getNotificationNavigationIntent = (
         ? {kind: 'taxiChat', partyId: taxiPartyId}
         : {kind: 'communityChat', chatRoomId: payload.chatRoomId};
     }
+    case 'FRIEND_REQUEST':
+    case 'FRIEND_DECLINED':
+      return {kind: 'friendHub', initialTab: 'requests'};
+    case 'FRIEND_ACCEPTED':
+      return payload.friendPublicId
+        ? {kind: 'friendDetail', friendPublicId: payload.friendPublicId}
+        : {kind: 'friendHub', initialTab: 'friends'};
+    case 'PARTY_INVITATION':
+    case 'CHAT_ROOM_INVITATION':
+      return {
+        kind: 'friendHub',
+        initialTab: 'invitations',
+        ...(payload.invitationId && payload.invitationType
+          ? {
+              targetInvitation: {
+                id: payload.invitationId,
+                type: payload.invitationType,
+              },
+            }
+          : {}),
+      };
     case 'POST_LIKED':
       return {kind: 'boardDetail', postId: payload.postId};
     case 'COMMENT_CREATED':
@@ -95,6 +115,20 @@ export const openNotificationNavigationIntent = (
       return navigateToTaxiChat(intent.partyId);
     case 'communityChat':
       return navigateToCommunityChat(intent.chatRoomId);
+    case 'friendHub':
+      return navigateToCampusScreen('FriendHub', {
+        initialTab: intent.initialTab,
+        ...(intent.targetInvitation
+          ? {
+              targetInvitationId: intent.targetInvitation.id,
+              targetInvitationType: intent.targetInvitation.type,
+            }
+          : {}),
+      });
+    case 'friendDetail':
+      return navigateToCampusScreen('FriendDetail', {
+        friendId: intent.friendPublicId,
+      });
     case 'boardDetail':
       return navigateToBoardDetail(intent.postId, {
         initialCommentId: intent.initialCommentId,

@@ -34,6 +34,7 @@ export const FriendDetailScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
   const route = useRoute<any>();
   const {friendId} = route.params as CampusStackParamList['FriendDetail'];
+  const currentFriendIdRef = React.useRef(friendId);
   const invitationRepository = useFriendInvitationRepository();
   const {myParty} = useMyParty();
   const {
@@ -59,6 +60,10 @@ export const FriendDetailScreen = () => {
     removeFriend,
     updateFavorite,
   } = useFriendDetailData(friendId);
+
+  React.useLayoutEffect(() => {
+    currentFriendIdRef.current = friendId;
+  }, [friendId]);
   const partyInviteContext = React.useMemo<FriendInviteContext | null>(() => {
     if (
       !myParty?.id ||
@@ -90,8 +95,16 @@ export const FriendDetailScreen = () => {
   );
 
   const showMutationError = React.useCallback(
-    (actionError: unknown, fallback: string) => {
-      if (!navigation.isFocused()) {
+    (
+      actionError: unknown,
+      fallback: string,
+      mutationFriendId?: string,
+    ) => {
+      if (
+        (mutationFriendId &&
+          mutationFriendId !== currentFriendIdRef.current) ||
+        !navigation.isFocused()
+      ) {
         return;
       }
 
@@ -101,10 +114,15 @@ export const FriendDetailScreen = () => {
           text: '확인',
           onPress: shouldLeave
             ? () => {
-                invalidateData(FRIEND_HUB_INVALIDATION_KEY);
-                if (navigation.isFocused()) {
-                  navigation.goBack();
+                if (
+                  (mutationFriendId &&
+                    mutationFriendId !== currentFriendIdRef.current) ||
+                  !navigation.isFocused()
+                ) {
+                  return;
                 }
+                invalidateData(FRIEND_HUB_INVALIDATION_KEY);
+                navigation.goBack();
               }
             : undefined,
         },
@@ -119,6 +137,10 @@ export const FriendDetailScreen = () => {
         return;
       }
 
+      const mutationFriendId = friend.id;
+      if (mutationFriendId !== currentFriendIdRef.current) {
+        return;
+      }
       setInviting(true);
       try {
         const outcomes =
@@ -132,7 +154,11 @@ export const FriendDetailScreen = () => {
                 [friend.id],
               );
         const outcome = outcomes[0]?.outcome;
-        if (!navigation.isFocused() || outcome === 'SENT') {
+        if (
+          mutationFriendId !== currentFriendIdRef.current ||
+          !navigation.isFocused() ||
+          outcome === 'SENT'
+        ) {
           return;
         }
 
@@ -144,7 +170,11 @@ export const FriendDetailScreen = () => {
               : '지금은 이 친구를 초대할 수 없어요.';
         Alert.alert('초대할 수 없어요', outcomeMessage);
       } catch (inviteError) {
-        showMutationError(inviteError, '친구를 초대하지 못했습니다.');
+        showMutationError(
+          inviteError,
+          '친구를 초대하지 못했습니다.',
+          mutationFriendId,
+        );
       } finally {
         setInviting(false);
       }
@@ -176,52 +206,79 @@ export const FriendDetailScreen = () => {
   );
 
   const handleFavorite = React.useCallback(() => {
+    const mutationFriendId = friend?.id;
     updateFavorite()
       .then(() => {
         invalidateData(FRIEND_HUB_INVALIDATION_KEY);
       })
       .catch(actionError => {
-        showMutationError(actionError, '즐겨찾기를 변경하지 못했습니다.');
+        showMutationError(
+          actionError,
+          '즐겨찾기를 변경하지 못했습니다.',
+          mutationFriendId,
+        );
       });
-  }, [showMutationError, updateFavorite]);
+  }, [friend?.id, showMutationError, updateFavorite]);
 
   const handleRemove = React.useCallback(() => {
+    const mutationFriendId = friend?.id;
     Alert.alert('친구 끊기', `${friend?.nickname || '이 친구'}님과 친구 관계를 끊을까요?`, [
       {text: '취소', style: 'cancel'},
       {text: '친구 끊기', style: 'destructive', onPress: () => {
+        if (mutationFriendId !== currentFriendIdRef.current) {
+          return;
+        }
         removeFriend().then(removed => {
           if (!removed) {
             return;
           }
           invalidateData(FRIEND_HUB_INVALIDATION_KEY);
-          if (navigation.isFocused()) {
+          if (
+            mutationFriendId === currentFriendIdRef.current &&
+            navigation.isFocused()
+          ) {
             navigation.goBack();
           }
         }).catch(removeError => {
-          showMutationError(removeError, '친구 관계를 끊지 못했습니다.');
+          showMutationError(
+            removeError,
+            '친구 관계를 끊지 못했습니다.',
+            mutationFriendId,
+          );
         });
       }},
     ]);
-  }, [friend?.nickname, navigation, removeFriend, showMutationError]);
+  }, [friend?.id, friend?.nickname, navigation, removeFriend, showMutationError]);
 
   const handleBlock = React.useCallback(() => {
+    const mutationFriendId = friend?.id;
     Alert.alert('친구 차단', `${friend?.nickname || '이 친구'}님을 차단할까요? 친구 관계와 대기 중인 요청도 함께 정리됩니다.\n\n공개 게시판과 공개 채팅의 기존 콘텐츠는 계속 보일 수 있습니다.`, [
       {text: '취소', style: 'cancel'},
       {text: '차단', style: 'destructive', onPress: () => {
+        if (mutationFriendId !== currentFriendIdRef.current) {
+          return;
+        }
         blockFriend().then(blocked => {
           if (!blocked) {
             return;
           }
           invalidateData(FRIEND_HUB_INVALIDATION_KEY);
-          if (navigation.isFocused()) {
+          if (
+            mutationFriendId === currentFriendIdRef.current &&
+            navigation.isFocused()
+          ) {
             navigation.goBack();
           }
         }).catch(blockError => {
-          showMutationError(blockError, '친구를 차단하지 못했습니다.');
+          showMutationError(
+            blockError,
+            '친구를 차단하지 못했습니다.',
+            mutationFriendId,
+          );
         });
       }},
     ]);
-  }, [blockFriend, friend?.nickname, navigation, showMutationError]);
+  }, [blockFriend, friend?.id, friend?.nickname, navigation, showMutationError]);
 
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>

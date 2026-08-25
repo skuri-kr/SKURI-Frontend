@@ -10,13 +10,18 @@ const CANONICAL_NOTIFICATION_TYPES: NotificationType[] = [
   'ACADEMIC_SCHEDULE',
   'APP_NOTICE',
   'CHAT_MESSAGE',
+  'CHAT_ROOM_INVITATION',
   'COMMENT_CREATED',
+  'FRIEND_ACCEPTED',
+  'FRIEND_DECLINED',
+  'FRIEND_REQUEST',
   'MEMBER_KICKED',
   'NOTICE',
   'PARTY_ARRIVED',
   'PARTY_CLOSED',
   'PARTY_CREATED',
   'PARTY_ENDED',
+  'PARTY_INVITATION',
   'PARTY_REOPENED',
   'PARTY_JOIN_ACCEPTED',
   'PARTY_JOIN_DECLINED',
@@ -45,7 +50,9 @@ const warnInvalidNotification = (
   details: string,
 ) => {
   console.warn(
-    `[notifications] ${source} 알림을 해석하지 못했습니다. type=${String(type)} ${details}`,
+    `[notifications] ${source} 알림을 해석하지 못했습니다. type=${String(
+      type,
+    )} ${details}`,
   );
 };
 
@@ -66,6 +73,9 @@ const parseCanonicalNotification = ({
   const noticeId = getStringValue(data, 'noticeId');
   const appNoticeId = getStringValue(data, 'appNoticeId');
   const academicScheduleId = getStringValue(data, 'academicScheduleId');
+  const friendPublicId = getStringValue(data, 'friendPublicId');
+  const invitationId = getStringValue(data, 'invitationId');
+  const invitationType = getStringValue(data, 'invitationType');
 
   switch (type) {
     case 'PARTY_CREATED':
@@ -101,6 +111,47 @@ const parseCanonicalNotification = ({
       }
 
       return {type, chatRoomId};
+    case 'FRIEND_REQUEST':
+    case 'FRIEND_DECLINED':
+      if (!requestId) {
+        warnInvalidNotification(source, type, 'requestId가 없습니다.');
+        return {type};
+      }
+
+      return {type, requestId};
+    case 'FRIEND_ACCEPTED':
+      if (!friendPublicId) {
+        warnInvalidNotification(
+          source,
+          type,
+          'friendPublicId가 없어 친구 허브로 이동합니다.',
+        );
+        return {type};
+      }
+
+      return {type, friendPublicId};
+    case 'PARTY_INVITATION':
+      if (!invitationId || invitationType !== 'PARTY') {
+        warnInvalidNotification(
+          source,
+          type,
+          'invitationId 또는 PARTY invitationType이 없어 초대 탭으로 이동합니다.',
+        );
+        return {type};
+      }
+
+      return {type, invitationId, invitationType};
+    case 'CHAT_ROOM_INVITATION':
+      if (!invitationId || invitationType !== 'CHAT_ROOM') {
+        warnInvalidNotification(
+          source,
+          type,
+          'invitationId 또는 CHAT_ROOM invitationType이 없어 초대 탭으로 이동합니다.',
+        );
+        return {type};
+      }
+
+      return {type, invitationId, invitationType};
     case 'POST_LIKED':
       if (!postId) {
         warnInvalidNotification(source, type, 'postId가 없습니다.');
@@ -159,7 +210,11 @@ export const parsePushNotificationPayload = (
   }
 
   if (!isCanonicalNotificationType(data.type)) {
-    warnInvalidNotification('push', data.type, '정식 canonical type이 아닙니다.');
+    warnInvalidNotification(
+      'push',
+      data.type,
+      '정식 canonical type이 아닙니다.',
+    );
     return null;
   }
 

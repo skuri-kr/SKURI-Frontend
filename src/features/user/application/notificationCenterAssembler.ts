@@ -9,7 +9,10 @@ import type {
 
 const buildIconMeta = (
   notification: Notification,
-): Pick<NotificationInboxItemViewData, 'contextLabel' | 'iconName' | 'iconTone'> => {
+): Pick<
+  NotificationInboxItemViewData,
+  'contextLabel' | 'iconName' | 'iconTone'
+> => {
   switch (notification.type) {
     case 'APP_NOTICE':
       return {
@@ -22,6 +25,21 @@ const buildIconMeta = (
         contextLabel: '공지사항',
         iconName: 'notifications-outline',
         iconTone: 'orange',
+      };
+    case 'FRIEND_REQUEST':
+    case 'FRIEND_ACCEPTED':
+    case 'FRIEND_DECLINED':
+      return {
+        contextLabel: '친구',
+        iconName: 'people-outline',
+        iconTone: 'green',
+      };
+    case 'PARTY_INVITATION':
+    case 'CHAT_ROOM_INVITATION':
+      return {
+        contextLabel: '친구 초대',
+        iconName: 'person-add-outline',
+        iconTone: 'green',
       };
     case 'PARTY_JOIN_REQUEST':
     case 'PARTY_JOIN_ACCEPTED':

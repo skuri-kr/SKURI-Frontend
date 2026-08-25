@@ -24,6 +24,7 @@ export const useFriendDetailData = (friendId: string) => {
   const mutationInFlightRef = React.useRef(false);
   const friendLoadVersionRef = React.useRef(0);
   const minecraftAccountsLoadVersionRef = React.useRef(0);
+  const previousFriendIdRef = React.useRef(friendId);
 
   const loadMinecraftAccounts = React.useCallback(async () => {
     const requestVersion = minecraftAccountsLoadVersionRef.current + 1;
@@ -73,16 +74,35 @@ export const useFriendDetailData = (friendId: string) => {
     }
   }, [friendId, friendRepository, loadMinecraftAccounts]);
 
+  React.useLayoutEffect(() => {
+    if (previousFriendIdRef.current === friendId) {
+      return;
+    }
+
+    previousFriendIdRef.current = friendId;
+    friendLoadVersionRef.current += 1;
+    minecraftAccountsLoadVersionRef.current += 1;
+    setFriend(undefined);
+    setError(undefined);
+    setLoading(true);
+    setMinecraftAccounts(undefined);
+    setMinecraftAccountsError(undefined);
+    setMinecraftAccountsLoading(true);
+  }, [friendId]);
+
   React.useEffect(() => {
     reload().catch(() => undefined);
   }, [friendHubInvalidationVersion, reload]);
 
+  const currentFriend = friend?.id === friendId ? friend : undefined;
+  const hasStaleFriend = friend !== undefined && !currentFriend;
+
   const updateFavorite = React.useCallback(async () => {
-    if (!friend || mutationInFlightRef.current) {
+    if (!currentFriend || mutationInFlightRef.current) {
       return false;
     }
 
-    const previousFriend = friend;
+    const previousFriend = currentFriend;
     try {
       mutationInFlightRef.current = true;
       setMutating(true);
@@ -100,10 +120,10 @@ export const useFriendDetailData = (friendId: string) => {
       mutationInFlightRef.current = false;
       setMutating(false);
     }
-  }, [friend, friendRepository]);
+  }, [currentFriend, friendRepository]);
 
   const removeFriend = React.useCallback(async () => {
-    if (mutationInFlightRef.current) {
+    if (!currentFriend || mutationInFlightRef.current) {
       return false;
     }
 
@@ -116,10 +136,10 @@ export const useFriendDetailData = (friendId: string) => {
       mutationInFlightRef.current = false;
       setMutating(false);
     }
-  }, [friendId, friendRepository]);
+  }, [currentFriend, friendId, friendRepository]);
 
   const blockFriend = React.useCallback(async () => {
-    if (mutationInFlightRef.current) {
+    if (!currentFriend || mutationInFlightRef.current) {
       return false;
     }
 
@@ -132,13 +152,13 @@ export const useFriendDetailData = (friendId: string) => {
       mutationInFlightRef.current = false;
       setMutating(false);
     }
-  }, [friendId, friendRepository]);
+  }, [currentFriend, friendId, friendRepository]);
 
   return {
     blockFriend,
-    error,
-    friend,
-    loading,
+    error: hasStaleFriend ? undefined : error,
+    friend: currentFriend,
+    loading: loading || hasStaleFriend,
     minecraftAccounts,
     minecraftAccountsError,
     minecraftAccountsLoading,

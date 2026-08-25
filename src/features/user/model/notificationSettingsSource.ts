@@ -4,6 +4,7 @@ export type NotificationSettingKey =
   | 'boardLikeNotifications'
   | 'commentNotifications'
   | 'bookmarkedPostCommentNotifications'
+  | 'friendAndInvitationNotifications'
   | 'systemNotifications';
 
 export interface NotificationSettingItemSource {

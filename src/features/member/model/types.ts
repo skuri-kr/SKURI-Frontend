@@ -23,6 +23,7 @@ export interface UpdateMemberNotificationSettingsInput {
   boardLikeNotifications?: boolean;
   commentNotifications?: boolean;
   bookmarkedPostCommentNotifications?: boolean;
+  friendAndInvitationNotifications?: boolean;
   systemNotifications?: boolean;
   academicScheduleNotifications?: boolean;
   academicScheduleDayBeforeEnabled?: boolean;
@@ -37,6 +38,7 @@ export interface MemberNotificationSetting {
   boardLikeNotifications: boolean;
   commentNotifications: boolean;
   bookmarkedPostCommentNotifications: boolean;
+  friendAndInvitationNotifications: boolean;
   systemNotifications: boolean;
   academicScheduleNotifications: boolean;
   academicScheduleDayBeforeEnabled: boolean;

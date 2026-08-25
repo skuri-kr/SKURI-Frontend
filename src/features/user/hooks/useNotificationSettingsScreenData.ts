@@ -19,6 +19,7 @@ type NotificationSettingIconKey =
   | 'boardLikeNotifications'
   | 'commentNotifications'
   | 'bookmarkedPostCommentNotifications'
+  | 'friendAndInvitationNotifications'
   | 'systemNotifications';
 
 interface NotificationSettingMeta {
@@ -61,6 +62,11 @@ const NOTIFICATION_SETTINGS_ITEM_META: Record<
     iconKey: 'bookmarkedPostCommentNotifications',
     subtitle: '북마크한 게시물에 새 댓글이 달렸을 때 알림',
     title: '북마크한 게시물의 댓글 알림',
+  },
+  friendAndInvitationNotifications: {
+    iconKey: 'friendAndInvitationNotifications',
+    subtitle: '친구 요청·수락·거절과 택시파티·공개방 초대 알림',
+    title: '친구·초대 알림',
   },
   systemNotifications: {
     iconKey: 'systemNotifications',
@@ -106,6 +112,12 @@ const resolveIcon = (iconKey: NotificationSettingIconKey) => {
         iconBackgroundColor: COLORS.brand.primaryTint,
         iconColor: COLORS.brand.primary,
         iconName: 'bookmark-outline',
+      };
+    case 'friendAndInvitationNotifications':
+      return {
+        iconBackgroundColor: COLORS.brand.primaryTint,
+        iconColor: COLORS.brand.primary,
+        iconName: 'people-outline',
       };
     case 'systemNotifications':
       return {

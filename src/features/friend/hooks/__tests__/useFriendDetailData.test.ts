@@ -282,6 +282,69 @@ describe('useFriendDetailData', () => {
     });
   });
 
+  it('친구 대상이 바뀌는 동안 이전 친구를 노출하거나 관리하지 않는다', async () => {
+    const repository = createRepository();
+    const nextFriendDeferred = createDeferred<{
+      department: null;
+      favorite: false;
+      id: string;
+      nickname: string;
+      photoUrl: null;
+    }>();
+    const nextMinecraftAccountsDeferred = createDeferred<{selfAccounts: []}>();
+    repository.getFriend
+      .mockResolvedValueOnce({
+        department: null,
+        favorite: false,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      })
+      .mockReturnValueOnce(nextFriendDeferred.promise);
+    repository.getFriendMinecraftAccounts
+      .mockResolvedValueOnce({selfAccounts: []})
+      .mockReturnValueOnce(nextMinecraftAccountsDeferred.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result, rerender} = renderHook(
+      ({friendId}) => useFriendDetailData(friendId),
+      {initialProps: {friendId: 'friend-1'}},
+    );
+
+    await waitFor(() => {
+      expect(result.current.friend?.id).toBe('friend-1');
+      expect(result.current.minecraftAccountsLoading).toBe(false);
+    });
+
+    rerender({friendId: 'friend-2'});
+
+    expect(result.current.friend).toBeUndefined();
+    expect(result.current.loading).toBe(true);
+    await expect(result.current.removeFriend()).resolves.toBe(false);
+    await expect(result.current.blockFriend()).resolves.toBe(false);
+    await expect(result.current.updateFavorite()).resolves.toBe(false);
+    expect(repository.removeFriend).not.toHaveBeenCalled();
+    expect(repository.blockMember).not.toHaveBeenCalled();
+    expect(repository.updateFavorite).not.toHaveBeenCalled();
+
+    await act(async () => {
+      nextFriendDeferred.resolve({
+        department: null,
+        favorite: false,
+        id: 'friend-2',
+        nickname: '나래',
+        photoUrl: null,
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.friend?.id).toBe('friend-2');
+      expect(result.current.loading).toBe(false);
+    });
+  });
+
   it('겹친 상세 조회에서는 최신 응답만 반영한다', async () => {
     const repository = createRepository();
     const olderFriend = createDeferred<{

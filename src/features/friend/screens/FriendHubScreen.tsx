@@ -48,8 +48,28 @@ import {getDuplicateFriendProfileIds} from '../model/friendDisambiguation';
 
 type FriendHubTab = 'friends' | 'requests' | 'invitations';
 
+type InvitationTarget = {
+  id: string;
+  type: 'PARTY' | 'CHAT_ROOM';
+};
+
+const INVITATION_HIGHLIGHT_DURATION_MS = 1_500;
+
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
+
+const getInvitationTargetKey = (target: InvitationTarget) =>
+  `${target.type}-${target.id}`;
+
+const getRouteInvitationTarget = (
+  params: RouteProp<CampusStackParamList, 'FriendHub'>['params'],
+): InvitationTarget | null =>
+  params?.targetInvitationId && params.targetInvitationType
+    ? {
+        id: params.targetInvitationId,
+        type: params.targetInvitationType,
+      }
+    : null;
 
 export const FriendHubScreen = () => {
   useScreenView();
@@ -57,6 +77,9 @@ export const FriendHubScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
   const route = useRoute<RouteProp<CampusStackParamList, 'FriendHub'>>();
   const isFocused = useIsFocused();
+  const scrollViewRef = React.useRef<ScrollView>(null);
+  const invitationLayoutYByKeyRef = React.useRef(new Map<string, number>());
+  const lastScrolledInvitationTargetVersionRef = React.useRef(0);
   const hasReceivedInitialFocus = React.useRef(false);
   const lastInvalidationVersionRef = React.useRef<number | undefined>(undefined);
   const friendHubInvalidationVersion = useInvalidationVersion(
@@ -65,6 +88,20 @@ export const FriendHubScreen = () => {
   const [selectedTab, setSelectedTab] = React.useState<FriendHubTab>(
     route.params?.initialTab ?? 'friends',
   );
+  const [highlightedInvitationTarget, setHighlightedInvitationTarget] =
+    React.useState<InvitationTarget | null>(() =>
+      getRouteInvitationTarget(route.params),
+    );
+  const [isInvitationTargetReloadPending, setIsInvitationTargetReloadPending] =
+    React.useState(() => getRouteInvitationTarget(route.params) !== null);
+  const [invitationTargetScrollVersion, setInvitationTargetScrollVersion] =
+    React.useState(0);
+  const invitationTargetReloadVersionRef = React.useRef(0);
+  const friendHubRouteVersionRef = React.useRef(0);
+  const invitationHighlightTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const missingInvitationAlertTargetKeyRef = React.useRef<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
   const {
     acceptRequest,
@@ -107,6 +144,64 @@ export const FriendHubScreen = () => {
     reload: reloadInvitations,
   } = useFriendInvitationsData();
 
+  const scrollToInvitation = React.useCallback((target: InvitationTarget) => {
+    const y = invitationLayoutYByKeyRef.current.get(
+      getInvitationTargetKey(target),
+    );
+    if (y === undefined) {
+      return false;
+    }
+
+    requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollTo({
+        animated: true,
+        y: Math.max(0, y - SPACING.sm),
+      });
+    });
+    return true;
+  }, []);
+
+  const clearInvitationHighlightTimeout = React.useCallback(() => {
+    if (invitationHighlightTimeoutRef.current !== null) {
+      clearTimeout(invitationHighlightTimeoutRef.current);
+      invitationHighlightTimeoutRef.current = null;
+    }
+  }, []);
+
+  const scheduleHighlightedInvitationClear = React.useCallback(
+    (target: InvitationTarget) => {
+      clearInvitationHighlightTimeout();
+      const targetKey = getInvitationTargetKey(target);
+      const routeVersion = friendHubRouteVersionRef.current;
+      const timeout = setTimeout(() => {
+        if (invitationHighlightTimeoutRef.current !== timeout) {
+          return;
+        }
+
+        invitationHighlightTimeoutRef.current = null;
+        if (routeVersion !== friendHubRouteVersionRef.current) {
+          return;
+        }
+
+        setHighlightedInvitationTarget(currentTarget =>
+          currentTarget &&
+          getInvitationTargetKey(currentTarget) === targetKey
+            ? null
+            : currentTarget,
+        );
+      }, INVITATION_HIGHLIGHT_DURATION_MS);
+      invitationHighlightTimeoutRef.current = timeout;
+    },
+    [clearInvitationHighlightTimeout],
+  );
+
+  React.useEffect(() => {
+    return () => {
+      clearInvitationHighlightTimeout();
+      invitationTargetReloadVersionRef.current += 1;
+    };
+  }, [clearInvitationHighlightTimeout]);
+
   React.useEffect(() => {
     if (lastInvalidationVersionRef.current === undefined) {
       lastInvalidationVersionRef.current = friendHubInvalidationVersion;
@@ -147,15 +242,185 @@ export const FriendHubScreen = () => {
     ? `초대 ${pendingInvitationCount}`
     : '초대';
 
+  React.useLayoutEffect(() => {
+    if (route.params?.initialTab || getRouteInvitationTarget(route.params)) {
+      friendHubRouteVersionRef.current += 1;
+      clearInvitationHighlightTimeout();
+    }
+  }, [clearInvitationHighlightTimeout, route.params]);
+
   React.useEffect(() => {
     const initialTab = route.params?.initialTab;
-    if (!initialTab) {
+    const invitationTarget = getRouteInvitationTarget(route.params);
+    if (!initialTab && !invitationTarget) {
       return;
     }
 
-    setSelectedTab(initialTab);
-    navigation.setParams({initialTab: undefined});
-  }, [navigation, route.params?.initialTab]);
+    setSelectedTab(invitationTarget ? 'invitations' : initialTab ?? 'friends');
+    if (invitationTarget) {
+      setHighlightedInvitationTarget(invitationTarget);
+      setIsInvitationTargetReloadPending(true);
+      setInvitationTargetScrollVersion(version => version + 1);
+      const reloadVersion = invitationTargetReloadVersionRef.current + 1;
+      invitationTargetReloadVersionRef.current = reloadVersion;
+      const reloadTargetInvitations = async () => {
+        while (invitationTargetReloadVersionRef.current === reloadVersion) {
+          try {
+            const applied = await reloadInvitations();
+            if (invitationTargetReloadVersionRef.current !== reloadVersion) {
+              return;
+            }
+            if (applied !== false) {
+              setIsInvitationTargetReloadPending(false);
+              return;
+            }
+          } catch {
+            if (invitationTargetReloadVersionRef.current === reloadVersion) {
+              setIsInvitationTargetReloadPending(false);
+            }
+            return;
+          }
+        }
+      };
+      reloadTargetInvitations().catch(() => undefined);
+    } else {
+      invitationTargetReloadVersionRef.current += 1;
+      setHighlightedInvitationTarget(null);
+      setIsInvitationTargetReloadPending(false);
+      scrollViewRef.current?.scrollTo({animated: false, y: 0});
+      if (initialTab === 'friends') {
+        reload({
+          friends: true,
+          receivedRequests: false,
+          sentRequests: false,
+        }).catch(() => undefined);
+      } else if (initialTab === 'requests') {
+        reload({
+          friends: false,
+          receivedRequests: true,
+          sentRequests: true,
+        }).catch(() => undefined);
+      } else if (initialTab === 'invitations') {
+        reloadInvitations().catch(() => undefined);
+      }
+    }
+    navigation.setParams({
+      initialTab: undefined,
+      targetInvitationId: undefined,
+      targetInvitationType: undefined,
+    });
+  }, [navigation, reload, reloadInvitations, route.params]);
+
+  const highlightedInvitationError = highlightedInvitationTarget
+    ? highlightedInvitationTarget.type === 'PARTY'
+      ? partyInvitationError
+      : chatInvitationError
+    : undefined;
+
+  React.useEffect(() => {
+    if (
+      !highlightedInvitationTarget ||
+      !hasLoadedInvitations ||
+      invitationsLoading ||
+      isInvitationTargetReloadPending ||
+      highlightedInvitationError
+    ) {
+      return;
+    }
+
+    const targetExists = invitations.some(
+      invitation =>
+        getInvitationTargetKey({id: invitation.id, type: invitation.type}) ===
+        getInvitationTargetKey(highlightedInvitationTarget),
+    );
+
+    if (!targetExists) {
+      const targetKey = getInvitationTargetKey(highlightedInvitationTarget);
+      if (
+        missingInvitationAlertTargetKeyRef.current !== targetKey &&
+        navigation.isFocused()
+      ) {
+        missingInvitationAlertTargetKeyRef.current = targetKey;
+        Alert.alert(
+          '초대를 찾을 수 없어요',
+          '해당 초대는 이미 처리되었거나 만료되었어요.',
+        );
+      }
+      setHighlightedInvitationTarget(null);
+    }
+  }, [
+    hasLoadedInvitations,
+    highlightedInvitationError,
+    highlightedInvitationTarget,
+    invitations,
+    invitationsLoading,
+    isInvitationTargetReloadPending,
+    navigation,
+  ]);
+
+  const handleInvitationLayout = React.useCallback(
+    (invitation: (typeof invitations)[number], y: number) => {
+      const invitationTarget = {id: invitation.id, type: invitation.type};
+      invitationLayoutYByKeyRef.current.set(
+        getInvitationTargetKey(invitationTarget),
+        y,
+      );
+      if (
+        !highlightedInvitationTarget ||
+        isInvitationTargetReloadPending ||
+        lastScrolledInvitationTargetVersionRef.current ===
+          invitationTargetScrollVersion ||
+        getInvitationTargetKey(invitationTarget) !==
+          getInvitationTargetKey(highlightedInvitationTarget)
+      ) {
+        return;
+      }
+
+      if (scrollToInvitation(highlightedInvitationTarget)) {
+        lastScrolledInvitationTargetVersionRef.current =
+          invitationTargetScrollVersion;
+        scheduleHighlightedInvitationClear(highlightedInvitationTarget);
+      }
+    },
+    [
+      highlightedInvitationTarget,
+      invitationTargetScrollVersion,
+      isInvitationTargetReloadPending,
+      scheduleHighlightedInvitationClear,
+      scrollToInvitation,
+    ],
+  );
+
+  React.useEffect(() => {
+    if (
+      selectedTab !== 'invitations' ||
+      !highlightedInvitationTarget ||
+      isInvitationTargetReloadPending ||
+      lastScrolledInvitationTargetVersionRef.current ===
+        invitationTargetScrollVersion ||
+      !invitations.some(
+        invitation =>
+          getInvitationTargetKey({id: invitation.id, type: invitation.type}) ===
+          getInvitationTargetKey(highlightedInvitationTarget),
+      )
+    ) {
+      return;
+    }
+
+    if (scrollToInvitation(highlightedInvitationTarget)) {
+      lastScrolledInvitationTargetVersionRef.current =
+        invitationTargetScrollVersion;
+      scheduleHighlightedInvitationClear(highlightedInvitationTarget);
+    }
+  }, [
+    highlightedInvitationTarget,
+    invitationTargetScrollVersion,
+    invitations,
+    isInvitationTargetReloadPending,
+    scheduleHighlightedInvitationClear,
+    scrollToInvitation,
+    selectedTab,
+  ]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -177,50 +442,104 @@ export const FriendHubScreen = () => {
     [navigation],
   );
 
+  const clearHighlightedInvitationTarget = React.useCallback(
+    (invitation: (typeof invitations)[number]) => {
+      setHighlightedInvitationTarget(currentTarget => {
+        if (
+          !currentTarget ||
+          getInvitationTargetKey(currentTarget) !==
+            getInvitationTargetKey({id: invitation.id, type: invitation.type})
+        ) {
+          return currentTarget;
+        }
+
+        return null;
+      });
+    },
+    [],
+  );
+
   const handleFavorite = React.useCallback(
     async (friend: (typeof friends)[number]) => {
+      const friendHubRouteVersion = friendHubRouteVersionRef.current;
       try {
         await updateFavorite(friend);
       } catch (updateError) {
+        if (
+          friendHubRouteVersion !== friendHubRouteVersionRef.current ||
+          !navigation.isFocused()
+        ) {
+          return;
+        }
         showErrorAlert(updateError, '즐겨찾기를 변경하지 못했습니다.');
       }
     },
-    [showErrorAlert, updateFavorite],
+    [navigation, showErrorAlert, updateFavorite],
   );
 
   const handleAccept = React.useCallback(
     async (requestId: string) => {
+      const friendHubRouteVersion = friendHubRouteVersionRef.current;
       try {
         await acceptRequest(requestId);
       } catch (acceptError) {
+        if (
+          friendHubRouteVersion !== friendHubRouteVersionRef.current ||
+          !navigation.isFocused()
+        ) {
+          return;
+        }
         showErrorAlert(acceptError, '친구 요청을 수락하지 못했습니다.');
       }
     },
-    [acceptRequest, showErrorAlert],
+    [acceptRequest, navigation, showErrorAlert],
   );
 
-  const handleDecline = React.useCallback((requestId: string) => {
-    declineRequest(requestId).catch(declineError => {
-      showErrorAlert(declineError, '친구 요청을 거절하지 못했습니다.');
-    });
-  }, [declineRequest, showErrorAlert]);
+  const handleDecline = React.useCallback(
+    (requestId: string) => {
+      const friendHubRouteVersion = friendHubRouteVersionRef.current;
+      declineRequest(requestId).catch(declineError => {
+        if (
+          friendHubRouteVersion !== friendHubRouteVersionRef.current ||
+          !navigation.isFocused()
+        ) {
+          return;
+        }
+        showErrorAlert(declineError, '친구 요청을 거절하지 못했습니다.');
+      });
+    },
+    [declineRequest, navigation, showErrorAlert],
+  );
 
   const handleCancel = React.useCallback(
     (requestId: string) => {
+      const friendHubRouteVersion = friendHubRouteVersionRef.current;
       Alert.alert('친구 요청 취소', '보낸 친구 요청을 취소할까요?', [
         {text: '닫기', style: 'cancel'},
         {
           text: '요청 취소',
           style: 'destructive',
           onPress: () => {
+            if (
+              friendHubRouteVersion !== friendHubRouteVersionRef.current ||
+              !navigation.isFocused()
+            ) {
+              return;
+            }
             cancelRequest(requestId).catch(cancelError => {
+              if (
+                friendHubRouteVersion !== friendHubRouteVersionRef.current ||
+                !navigation.isFocused()
+              ) {
+                return;
+              }
               showErrorAlert(cancelError, '친구 요청을 취소하지 못했습니다.');
             });
           },
         },
       ]);
     },
-    [cancelRequest, showErrorAlert],
+    [cancelRequest, navigation, showErrorAlert],
   );
 
   const handleRefresh = React.useCallback(async () => {
@@ -234,12 +553,17 @@ export const FriendHubScreen = () => {
 
   const handleAcceptInvitation = React.useCallback(
     async (invitation: (typeof invitations)[number]) => {
+      const friendHubRouteVersion = friendHubRouteVersionRef.current;
+      clearHighlightedInvitationTarget(invitation);
       try {
         const mutation = await acceptInvitation(invitation);
         if (!mutation) {
           return;
         }
-        if (!navigation.isFocused()) {
+        if (
+          friendHubRouteVersion !== friendHubRouteVersionRef.current ||
+          !navigation.isFocused()
+        ) {
           return;
         }
         if (mutation.type === 'PARTY') {
@@ -275,28 +599,50 @@ export const FriendHubScreen = () => {
           navigateToCommunityChat(mutation.targetId);
         }
       } catch (acceptError) {
+        if (
+          friendHubRouteVersion !== friendHubRouteVersionRef.current ||
+          !navigation.isFocused()
+        ) {
+          return;
+        }
         showErrorAlert(acceptError, '초대를 수락하지 못했습니다. 최신 상태를 확인해 주세요.');
       }
     },
-    [acceptInvitation, navigation, showErrorAlert],
+    [acceptInvitation, clearHighlightedInvitationTarget, navigation, showErrorAlert],
   );
 
   const handleDeclineInvitation = React.useCallback(
     (invitation: (typeof invitations)[number]) => {
+      const friendHubRouteVersion = friendHubRouteVersionRef.current;
+      clearHighlightedInvitationTarget(invitation);
       declineInvitation(invitation).catch(declineError => {
+        if (
+          friendHubRouteVersion !== friendHubRouteVersionRef.current ||
+          !navigation.isFocused()
+        ) {
+          return;
+        }
         showErrorAlert(declineError, '초대를 거절하지 못했습니다.');
       });
     },
-    [declineInvitation, showErrorAlert],
+    [clearHighlightedInvitationTarget, declineInvitation, navigation, showErrorAlert],
   );
 
   const handleDeleteInvitation = React.useCallback(
     (invitation: (typeof invitations)[number]) => {
+      const friendHubRouteVersion = friendHubRouteVersionRef.current;
+      clearHighlightedInvitationTarget(invitation);
       deleteInvitation(invitation).catch(deleteError => {
+        if (
+          friendHubRouteVersion !== friendHubRouteVersionRef.current ||
+          !navigation.isFocused()
+        ) {
+          return;
+        }
         showErrorAlert(deleteError, '초대 기록을 지우지 못했습니다.');
       });
     },
-    [deleteInvitation, showErrorAlert],
+    [clearHighlightedInvitationTarget, deleteInvitation, navigation, showErrorAlert],
   );
 
   return (
@@ -327,6 +673,7 @@ export const FriendHubScreen = () => {
       />
 
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
@@ -526,27 +873,39 @@ export const FriendHubScreen = () => {
             {partyInvitationError ? (
               <FriendDataErrorBanner
                 error={partyInvitationError}
-                onRetry={reloadInvitations}
+                onRetry={() => reloadInvitations().then(() => undefined)}
               />
             ) : null}
             {chatInvitationError ? (
               <FriendDataErrorBanner
                 error={chatInvitationError}
-                onRetry={reloadInvitations}
+                onRetry={() => reloadInvitations().then(() => undefined)}
               />
             ) : null}
             {hasLoadedInvitations && invitations.length > 0
               ? invitations.map(invitation => (
-                  <FriendInvitationCard
-                    invitation={invitation}
+                  <View
                     key={`${invitation.type}-${invitation.id}`}
-                    loading={mutatingInvitationIds.has(invitation.id)}
-                    onAccept={() => {
-                      handleAcceptInvitation(invitation).catch(() => undefined);
-                    }}
-                    onDecline={() => handleDeclineInvitation(invitation)}
-                    onDelete={() => handleDeleteInvitation(invitation)}
-                  />
+                    onLayout={({nativeEvent}) => {
+                      handleInvitationLayout(invitation, nativeEvent.layout.y);
+                    }}>
+                    <FriendInvitationCard
+                      highlighted={
+                        highlightedInvitationTarget !== null &&
+                        getInvitationTargetKey({
+                          id: invitation.id,
+                          type: invitation.type,
+                        }) === getInvitationTargetKey(highlightedInvitationTarget)
+                      }
+                      invitation={invitation}
+                      loading={mutatingInvitationIds.has(invitation.id)}
+                      onAccept={() => {
+                        handleAcceptInvitation(invitation).catch(() => undefined);
+                      }}
+                      onDecline={() => handleDeclineInvitation(invitation)}
+                      onDelete={() => handleDeleteInvitation(invitation)}
+                    />
+                  </View>
                 ))
               : null}
             {hasLoadedInvitations && invitations.length === 0 && !partyInvitationError && !chatInvitationError ? (
