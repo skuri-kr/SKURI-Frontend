@@ -194,13 +194,23 @@ export const FriendHubScreen = () => {
             setIsInvitationTargetReloadPending(false);
           }
         });
+    } else {
+      setHighlightedInvitationTarget(null);
+      setIsInvitationTargetReloadPending(false);
+      if (initialTab === 'requests') {
+        reload({
+          friends: false,
+          receivedRequests: true,
+          sentRequests: true,
+        }).catch(() => undefined);
+      }
     }
     navigation.setParams({
       initialTab: undefined,
       targetInvitationId: undefined,
       targetInvitationType: undefined,
     });
-  }, [navigation, reloadInvitations, route.params]);
+  }, [navigation, reload, reloadInvitations, route.params]);
 
   const highlightedInvitationError = highlightedInvitationTarget
     ? highlightedInvitationTarget.type === 'PARTY'
