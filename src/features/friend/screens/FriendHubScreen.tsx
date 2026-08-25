@@ -471,37 +471,67 @@ export const FriendHubScreen = () => {
 
   const handleAccept = React.useCallback(
     async (requestId: string) => {
+      const friendHubRouteVersion = friendHubRouteVersionRef.current;
       try {
         await acceptRequest(requestId);
       } catch (acceptError) {
+        if (
+          friendHubRouteVersion !== friendHubRouteVersionRef.current ||
+          !navigation.isFocused()
+        ) {
+          return;
+        }
         showErrorAlert(acceptError, '친구 요청을 수락하지 못했습니다.');
       }
     },
-    [acceptRequest, showErrorAlert],
+    [acceptRequest, navigation, showErrorAlert],
   );
 
-  const handleDecline = React.useCallback((requestId: string) => {
-    declineRequest(requestId).catch(declineError => {
-      showErrorAlert(declineError, '친구 요청을 거절하지 못했습니다.');
-    });
-  }, [declineRequest, showErrorAlert]);
+  const handleDecline = React.useCallback(
+    (requestId: string) => {
+      const friendHubRouteVersion = friendHubRouteVersionRef.current;
+      declineRequest(requestId).catch(declineError => {
+        if (
+          friendHubRouteVersion !== friendHubRouteVersionRef.current ||
+          !navigation.isFocused()
+        ) {
+          return;
+        }
+        showErrorAlert(declineError, '친구 요청을 거절하지 못했습니다.');
+      });
+    },
+    [declineRequest, navigation, showErrorAlert],
+  );
 
   const handleCancel = React.useCallback(
     (requestId: string) => {
+      const friendHubRouteVersion = friendHubRouteVersionRef.current;
       Alert.alert('친구 요청 취소', '보낸 친구 요청을 취소할까요?', [
         {text: '닫기', style: 'cancel'},
         {
           text: '요청 취소',
           style: 'destructive',
           onPress: () => {
+            if (
+              friendHubRouteVersion !== friendHubRouteVersionRef.current ||
+              !navigation.isFocused()
+            ) {
+              return;
+            }
             cancelRequest(requestId).catch(cancelError => {
+              if (
+                friendHubRouteVersion !== friendHubRouteVersionRef.current ||
+                !navigation.isFocused()
+              ) {
+                return;
+              }
               showErrorAlert(cancelError, '친구 요청을 취소하지 못했습니다.');
             });
           },
         },
       ]);
     },
-    [cancelRequest, showErrorAlert],
+    [cancelRequest, navigation, showErrorAlert],
   );
 
   const handleRefresh = React.useCallback(async () => {
