@@ -1,5 +1,5 @@
 import React from 'react';
-import {Alert} from 'react-native';
+import {Alert, ScrollView, View} from 'react-native';
 import {act, fireEvent, render, waitFor} from '@testing-library/react-native';
 
 import {useIsFocused, useNavigation, useRoute} from '@react-navigation/native';
@@ -345,6 +345,97 @@ describe('FriendHubScreen', () => {
       expect(view.queryByLabelText('알림에서 선택한 초대')).toBeNull();
       expect(reloadInvitations).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it('같은 초대 알림을 다시 열면 저장된 카드 위치로 다시 스크롤한다', async () => {
+    const invitation = {
+      createdAt: '2026-08-25T09:00:00',
+      expiresAt: null,
+      expiryReason: null,
+      id: 'party-invitation-1',
+      inviter: {
+        department: '소프트웨어학과',
+        favorite: false,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      },
+      respondedAt: null,
+      status: 'PENDING' as const,
+      target: {
+        currentMembers: 2,
+        departureName: '성결대학교',
+        departureTime: '2026-08-25T14:00:00',
+        destinationName: '안양역',
+        id: 'party-1',
+        maxMembers: 4,
+        status: 'OPEN' as const,
+        type: 'PARTY' as const,
+      },
+      type: 'PARTY' as const,
+    };
+    const reloadInvitations = jest.fn().mockResolvedValue(undefined);
+    const scrollToSpy = jest
+      .spyOn(ScrollView.prototype, 'scrollTo')
+      .mockImplementation(() => undefined);
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    globalThis.requestAnimationFrame = (callback: (time: number) => void) => {
+      callback(0);
+      return 0;
+    };
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitation.id,
+        targetInvitationType: invitation.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation: jest.fn(),
+      chatError: undefined,
+      declineInvitation: jest.fn(),
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [invitation],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 1,
+      reload: reloadInvitations,
+    });
+
+    const view = render(<FriendHubScreen />);
+    await waitFor(() => {
+      expect(reloadInvitations).toHaveBeenCalledTimes(1);
+    });
+    const invitationLayout = view.UNSAFE_getAllByType(View).find(
+      node => typeof node.props.onLayout === 'function',
+    );
+
+    fireEvent(invitationLayout!, 'layout', {nativeEvent: {layout: {y: 120}}});
+
+    await waitFor(() => {
+      expect(scrollToSpy).toHaveBeenCalledWith({animated: true, y: 112});
+    });
+    scrollToSpy.mockClear();
+
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitation.id,
+        targetInvitationType: invitation.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    view.rerender(<FriendHubScreen />);
+
+    await waitFor(() => {
+      expect(reloadInvitations).toHaveBeenCalledTimes(2);
+      expect(scrollToSpy).toHaveBeenCalledWith({animated: true, y: 112});
+    });
+
+    globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+    scrollToSpy.mockRestore();
   });
 
   it('이미 열린 허브에서는 새 초대 목록을 받기 전 대상 강조를 지우지 않는다', () => {
