@@ -44,4 +44,30 @@ describe('notificationSettingsService', () => {
       friendAndInvitationNotifications: false,
     });
   });
+
+  it('기존 회원의 전체 알림 OFF는 새 친구·초대 기본값으로 켜지지 않는다', () => {
+    const currentSettings = {
+      allNotifications: false,
+      partyNotifications: false,
+      noticeNotifications: false,
+      boardLikeNotifications: false,
+      commentNotifications: false,
+      bookmarkedPostCommentNotifications: false,
+      systemNotifications: false,
+    };
+
+    expect(
+      mapMemberNotificationSettingsToScreenSource(currentSettings).allNotifications,
+    ).toBe(false);
+    expect(
+      buildToggleNotificationSettingPatch({
+        currentSettings,
+        enabled: true,
+        key: 'friendAndInvitationNotifications',
+      }),
+    ).toEqual({
+      allNotifications: false,
+      friendAndInvitationNotifications: true,
+    });
+  });
 });

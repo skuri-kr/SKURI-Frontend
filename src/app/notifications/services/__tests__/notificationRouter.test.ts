@@ -96,6 +96,29 @@ describe('notificationRouter', () => {
     });
   });
 
+  it('초대 대상 식별자가 없으면 초대 탭으로 안전하게 이동한다', () => {
+    const warning = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const notification = mapNotificationResponseDto({
+      createdAt: '2026-08-25T09:00:00.000Z',
+      data: {},
+      id: 'notification-party-invitation-without-target',
+      isRead: false,
+      message: '택시파티에 초대했어요.',
+      title: '친구 초대',
+      type: 'PARTY_INVITATION',
+    });
+    const intent = getStoredNotificationNavigationIntent(notification);
+
+    expect(intent).toEqual({kind: 'friendHub', initialTab: 'invitations'});
+
+    openNotificationNavigationIntent(intent);
+
+    expect(mockedNavigateToCampusScreen).toHaveBeenCalledWith('FriendHub', {
+      initialTab: 'invitations',
+    });
+    warning.mockRestore();
+  });
+
   it('친구 요청과 거절 알림은 요청 탭으로 이동한다', () => {
     const notification = mapNotificationResponseDto({
       createdAt: '2026-08-25T09:00:00.000Z',

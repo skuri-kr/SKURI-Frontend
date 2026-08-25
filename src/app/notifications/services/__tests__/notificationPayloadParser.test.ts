@@ -121,7 +121,7 @@ describe('notificationPayloadParser', () => {
     ).toEqual({type: 'FRIEND_ACCEPTED'});
   });
 
-  it('초대 type과 invitationType이 일치하지 않으면 무시한다', () => {
+  it('초대 대상 식별자가 없거나 일치하지 않으면 초대 탭 fallback payload를 만든다', () => {
     expect(
       parsePushNotificationPayload({
         contractVersion: '1',
@@ -129,6 +129,13 @@ describe('notificationPayloadParser', () => {
         invitationId: 'party-invitation-1',
         invitationType: 'CHAT_ROOM',
       }),
-    ).toBeNull();
+    ).toEqual({type: 'PARTY_INVITATION'});
+
+    expect(
+      parsePushNotificationPayload({
+        contractVersion: '1',
+        type: 'CHAT_ROOM_INVITATION',
+      }),
+    ).toEqual({type: 'CHAT_ROOM_INVITATION'});
   });
 });

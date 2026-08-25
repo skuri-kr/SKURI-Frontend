@@ -356,6 +356,51 @@ describe('FriendHubScreen', () => {
     expect(view.getByLabelText('알림에서 선택한 초대')).toBeTruthy();
   });
 
+  it('처리되었거나 만료된 알림 대상 초대는 안내 후 목록을 유지한다', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const navigation = {
+      goBack: jest.fn(),
+      isFocused: jest.fn().mockReturnValue(true),
+      navigate: jest.fn(),
+      setParams: jest.fn(),
+    };
+    mockedUseNavigation.mockReturnValue(
+      navigation as ReturnType<typeof useNavigation>,
+    );
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: 'processed-party-invitation-1',
+        targetInvitationType: 'PARTY',
+      },
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation: jest.fn(),
+      chatError: undefined,
+      declineInvitation: jest.fn(),
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 0,
+      reload: jest.fn().mockResolvedValue(undefined),
+    });
+
+    const view = render(<FriendHubScreen />);
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith(
+        '초대를 찾을 수 없어요',
+        '해당 초대는 이미 처리되었거나 만료되었어요.',
+      );
+    });
+    expect(view.getByText('받은 초대가 없어요')).toBeTruthy();
+    expect(alertSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('초대 수락 완료 전에 화면을 떠났으면 대상 화면으로 이동하지 않는다', async () => {
     const navigation = {
       goBack: jest.fn(),
