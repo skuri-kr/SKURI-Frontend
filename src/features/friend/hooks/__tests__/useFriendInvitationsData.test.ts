@@ -428,7 +428,7 @@ describe('useFriendInvitationsData', () => {
       stalePartyResult.promise,
     );
 
-    let reloadPromise!: Promise<void>;
+    let reloadPromise!: Promise<boolean>;
     act(() => {
       reloadPromise = result.current.reload();
     });
@@ -439,7 +439,7 @@ describe('useFriendInvitationsData', () => {
     });
     await act(async () => {
       stalePartyResult.resolve([partyInvitation]);
-      await reloadPromise;
+      expect(await reloadPromise).toBe(false);
     });
 
     expect(result.current.invitations).toEqual([chatInvitation]);

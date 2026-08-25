@@ -111,7 +111,7 @@ const createFriendHubData = (
   receivedNextCursor: null,
   receivedRequests: [],
   receivedRequestsError: undefined,
-  reload: jest.fn().mockResolvedValue(undefined),
+  reload: jest.fn().mockResolvedValue(true),
   reloadFriends: jest.fn().mockResolvedValue(undefined),
   reloadRequestDirection: jest.fn().mockResolvedValue(undefined),
   sentNextCursor: null,
@@ -132,6 +132,33 @@ const createDeferred = <T,>() => {
 
   return {promise, reject, resolve};
 };
+
+const createPartyInvitation = (id: string, partyId: string) => ({
+  createdAt: '2026-08-23T12:00:00',
+  expiresAt: null,
+  expiryReason: null,
+  id,
+  inviter: {
+    department: null,
+    favorite: false,
+    id: `friend-${id}`,
+    nickname: '가람',
+    photoUrl: null,
+  },
+  respondedAt: null,
+  status: 'PENDING' as const,
+  target: {
+    currentMembers: 2,
+    departureName: '성결대학교',
+    departureTime: '2026-08-23T14:00:00',
+    destinationName: '안양역',
+    id: partyId,
+    maxMembers: 4,
+    status: 'OPEN' as const,
+    type: 'PARTY' as const,
+  },
+  type: 'PARTY' as const,
+});
 
 describe('FriendHubScreen', () => {
   beforeEach(() => {
@@ -156,7 +183,7 @@ describe('FriendHubScreen', () => {
       mutatingIds: new Set(),
       partyError: undefined,
       pendingCount: 0,
-      reload: jest.fn().mockResolvedValue(undefined),
+      reload: jest.fn().mockResolvedValue(true),
     });
   });
 
@@ -216,7 +243,7 @@ describe('FriendHubScreen', () => {
       mutatingIds: new Set(),
       partyError: 'party unavailable',
       pendingCount: undefined,
-      reload: jest.fn().mockResolvedValue(undefined),
+      reload: jest.fn().mockResolvedValue(true),
     });
 
     const view = render(<FriendHubScreen />);
@@ -280,7 +307,7 @@ describe('FriendHubScreen', () => {
       mutatingIds: new Set(),
       partyError: undefined,
       pendingCount: 1,
-      reload: jest.fn(() => new Promise<void>(() => undefined)),
+      reload: jest.fn(() => new Promise<boolean>(() => undefined)),
     });
 
     const view = render(<FriendHubScreen />);
@@ -328,7 +355,7 @@ describe('FriendHubScreen', () => {
       },
     } as ReturnType<typeof useRoute>);
     mockedUseFriendHubData.mockReturnValue(createFriendHubData());
-    const reloadInvitations = jest.fn(() => new Promise<void>(() => undefined));
+    const reloadInvitations = jest.fn(() => new Promise<boolean>(() => undefined));
     mockedUseFriendInvitationsData.mockReturnValue({
       acceptInvitation: jest.fn(),
       chatError: undefined,
@@ -385,7 +412,7 @@ describe('FriendHubScreen', () => {
       },
       type: 'PARTY' as const,
     };
-    const reloadInvitations = jest.fn().mockResolvedValue(undefined);
+    const reloadInvitations = jest.fn().mockResolvedValue(true);
     const scrollToSpy = jest
       .spyOn(ScrollView.prototype, 'scrollTo')
       .mockImplementation(() => undefined);
@@ -477,7 +504,7 @@ describe('FriendHubScreen', () => {
       type: 'PARTY' as const,
     };
     const reloadInvitations = jest.fn(
-      () => new Promise<void>(() => undefined),
+      () => new Promise<boolean>(() => undefined),
     );
     mockedUseRoute.mockReturnValue({
       params: {
@@ -553,7 +580,7 @@ describe('FriendHubScreen', () => {
       mutatingIds: new Set(),
       partyError: undefined,
       pendingCount: 0,
-      reload: jest.fn().mockResolvedValue(undefined),
+      reload: jest.fn().mockResolvedValue(true),
     });
 
     const view = render(<FriendHubScreen />);
@@ -598,7 +625,7 @@ describe('FriendHubScreen', () => {
       mutatingIds: new Set(),
       partyError: undefined,
       pendingCount: 0,
-      reload: jest.fn().mockResolvedValue(undefined),
+      reload: jest.fn().mockResolvedValue(true),
     });
 
     render(<FriendHubScreen />);
@@ -640,7 +667,7 @@ describe('FriendHubScreen', () => {
       type: 'PARTY' as const,
     };
     const declineInvitation = jest.fn().mockResolvedValue(undefined);
-    const reloadInvitations = jest.fn().mockResolvedValue(undefined);
+    const reloadInvitations = jest.fn().mockResolvedValue(true);
     mockedUseRoute.mockReturnValue({
       params: {
         initialTab: 'invitations',
@@ -748,7 +775,7 @@ describe('FriendHubScreen', () => {
       mutatingIds: new Set(),
       partyError: undefined,
       pendingCount: 1,
-      reload: jest.fn().mockResolvedValue(undefined),
+      reload: jest.fn().mockResolvedValue(true),
     });
 
     const view = render(<FriendHubScreen />);
@@ -820,7 +847,7 @@ describe('FriendHubScreen', () => {
       mutatingIds: new Set(),
       partyError: undefined,
       pendingCount: 2,
-      reload: jest.fn().mockResolvedValue(undefined),
+      reload: jest.fn().mockResolvedValue(true),
     });
 
     const view = render(<FriendHubScreen />);
@@ -907,7 +934,7 @@ describe('FriendHubScreen', () => {
       mutatingIds: new Set(),
       partyError: undefined,
       pendingCount: 2,
-      reload: jest.fn().mockResolvedValue(undefined),
+      reload: jest.fn().mockResolvedValue(true),
     });
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
 
@@ -933,6 +960,200 @@ describe('FriendHubScreen', () => {
     });
 
     expect(alertSpy).not.toHaveBeenCalled();
+  });
+
+  it('대상 없는 FriendHub 알림 route로 전환된 뒤 이전 초대 수락이 완료되어도 이동하지 않는다', async () => {
+    const invitation = createPartyInvitation('party-invitation-a', 'party-a');
+    const acceptDeferred = createDeferred<{
+      invitationId: string;
+      status: 'ACCEPTED';
+      targetId: string;
+      type: 'PARTY';
+    }>();
+    const acceptInvitation = jest.fn().mockReturnValue(acceptDeferred.promise);
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitation.id,
+        targetInvitationType: invitation.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation,
+      chatError: undefined,
+      declineInvitation: jest.fn(),
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [invitation],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 1,
+      reload: jest.fn().mockResolvedValue(true),
+    });
+
+    const view = render(<FriendHubScreen />);
+    fireEvent.press(view.getByText('수락'));
+
+    await waitFor(() => {
+      expect(acceptInvitation).toHaveBeenCalledWith(invitation);
+    });
+
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'requests'},
+    } as ReturnType<typeof useRoute>);
+    view.rerender(<FriendHubScreen />);
+
+    await act(async () => {
+      acceptDeferred.resolve({
+        invitationId: invitation.id,
+        status: 'ACCEPTED',
+        targetId: invitation.target.id,
+        type: 'PARTY',
+      });
+    });
+
+    expect(mockedNavigateToTaxiAcceptancePendingBySeed).not.toHaveBeenCalled();
+    expect(mockedNavigateToTaxiChat).not.toHaveBeenCalled();
+    expect(mockedNavigateToCommunityChat).not.toHaveBeenCalled();
+  });
+
+  it('폐기된 초대 대상 재조회는 적용된 목록을 받을 때까지 대기한다', async () => {
+    const invitation = createPartyInvitation('party-invitation-b', 'party-b');
+    const firstReload = createDeferred<boolean>();
+    const secondReload = createDeferred<boolean>();
+    const reloadInvitations = jest
+      .fn()
+      .mockReturnValueOnce(firstReload.promise)
+      .mockReturnValueOnce(secondReload.promise);
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitation.id,
+        targetInvitationType: invitation.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation: jest.fn(),
+      chatError: undefined,
+      declineInvitation: jest.fn(),
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 0,
+      reload: reloadInvitations,
+    });
+
+    const view = render(<FriendHubScreen />);
+    await waitFor(() => {
+      expect(reloadInvitations).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      firstReload.resolve(false);
+    });
+    await waitFor(() => {
+      expect(reloadInvitations).toHaveBeenCalledTimes(2);
+    });
+
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation: jest.fn(),
+      chatError: undefined,
+      declineInvitation: jest.fn(),
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [invitation],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 1,
+      reload: reloadInvitations,
+    });
+    view.rerender(<FriendHubScreen />);
+
+    expect(alertSpy).not.toHaveBeenCalled();
+    await act(async () => {
+      secondReload.resolve(true);
+    });
+
+    expect(view.getByText('가람님의 초대')).toBeTruthy();
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+
+  it('알림에서 연 초대는 잠시 강조한 뒤 소비해 이후 목록 변경을 알리지 않는다', async () => {
+    jest.useFakeTimers();
+    try {
+      const invitation = createPartyInvitation('party-invitation-c', 'party-c');
+      const targetReload = createDeferred<boolean>();
+      const reloadInvitations = jest
+        .fn()
+        .mockReturnValue(targetReload.promise);
+      const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+      mockedUseRoute.mockReturnValue({
+        params: {
+          initialTab: 'invitations',
+          targetInvitationId: invitation.id,
+          targetInvitationType: invitation.type,
+        },
+      } as ReturnType<typeof useRoute>);
+      mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+      mockedUseFriendInvitationsData.mockReturnValue({
+        acceptInvitation: jest.fn(),
+        chatError: undefined,
+        declineInvitation: jest.fn(),
+        deleteInvitation: jest.fn(),
+        hasLoaded: true,
+        invitations: [invitation],
+        loading: false,
+        mutatingIds: new Set(),
+        partyError: undefined,
+        pendingCount: 1,
+        reload: reloadInvitations,
+      });
+
+      const view = render(<FriendHubScreen />);
+      expect(reloadInvitations).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        targetReload.resolve(true);
+      });
+      const invitationLayout = view.UNSAFE_getAllByType(RNView).find(
+        node => typeof node.props.onLayout === 'function',
+      );
+      fireEvent(invitationLayout!, 'layout', {
+        nativeEvent: {layout: {y: 120}},
+      });
+
+      expect(view.getByLabelText('알림에서 선택한 초대')).toBeTruthy();
+      act(() => {
+        jest.advanceTimersByTime(1_500);
+      });
+      expect(view.queryByLabelText('알림에서 선택한 초대')).toBeNull();
+
+      mockedUseFriendInvitationsData.mockReturnValue({
+        acceptInvitation: jest.fn(),
+        chatError: undefined,
+        declineInvitation: jest.fn(),
+        deleteInvitation: jest.fn(),
+        hasLoaded: true,
+        invitations: [],
+        loading: false,
+        mutatingIds: new Set(),
+        partyError: undefined,
+        pendingCount: 0,
+        reload: reloadInvitations,
+      });
+      view.rerender(<FriendHubScreen />);
+
+      expect(alertSpy).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('파티원이 보낸 초대를 수락하면 파티장 승인 대기 화면으로 이동한다', async () => {
@@ -985,7 +1206,7 @@ describe('FriendHubScreen', () => {
       mutatingIds: new Set(),
       partyError: undefined,
       pendingCount: 1,
-      reload: jest.fn().mockResolvedValue(undefined),
+      reload: jest.fn().mockResolvedValue(true),
     });
 
     const view = render(<FriendHubScreen />);
