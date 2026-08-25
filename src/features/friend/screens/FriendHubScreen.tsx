@@ -53,6 +53,8 @@ type InvitationTarget = {
   type: 'PARTY' | 'CHAT_ROOM';
 };
 
+const INVITATION_HIGHLIGHT_DURATION_MS = 1_500;
+
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
 
@@ -95,7 +97,10 @@ export const FriendHubScreen = () => {
   const [invitationTargetScrollVersion, setInvitationTargetScrollVersion] =
     React.useState(0);
   const invitationTargetReloadVersionRef = React.useRef(0);
-  const invitationRouteVersionRef = React.useRef(0);
+  const friendHubRouteVersionRef = React.useRef(0);
+  const invitationHighlightTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const missingInvitationAlertTargetKeyRef = React.useRef<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
   const {
@@ -156,6 +161,47 @@ export const FriendHubScreen = () => {
     return true;
   }, []);
 
+  const clearInvitationHighlightTimeout = React.useCallback(() => {
+    if (invitationHighlightTimeoutRef.current !== null) {
+      clearTimeout(invitationHighlightTimeoutRef.current);
+      invitationHighlightTimeoutRef.current = null;
+    }
+  }, []);
+
+  const scheduleHighlightedInvitationClear = React.useCallback(
+    (target: InvitationTarget) => {
+      clearInvitationHighlightTimeout();
+      const targetKey = getInvitationTargetKey(target);
+      const routeVersion = friendHubRouteVersionRef.current;
+      const timeout = setTimeout(() => {
+        if (invitationHighlightTimeoutRef.current !== timeout) {
+          return;
+        }
+
+        invitationHighlightTimeoutRef.current = null;
+        if (routeVersion !== friendHubRouteVersionRef.current) {
+          return;
+        }
+
+        setHighlightedInvitationTarget(currentTarget =>
+          currentTarget &&
+          getInvitationTargetKey(currentTarget) === targetKey
+            ? null
+            : currentTarget,
+        );
+      }, INVITATION_HIGHLIGHT_DURATION_MS);
+      invitationHighlightTimeoutRef.current = timeout;
+    },
+    [clearInvitationHighlightTimeout],
+  );
+
+  React.useEffect(() => {
+    return () => {
+      clearInvitationHighlightTimeout();
+      invitationTargetReloadVersionRef.current += 1;
+    };
+  }, [clearInvitationHighlightTimeout]);
+
   React.useEffect(() => {
     if (lastInvalidationVersionRef.current === undefined) {
       lastInvalidationVersionRef.current = friendHubInvalidationVersion;
@@ -197,10 +243,11 @@ export const FriendHubScreen = () => {
     : '초대';
 
   React.useLayoutEffect(() => {
-    if (getRouteInvitationTarget(route.params)) {
-      invitationRouteVersionRef.current += 1;
+    if (route.params?.initialTab || getRouteInvitationTarget(route.params)) {
+      friendHubRouteVersionRef.current += 1;
+      clearInvitationHighlightTimeout();
     }
-  }, [route.params]);
+  }, [clearInvitationHighlightTimeout, route.params]);
 
   React.useEffect(() => {
     const initialTab = route.params?.initialTab;
@@ -216,13 +263,26 @@ export const FriendHubScreen = () => {
       setInvitationTargetScrollVersion(version => version + 1);
       const reloadVersion = invitationTargetReloadVersionRef.current + 1;
       invitationTargetReloadVersionRef.current = reloadVersion;
-      reloadInvitations()
-        .catch(() => undefined)
-        .finally(() => {
-          if (invitationTargetReloadVersionRef.current === reloadVersion) {
-            setIsInvitationTargetReloadPending(false);
+      const reloadTargetInvitations = async () => {
+        while (invitationTargetReloadVersionRef.current === reloadVersion) {
+          try {
+            const applied = await reloadInvitations();
+            if (invitationTargetReloadVersionRef.current !== reloadVersion) {
+              return;
+            }
+            if (applied !== false) {
+              setIsInvitationTargetReloadPending(false);
+              return;
+            }
+          } catch {
+            if (invitationTargetReloadVersionRef.current === reloadVersion) {
+              setIsInvitationTargetReloadPending(false);
+            }
+            return;
           }
-        });
+        }
+      };
+      reloadTargetInvitations().catch(() => undefined);
     } else {
       setHighlightedInvitationTarget(null);
       setIsInvitationTargetReloadPending(false);
@@ -317,12 +377,14 @@ export const FriendHubScreen = () => {
       if (scrollToInvitation(highlightedInvitationTarget)) {
         lastScrolledInvitationTargetVersionRef.current =
           invitationTargetScrollVersion;
+        scheduleHighlightedInvitationClear(highlightedInvitationTarget);
       }
     },
     [
       highlightedInvitationTarget,
       invitationTargetScrollVersion,
       isInvitationTargetReloadPending,
+      scheduleHighlightedInvitationClear,
       scrollToInvitation,
     ],
   );
@@ -346,12 +408,14 @@ export const FriendHubScreen = () => {
     if (scrollToInvitation(highlightedInvitationTarget)) {
       lastScrolledInvitationTargetVersionRef.current =
         invitationTargetScrollVersion;
+      scheduleHighlightedInvitationClear(highlightedInvitationTarget);
     }
   }, [
     highlightedInvitationTarget,
     invitationTargetScrollVersion,
     invitations,
     isInvitationTargetReloadPending,
+    scheduleHighlightedInvitationClear,
     scrollToInvitation,
     selectedTab,
   ]);
@@ -450,7 +514,7 @@ export const FriendHubScreen = () => {
 
   const handleAcceptInvitation = React.useCallback(
     async (invitation: (typeof invitations)[number]) => {
-      const invitationRouteVersion = invitationRouteVersionRef.current;
+      const friendHubRouteVersion = friendHubRouteVersionRef.current;
       clearHighlightedInvitationTarget(invitation);
       try {
         const mutation = await acceptInvitation(invitation);
@@ -458,7 +522,7 @@ export const FriendHubScreen = () => {
           return;
         }
         if (
-          invitationRouteVersion !== invitationRouteVersionRef.current ||
+          friendHubRouteVersion !== friendHubRouteVersionRef.current ||
           !navigation.isFocused()
         ) {
           return;
@@ -497,7 +561,7 @@ export const FriendHubScreen = () => {
         }
       } catch (acceptError) {
         if (
-          invitationRouteVersion !== invitationRouteVersionRef.current ||
+          friendHubRouteVersion !== friendHubRouteVersionRef.current ||
           !navigation.isFocused()
         ) {
           return;
@@ -756,13 +820,13 @@ export const FriendHubScreen = () => {
             {partyInvitationError ? (
               <FriendDataErrorBanner
                 error={partyInvitationError}
-                onRetry={reloadInvitations}
+                onRetry={() => reloadInvitations().then(() => undefined)}
               />
             ) : null}
             {chatInvitationError ? (
               <FriendDataErrorBanner
                 error={chatInvitationError}
-                onRetry={reloadInvitations}
+                onRetry={() => reloadInvitations().then(() => undefined)}
               />
             ) : null}
             {hasLoadedInvitations && invitations.length > 0

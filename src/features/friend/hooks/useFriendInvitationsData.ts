@@ -88,10 +88,12 @@ export const useFriendInvitationsData = () => {
       settle(() => repository.getInboxCounts()),
     ]);
 
-    if (partyResult.ok && isCurrent()) {
+    const shouldApply = isCurrent();
+
+    if (partyResult.ok && shouldApply) {
       setPartyInvitations(partyResult.value);
       releaseReconciledMutations('PARTY');
-    } else if (!partyResult.ok && isCurrent()) {
+    } else if (!partyResult.ok && shouldApply) {
       setPartyError(
         getErrorMessage(
           partyResult.error,
@@ -100,10 +102,10 @@ export const useFriendInvitationsData = () => {
       );
     }
 
-    if (chatResult.ok && isCurrent()) {
+    if (chatResult.ok && shouldApply) {
       setChatInvitations(chatResult.value);
       releaseReconciledMutations('CHAT_ROOM');
-    } else if (!chatResult.ok && isCurrent()) {
+    } else if (!chatResult.ok && shouldApply) {
       setChatError(
         getErrorMessage(
           chatResult.error,
@@ -112,7 +114,7 @@ export const useFriendInvitationsData = () => {
       );
     }
 
-    if (isCurrent()) {
+    if (shouldApply) {
       if (countsResult.ok) {
         setPendingCount(
           countsResult.value.partyInvitationCount +
@@ -128,6 +130,8 @@ export const useFriendInvitationsData = () => {
       setHasLoaded(true);
       setLoading(false);
     }
+
+    return shouldApply;
   }, [releaseReconciledMutations, repository]);
 
   React.useEffect(() => {
