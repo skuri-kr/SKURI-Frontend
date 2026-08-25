@@ -76,6 +76,8 @@ export const FriendHubScreen = () => {
   const route = useRoute<RouteProp<CampusStackParamList, 'FriendHub'>>();
   const isFocused = useIsFocused();
   const scrollViewRef = React.useRef<ScrollView>(null);
+  const invitationLayoutYByKeyRef = React.useRef(new Map<string, number>());
+  const lastScrolledInvitationTargetVersionRef = React.useRef(0);
   const hasReceivedInitialFocus = React.useRef(false);
   const lastInvalidationVersionRef = React.useRef<number | undefined>(undefined);
   const friendHubInvalidationVersion = useInvalidationVersion(
@@ -90,6 +92,8 @@ export const FriendHubScreen = () => {
     );
   const [isInvitationTargetReloadPending, setIsInvitationTargetReloadPending] =
     React.useState(() => getRouteInvitationTarget(route.params) !== null);
+  const [invitationTargetScrollVersion, setInvitationTargetScrollVersion] =
+    React.useState(0);
   const invitationTargetReloadVersionRef = React.useRef(0);
   const missingInvitationAlertTargetKeyRef = React.useRef<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -133,6 +137,23 @@ export const FriendHubScreen = () => {
     pendingCount: pendingInvitationCount,
     reload: reloadInvitations,
   } = useFriendInvitationsData();
+
+  const scrollToInvitation = React.useCallback((target: InvitationTarget) => {
+    const y = invitationLayoutYByKeyRef.current.get(
+      getInvitationTargetKey(target),
+    );
+    if (y === undefined) {
+      return false;
+    }
+
+    requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollTo({
+        animated: true,
+        y: Math.max(0, y - SPACING.sm),
+      });
+    });
+    return true;
+  }, []);
 
   React.useEffect(() => {
     if (lastInvalidationVersionRef.current === undefined) {
@@ -185,6 +206,7 @@ export const FriendHubScreen = () => {
     if (invitationTarget) {
       setHighlightedInvitationTarget(invitationTarget);
       setIsInvitationTargetReloadPending(true);
+      setInvitationTargetScrollVersion(version => version + 1);
       const reloadVersion = invitationTargetReloadVersionRef.current + 1;
       invitationTargetReloadVersionRef.current = reloadVersion;
       reloadInvitations()
@@ -269,23 +291,63 @@ export const FriendHubScreen = () => {
 
   const handleInvitationLayout = React.useCallback(
     (invitation: (typeof invitations)[number], y: number) => {
+      const invitationTarget = {id: invitation.id, type: invitation.type};
+      invitationLayoutYByKeyRef.current.set(
+        getInvitationTargetKey(invitationTarget),
+        y,
+      );
       if (
         !highlightedInvitationTarget ||
-        getInvitationTargetKey({id: invitation.id, type: invitation.type}) !==
+        isInvitationTargetReloadPending ||
+        lastScrolledInvitationTargetVersionRef.current ===
+          invitationTargetScrollVersion ||
+        getInvitationTargetKey(invitationTarget) !==
           getInvitationTargetKey(highlightedInvitationTarget)
       ) {
         return;
       }
 
-      requestAnimationFrame(() => {
-        scrollViewRef.current?.scrollTo({
-          animated: true,
-          y: Math.max(0, y - SPACING.sm),
-        });
-      });
+      if (scrollToInvitation(highlightedInvitationTarget)) {
+        lastScrolledInvitationTargetVersionRef.current =
+          invitationTargetScrollVersion;
+      }
     },
-    [highlightedInvitationTarget],
+    [
+      highlightedInvitationTarget,
+      invitationTargetScrollVersion,
+      isInvitationTargetReloadPending,
+      scrollToInvitation,
+    ],
   );
+
+  React.useEffect(() => {
+    if (
+      selectedTab !== 'invitations' ||
+      !highlightedInvitationTarget ||
+      isInvitationTargetReloadPending ||
+      lastScrolledInvitationTargetVersionRef.current ===
+        invitationTargetScrollVersion ||
+      !invitations.some(
+        invitation =>
+          getInvitationTargetKey({id: invitation.id, type: invitation.type}) ===
+          getInvitationTargetKey(highlightedInvitationTarget),
+      )
+    ) {
+      return;
+    }
+
+    if (scrollToInvitation(highlightedInvitationTarget)) {
+      lastScrolledInvitationTargetVersionRef.current =
+        invitationTargetScrollVersion;
+    }
+  }, [
+    highlightedInvitationTarget,
+    invitationTargetScrollVersion,
+    invitations,
+    isInvitationTargetReloadPending,
+    scrollToInvitation,
+    selectedTab,
+  ]);
 
   useFocusEffect(
     React.useCallback(() => {
