@@ -18,6 +18,7 @@ import type {
 import {FriendAvatar} from './FriendAvatar';
 
 interface FriendInvitationCardProps {
+  highlighted?: boolean;
   invitation: FriendInvitation;
   loading: boolean;
   onAccept: () => void;
@@ -82,6 +83,7 @@ const getTargetMeta = (invitation: FriendInvitation) => {
 };
 
 export const FriendInvitationCard = ({
+  highlighted = false,
   invitation,
   loading,
   onAccept,
@@ -99,7 +101,9 @@ export const FriendInvitationCard = ({
   const targetMeta = getTargetMeta(invitation);
 
   return (
-    <View style={styles.card}>
+    <View
+      accessibilityLabel={highlighted ? '알림에서 선택한 초대' : undefined}
+      style={[styles.card, highlighted ? styles.highlightedCard : null]}>
       <View style={styles.header}>
         <FriendAvatar photoUrl={invitation.inviter?.photoUrl ?? null} size={46} />
         <View style={styles.headerText}>
@@ -185,6 +189,7 @@ const styles = StyleSheet.create({
   header: {alignItems: 'center', flexDirection: 'row', gap: SPACING.sm},
   headerText: {flex: 1},
   inviterName: {color: COLORS.text.primary, fontSize: 15, fontWeight: '800', lineHeight: 21},
+  highlightedCard: {borderColor: COLORS.brand.primary, borderWidth: 1},
   targetLabel: {color: COLORS.text.primary, flex: 1, fontSize: 14, fontWeight: '700', lineHeight: 20},
   targetMeta: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: 2},
   targetRow: {alignItems: 'center', backgroundColor: COLORS.background.subtle, borderRadius: RADIUS.md, flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md, padding: SPACING.md},

@@ -10,6 +10,19 @@ export type NotificationPayload =
   | {type: 'MEMBER_KICKED'; partyId: string}
   | {type: 'SETTLEMENT_COMPLETED'; partyId: string}
   | {type: 'CHAT_MESSAGE'; chatRoomId: string}
+  | {type: 'FRIEND_REQUEST'; requestId: string}
+  | {type: 'FRIEND_ACCEPTED'; friendPublicId: string}
+  | {type: 'FRIEND_DECLINED'; requestId: string}
+  | {
+      type: 'PARTY_INVITATION';
+      invitationId: string;
+      invitationType: 'PARTY';
+    }
+  | {
+      type: 'CHAT_ROOM_INVITATION';
+      invitationId: string;
+      invitationType: 'CHAT_ROOM';
+    }
   | {type: 'POST_LIKED'; postId: string}
   | {type: 'COMMENT_CREATED'; postId: string; commentId: string}
   | {type: 'COMMENT_CREATED'; noticeId: string; commentId: string}

@@ -1,6 +1,4 @@
-import type {
-  NotificationType,
-} from '../../model/notificationContract';
+import type {NotificationType} from '../../model/notificationContract';
 
 export type NotificationTypeDto = NotificationType;
 
@@ -9,6 +7,9 @@ export interface NotificationDataDto {
   appNoticeId?: string | null;
   chatRoomId?: string | null;
   commentId?: string | null;
+  friendPublicId?: string | null;
+  invitationId?: string | null;
+  invitationType?: 'PARTY' | 'CHAT_ROOM' | null;
   noticeId?: string | null;
   partyId?: string | null;
   postId?: string | null;

@@ -1,6 +1,4 @@
-import type {
-  Notification,
-} from '../repositories/INotificationRepository';
+import type {Notification} from '../repositories/INotificationRepository';
 import type {
   NotificationData,
   NotificationType,
@@ -33,6 +31,9 @@ const mapNotificationDataDto = (
   pushIfString(result, 'appNoticeId', data.appNoticeId);
   pushIfString(result, 'chatRoomId', data.chatRoomId);
   pushIfString(result, 'commentId', data.commentId);
+  pushIfString(result, 'friendPublicId', data.friendPublicId);
+  pushIfString(result, 'invitationId', data.invitationId);
+  pushIfString(result, 'invitationType', data.invitationType);
   pushIfString(result, 'noticeId', data.noticeId);
   pushIfString(result, 'partyId', data.partyId);
   pushIfString(result, 'postId', data.postId);

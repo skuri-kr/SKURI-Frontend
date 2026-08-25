@@ -63,7 +63,10 @@ const getNotificationText = (
 });
 
 const buildForegroundDescriptor = (
-  payload: Exclude<NotificationPayload, {type: 'CHAT_MESSAGE' | 'PARTY_JOIN_ACCEPTED'}>,
+  payload: Exclude<
+    NotificationPayload,
+    {type: 'CHAT_MESSAGE' | 'PARTY_JOIN_ACCEPTED'}
+  >,
   remoteMessage: FirebaseMessagingTypes.RemoteMessage,
 ): ForegroundNotificationDescriptor => {
   const intent = getNotificationNavigationIntent(payload);
@@ -107,6 +110,43 @@ const buildForegroundDescriptor = (
           remoteMessage,
           '택시 파티 알림',
           '파티 상태가 변경되었어요.',
+        ),
+        intent,
+      };
+    case 'FRIEND_REQUEST':
+      return {
+        ...getNotificationText(
+          remoteMessage,
+          '친구 요청이 도착했어요',
+          '친구 요청을 확인해보세요.',
+        ),
+        intent,
+      };
+    case 'FRIEND_ACCEPTED':
+      return {
+        ...getNotificationText(
+          remoteMessage,
+          '친구가 되었어요',
+          '새 친구의 프로필을 확인해보세요.',
+        ),
+        intent,
+      };
+    case 'FRIEND_DECLINED':
+      return {
+        ...getNotificationText(
+          remoteMessage,
+          '친구 요청이 거절되었어요',
+          '친구 요청 상태를 확인해보세요.',
+        ),
+        intent,
+      };
+    case 'PARTY_INVITATION':
+    case 'CHAT_ROOM_INVITATION':
+      return {
+        ...getNotificationText(
+          remoteMessage,
+          '친구 초대가 도착했어요',
+          '친구 허브의 초대 탭에서 확인해보세요.',
         ),
         intent,
       };
@@ -214,7 +254,9 @@ const handleChatMessage = async (
   await handleCommunityChatMessage(payload, remoteMessage, callbacks);
 };
 
-export function initForegroundMessageHandler(callbacks: ForegroundMessageCallbacks) {
+export function initForegroundMessageHandler(
+  callbacks: ForegroundMessageCallbacks,
+) {
   return subscribeForegroundMessages(async remoteMessage => {
     const payload = parsePushNotificationPayload(remoteMessage.data || {});
 

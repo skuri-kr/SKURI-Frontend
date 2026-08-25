@@ -48,8 +48,26 @@ import {getDuplicateFriendProfileIds} from '../model/friendDisambiguation';
 
 type FriendHubTab = 'friends' | 'requests' | 'invitations';
 
+type InvitationTarget = {
+  id: string;
+  type: 'PARTY' | 'CHAT_ROOM';
+};
+
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
+
+const getInvitationTargetKey = (target: InvitationTarget) =>
+  `${target.type}-${target.id}`;
+
+const getRouteInvitationTarget = (
+  params: RouteProp<CampusStackParamList, 'FriendHub'>['params'],
+): InvitationTarget | null =>
+  params?.targetInvitationId && params.targetInvitationType
+    ? {
+        id: params.targetInvitationId,
+        type: params.targetInvitationType,
+      }
+    : null;
 
 export const FriendHubScreen = () => {
   useScreenView();
@@ -57,6 +75,7 @@ export const FriendHubScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
   const route = useRoute<RouteProp<CampusStackParamList, 'FriendHub'>>();
   const isFocused = useIsFocused();
+  const scrollViewRef = React.useRef<ScrollView>(null);
   const hasReceivedInitialFocus = React.useRef(false);
   const lastInvalidationVersionRef = React.useRef<number | undefined>(undefined);
   const friendHubInvalidationVersion = useInvalidationVersion(
@@ -65,6 +84,10 @@ export const FriendHubScreen = () => {
   const [selectedTab, setSelectedTab] = React.useState<FriendHubTab>(
     route.params?.initialTab ?? 'friends',
   );
+  const [highlightedInvitationTarget, setHighlightedInvitationTarget] =
+    React.useState<InvitationTarget | null>(() =>
+      getRouteInvitationTarget(route.params),
+    );
   const [refreshing, setRefreshing] = React.useState(false);
   const {
     acceptRequest,
@@ -149,13 +172,57 @@ export const FriendHubScreen = () => {
 
   React.useEffect(() => {
     const initialTab = route.params?.initialTab;
-    if (!initialTab) {
+    const invitationTarget = getRouteInvitationTarget(route.params);
+    if (!initialTab && !invitationTarget) {
       return;
     }
 
-    setSelectedTab(initialTab);
-    navigation.setParams({initialTab: undefined});
-  }, [navigation, route.params?.initialTab]);
+    setSelectedTab(invitationTarget ? 'invitations' : initialTab ?? 'friends');
+    if (invitationTarget) {
+      setHighlightedInvitationTarget(invitationTarget);
+    }
+    navigation.setParams({
+      initialTab: undefined,
+      targetInvitationId: undefined,
+      targetInvitationType: undefined,
+    });
+  }, [navigation, route.params]);
+
+  React.useEffect(() => {
+    if (!highlightedInvitationTarget || !hasLoadedInvitations) {
+      return;
+    }
+
+    const targetExists = invitations.some(
+      invitation =>
+        getInvitationTargetKey({id: invitation.id, type: invitation.type}) ===
+        getInvitationTargetKey(highlightedInvitationTarget),
+    );
+
+    if (!targetExists) {
+      setHighlightedInvitationTarget(null);
+    }
+  }, [hasLoadedInvitations, highlightedInvitationTarget, invitations]);
+
+  const handleInvitationLayout = React.useCallback(
+    (invitation: (typeof invitations)[number], y: number) => {
+      if (
+        !highlightedInvitationTarget ||
+        getInvitationTargetKey({id: invitation.id, type: invitation.type}) !==
+          getInvitationTargetKey(highlightedInvitationTarget)
+      ) {
+        return;
+      }
+
+      requestAnimationFrame(() => {
+        scrollViewRef.current?.scrollTo({
+          animated: true,
+          y: Math.max(0, y - SPACING.sm),
+        });
+      });
+    },
+    [highlightedInvitationTarget],
+  );
 
   useFocusEffect(
     React.useCallback(() => {
@@ -327,6 +394,7 @@ export const FriendHubScreen = () => {
       />
 
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
@@ -537,16 +605,28 @@ export const FriendHubScreen = () => {
             ) : null}
             {hasLoadedInvitations && invitations.length > 0
               ? invitations.map(invitation => (
-                  <FriendInvitationCard
-                    invitation={invitation}
+                  <View
                     key={`${invitation.type}-${invitation.id}`}
-                    loading={mutatingInvitationIds.has(invitation.id)}
-                    onAccept={() => {
-                      handleAcceptInvitation(invitation).catch(() => undefined);
-                    }}
-                    onDecline={() => handleDeclineInvitation(invitation)}
-                    onDelete={() => handleDeleteInvitation(invitation)}
-                  />
+                    onLayout={({nativeEvent}) => {
+                      handleInvitationLayout(invitation, nativeEvent.layout.y);
+                    }}>
+                    <FriendInvitationCard
+                      highlighted={
+                        highlightedInvitationTarget !== null &&
+                        getInvitationTargetKey({
+                          id: invitation.id,
+                          type: invitation.type,
+                        }) === getInvitationTargetKey(highlightedInvitationTarget)
+                      }
+                      invitation={invitation}
+                      loading={mutatingInvitationIds.has(invitation.id)}
+                      onAccept={() => {
+                        handleAcceptInvitation(invitation).catch(() => undefined);
+                      }}
+                      onDecline={() => handleDeclineInvitation(invitation)}
+                      onDelete={() => handleDeleteInvitation(invitation)}
+                    />
+                  </View>
                 ))
               : null}
             {hasLoadedInvitations && invitations.length === 0 && !partyInvitationError && !chatInvitationError ? (
