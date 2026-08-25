@@ -95,8 +95,16 @@ export const FriendDetailScreen = () => {
   );
 
   const showMutationError = React.useCallback(
-    (actionError: unknown, fallback: string) => {
-      if (!navigation.isFocused()) {
+    (
+      actionError: unknown,
+      fallback: string,
+      mutationFriendId?: string,
+    ) => {
+      if (
+        (mutationFriendId &&
+          mutationFriendId !== currentFriendIdRef.current) ||
+        !navigation.isFocused()
+      ) {
         return;
       }
 
@@ -106,10 +114,15 @@ export const FriendDetailScreen = () => {
           text: '확인',
           onPress: shouldLeave
             ? () => {
-                invalidateData(FRIEND_HUB_INVALIDATION_KEY);
-                if (navigation.isFocused()) {
-                  navigation.goBack();
+                if (
+                  (mutationFriendId &&
+                    mutationFriendId !== currentFriendIdRef.current) ||
+                  !navigation.isFocused()
+                ) {
+                  return;
                 }
+                invalidateData(FRIEND_HUB_INVALIDATION_KEY);
+                navigation.goBack();
               }
             : undefined,
         },
@@ -124,6 +137,7 @@ export const FriendDetailScreen = () => {
         return;
       }
 
+      const mutationFriendId = friend.id;
       setInviting(true);
       try {
         const outcomes =
@@ -149,7 +163,11 @@ export const FriendDetailScreen = () => {
               : '지금은 이 친구를 초대할 수 없어요.';
         Alert.alert('초대할 수 없어요', outcomeMessage);
       } catch (inviteError) {
-        showMutationError(inviteError, '친구를 초대하지 못했습니다.');
+        showMutationError(
+          inviteError,
+          '친구를 초대하지 못했습니다.',
+          mutationFriendId,
+        );
       } finally {
         setInviting(false);
       }
@@ -181,14 +199,19 @@ export const FriendDetailScreen = () => {
   );
 
   const handleFavorite = React.useCallback(() => {
+    const mutationFriendId = friend?.id;
     updateFavorite()
       .then(() => {
         invalidateData(FRIEND_HUB_INVALIDATION_KEY);
       })
       .catch(actionError => {
-        showMutationError(actionError, '즐겨찾기를 변경하지 못했습니다.');
+        showMutationError(
+          actionError,
+          '즐겨찾기를 변경하지 못했습니다.',
+          mutationFriendId,
+        );
       });
-  }, [showMutationError, updateFavorite]);
+  }, [friend?.id, showMutationError, updateFavorite]);
 
   const handleRemove = React.useCallback(() => {
     const mutationFriendId = friend?.id;
@@ -207,7 +230,11 @@ export const FriendDetailScreen = () => {
             navigation.goBack();
           }
         }).catch(removeError => {
-          showMutationError(removeError, '친구 관계를 끊지 못했습니다.');
+          showMutationError(
+            removeError,
+            '친구 관계를 끊지 못했습니다.',
+            mutationFriendId,
+          );
         });
       }},
     ]);
@@ -230,7 +257,11 @@ export const FriendDetailScreen = () => {
             navigation.goBack();
           }
         }).catch(blockError => {
-          showMutationError(blockError, '친구를 차단하지 못했습니다.');
+          showMutationError(
+            blockError,
+            '친구를 차단하지 못했습니다.',
+            mutationFriendId,
+          );
         });
       }},
     ]);
