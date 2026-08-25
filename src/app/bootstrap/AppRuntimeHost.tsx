@@ -2,6 +2,7 @@ import React from 'react';
 
 import {useAuthEntryGuard} from '@/app/guards';
 import {ForegroundNotification} from '@/shared/ui/ForegroundNotification';
+import {useFriendNotificationRealtimeInvalidation} from '@/features/friend/hooks/useFriendNotificationRealtimeInvalidation';
 import {JoinRequestModal, useJoinRequestModal, useMyParty} from '@/features/taxi';
 
 import {useRegisterPushHandlers} from './registerPushHandlers';
@@ -23,6 +24,10 @@ export const AppRuntimeHost = () => {
     showForegroundNotification,
   } = useForegroundNotificationRuntime();
   const {isLeader, myParty} = useMyParty();
+
+  useFriendNotificationRealtimeInvalidation({
+    enabled: !loading && !needsProfile && permissionsComplete,
+  });
 
   const {
     joinData,

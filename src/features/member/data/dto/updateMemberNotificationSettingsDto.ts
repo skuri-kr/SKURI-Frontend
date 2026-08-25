@@ -5,6 +5,7 @@ export interface UpdateMemberNotificationSettingsRequestDto {
   boardLikeNotifications?: boolean;
   commentNotifications?: boolean;
   bookmarkedPostCommentNotifications?: boolean;
+  friendAndInvitationNotifications?: boolean;
   systemNotifications?: boolean;
   academicScheduleNotifications?: boolean;
   academicScheduleDayBeforeEnabled?: boolean;

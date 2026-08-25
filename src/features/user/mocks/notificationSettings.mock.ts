@@ -25,6 +25,10 @@ export const notificationSettingsMockData: NotificationSettingsScreenSource = {
     },
     {
       enabled: true,
+      key: 'friendAndInvitationNotifications',
+    },
+    {
+      enabled: true,
       key: 'systemNotifications',
     },
   ],

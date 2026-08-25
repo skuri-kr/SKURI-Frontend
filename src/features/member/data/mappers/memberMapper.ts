@@ -39,6 +39,9 @@ const mapNotificationSettingDto = (
     bookmarkedPostCommentNotifications: Boolean(
       notificationSetting.bookmarkedPostCommentNotifications,
     ),
+    friendAndInvitationNotifications: Boolean(
+      notificationSetting.friendAndInvitationNotifications,
+    ),
     systemNotifications: Boolean(notificationSetting.systemNotifications),
     academicScheduleNotifications: Boolean(
       notificationSetting.academicScheduleNotifications,

@@ -15,6 +15,7 @@ export const DEFAULT_MEMBER_NOTIFICATION_SETTINGS: MemberNotificationSetting = {
   boardLikeNotifications: true,
   commentNotifications: true,
   bookmarkedPostCommentNotifications: true,
+  friendAndInvitationNotifications: true,
   systemNotifications: true,
   academicScheduleNotifications: true,
   academicScheduleDayBeforeEnabled: true,
@@ -28,6 +29,7 @@ export const NOTIFICATION_SETTING_KEYS: NotificationSettingKey[] = [
   'boardLikeNotifications',
   'commentNotifications',
   'bookmarkedPostCommentNotifications',
+  'friendAndInvitationNotifications',
   'systemNotifications',
 ];
 
