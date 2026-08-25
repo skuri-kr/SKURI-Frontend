@@ -10,9 +10,9 @@ export type NotificationPayload =
   | {type: 'MEMBER_KICKED'; partyId: string}
   | {type: 'SETTLEMENT_COMPLETED'; partyId: string}
   | {type: 'CHAT_MESSAGE'; chatRoomId: string}
-  | {type: 'FRIEND_REQUEST'; requestId: string}
+  | {type: 'FRIEND_REQUEST'; requestId?: string}
   | {type: 'FRIEND_ACCEPTED'; friendPublicId?: string}
-  | {type: 'FRIEND_DECLINED'; requestId: string}
+  | {type: 'FRIEND_DECLINED'; requestId?: string}
   | {
       type: 'PARTY_INVITATION';
       invitationId?: string;

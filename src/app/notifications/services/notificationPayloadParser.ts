@@ -115,7 +115,7 @@ const parseCanonicalNotification = ({
     case 'FRIEND_DECLINED':
       if (!requestId) {
         warnInvalidNotification(source, type, 'requestId가 없습니다.');
-        return null;
+        return {type};
       }
 
       return {type, requestId};
