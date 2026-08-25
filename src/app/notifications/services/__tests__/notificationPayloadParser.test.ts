@@ -68,4 +68,58 @@ describe('notificationPayloadParser', () => {
       noticeId: 'notice-1',
     });
   });
+
+  it('친구 수락과 초대 payload의 이동 식별자를 보존한다', () => {
+    expect(
+      parseStoredNotificationPayload({
+        id: 'notification-friend-accepted',
+        type: 'FRIEND_ACCEPTED',
+        title: '친구 수락',
+        message: '친구가 되었어요.',
+        data: {friendPublicId: 'friend-public-1'},
+        isRead: false,
+        createdAt: new Date('2026-08-25T09:00:00.000Z'),
+      }),
+    ).toEqual({
+      type: 'FRIEND_ACCEPTED',
+      friendPublicId: 'friend-public-1',
+    });
+
+    expect(
+      parsePushNotificationPayload({
+        contractVersion: '1',
+        type: 'PARTY_INVITATION',
+        invitationId: 'party-invitation-1',
+        invitationType: 'PARTY',
+      }),
+    ).toEqual({
+      type: 'PARTY_INVITATION',
+      invitationId: 'party-invitation-1',
+      invitationType: 'PARTY',
+    });
+
+    expect(
+      parsePushNotificationPayload({
+        contractVersion: '1',
+        type: 'CHAT_ROOM_INVITATION',
+        invitationId: 'chat-invitation-1',
+        invitationType: 'CHAT_ROOM',
+      }),
+    ).toEqual({
+      type: 'CHAT_ROOM_INVITATION',
+      invitationId: 'chat-invitation-1',
+      invitationType: 'CHAT_ROOM',
+    });
+  });
+
+  it('초대 type과 invitationType이 일치하지 않으면 무시한다', () => {
+    expect(
+      parsePushNotificationPayload({
+        contractVersion: '1',
+        type: 'PARTY_INVITATION',
+        invitationId: 'party-invitation-1',
+        invitationType: 'CHAT_ROOM',
+      }),
+    ).toBeNull();
+  });
 });

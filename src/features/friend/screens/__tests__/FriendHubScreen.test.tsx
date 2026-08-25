@@ -214,6 +214,74 @@ describe('FriendHubScreen', () => {
     expect(view.queryByText(/undefined/)).toBeNull();
   });
 
+  it('알림에서 연 초대는 초대 탭의 해당 카드에 강조 표시한다', () => {
+    const invitation = {
+      createdAt: '2026-08-25T09:00:00',
+      expiresAt: null,
+      expiryReason: null,
+      id: 'party-invitation-1',
+      inviter: {
+        department: '소프트웨어학과',
+        favorite: false,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      },
+      respondedAt: null,
+      status: 'PENDING' as const,
+      target: {
+        currentMembers: 2,
+        departureName: '성결대학교',
+        departureTime: '2026-08-25T14:00:00',
+        destinationName: '안양역',
+        id: 'party-1',
+        maxMembers: 4,
+        status: 'OPEN' as const,
+        type: 'PARTY' as const,
+      },
+      type: 'PARTY' as const,
+    };
+    const navigation = {
+      goBack: jest.fn(),
+      isFocused: jest.fn().mockReturnValue(true),
+      navigate: jest.fn(),
+      setParams: jest.fn(),
+    };
+    mockedUseNavigation.mockReturnValue(
+      navigation as ReturnType<typeof useNavigation>,
+    );
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitation.id,
+        targetInvitationType: invitation.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation: jest.fn(),
+      chatError: undefined,
+      declineInvitation: jest.fn(),
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [invitation],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 1,
+      reload: jest.fn().mockResolvedValue(undefined),
+    });
+
+    const view = render(<FriendHubScreen />);
+
+    expect(view.getByLabelText('알림에서 선택한 초대')).toBeTruthy();
+    expect(navigation.setParams).toHaveBeenCalledWith({
+      initialTab: undefined,
+      targetInvitationId: undefined,
+      targetInvitationType: undefined,
+    });
+  });
+
   it('초대 수락 완료 전에 화면을 떠났으면 대상 화면으로 이동하지 않는다', async () => {
     const navigation = {
       goBack: jest.fn(),
