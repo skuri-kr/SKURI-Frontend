@@ -1,6 +1,6 @@
 import React from 'react';
 import {Alert} from 'react-native';
-import {fireEvent, render, waitFor} from '@testing-library/react-native';
+import {act, fireEvent, render, waitFor} from '@testing-library/react-native';
 
 import {useIsFocused, useNavigation, useRoute} from '@react-navigation/native';
 
@@ -399,6 +399,129 @@ describe('FriendHubScreen', () => {
     });
     expect(view.getByText('받은 초대가 없어요')).toBeTruthy();
     expect(alertSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('대상과 무관한 초대 목록 오류는 처리·만료 안내를 막지 않는다', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const navigation = {
+      goBack: jest.fn(),
+      isFocused: jest.fn().mockReturnValue(true),
+      navigate: jest.fn(),
+      setParams: jest.fn(),
+    };
+    mockedUseNavigation.mockReturnValue(
+      navigation as ReturnType<typeof useNavigation>,
+    );
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: 'processed-party-invitation-1',
+        targetInvitationType: 'PARTY',
+      },
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation: jest.fn(),
+      chatError: '채팅방 초대를 불러오지 못했습니다.',
+      declineInvitation: jest.fn(),
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 0,
+      reload: jest.fn().mockResolvedValue(undefined),
+    });
+
+    render(<FriendHubScreen />);
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith(
+        '초대를 찾을 수 없어요',
+        '해당 초대는 이미 처리되었거나 만료되었어요.',
+      );
+    });
+  });
+
+  it('알림에서 연 초대를 직접 거절하면 처리·만료 안내를 다시 띄우지 않는다', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const invitation = {
+      createdAt: '2026-08-25T09:00:00',
+      expiresAt: null,
+      expiryReason: null,
+      id: 'party-invitation-1',
+      inviter: {
+        department: '소프트웨어학과',
+        favorite: false,
+        id: 'friend-1',
+        nickname: '가람',
+        photoUrl: null,
+      },
+      respondedAt: null,
+      status: 'PENDING' as const,
+      target: {
+        currentMembers: 2,
+        departureName: '성결대학교',
+        departureTime: '2026-08-25T14:00:00',
+        destinationName: '안양역',
+        id: 'party-1',
+        maxMembers: 4,
+        status: 'OPEN' as const,
+        type: 'PARTY' as const,
+      },
+      type: 'PARTY' as const,
+    };
+    const declineInvitation = jest.fn().mockResolvedValue(undefined);
+    const reloadInvitations = jest.fn().mockResolvedValue(undefined);
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitation.id,
+        targetInvitationType: invitation.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation: jest.fn(),
+      chatError: undefined,
+      declineInvitation,
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [invitation],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 1,
+      reload: reloadInvitations,
+    });
+
+    const view = render(<FriendHubScreen />);
+
+    await act(async () => {});
+
+    fireEvent.press(view.getByText('거절'));
+    await waitFor(() => {
+      expect(declineInvitation).toHaveBeenCalledWith(invitation);
+    });
+
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation: jest.fn(),
+      chatError: undefined,
+      declineInvitation,
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 0,
+      reload: reloadInvitations,
+    });
+    view.rerender(<FriendHubScreen />);
+
+    expect(view.getByText('받은 초대가 없어요')).toBeTruthy();
+    expect(alertSpy).not.toHaveBeenCalled();
   });
 
   it('초대 수락 완료 전에 화면을 떠났으면 대상 화면으로 이동하지 않는다', async () => {
