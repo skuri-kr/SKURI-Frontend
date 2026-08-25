@@ -160,6 +160,19 @@ const createPartyInvitation = (id: string, partyId: string) => ({
   type: 'PARTY' as const,
 });
 
+const createFriendRequest = (id: string) => ({
+  createdAt: '2026-08-25T09:00:00',
+  department: null,
+  expiresAt: '2026-09-24T09:00:00',
+  friend: {
+    department: null,
+    id: `friend-${id}`,
+    nickname: '가람',
+    photoUrl: null,
+  },
+  id,
+});
+
 describe('FriendHubScreen', () => {
   beforeEach(() => {
     jest.resetAllMocks();
@@ -881,6 +894,143 @@ describe('FriendHubScreen', () => {
     });
 
     expect(alertSpy).not.toHaveBeenCalled();
+  });
+
+  it('다른 FriendHub 알림 route로 전환된 뒤 이전 친구 요청 수락 실패 오류는 표시하지 않는다', async () => {
+    const request = createFriendRequest('request-accept-a');
+    const acceptDeferred = createDeferred<void>();
+    const acceptRequest = jest.fn().mockReturnValue(acceptDeferred.promise);
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'requests'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(
+      createFriendHubData({
+        acceptRequest,
+        incomingRequestCount: 1,
+        receivedRequests: [request],
+      }),
+    );
+
+    const view = render(<FriendHubScreen />);
+    fireEvent.press(view.getByText('수락'));
+    await waitFor(() => {
+      expect(acceptRequest).toHaveBeenCalledWith(request.id);
+    });
+
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'friends'},
+    } as ReturnType<typeof useRoute>);
+    view.rerender(<FriendHubScreen />);
+
+    await act(async () => {
+      acceptDeferred.reject(new Error('accept failed'));
+    });
+
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+
+  it('다른 FriendHub 알림 route로 전환된 뒤 이전 친구 요청 거절 실패 오류는 표시하지 않는다', async () => {
+    const request = createFriendRequest('request-decline-a');
+    const declineDeferred = createDeferred<void>();
+    const declineRequest = jest.fn().mockReturnValue(declineDeferred.promise);
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'requests'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(
+      createFriendHubData({
+        declineRequest,
+        incomingRequestCount: 1,
+        receivedRequests: [request],
+      }),
+    );
+
+    const view = render(<FriendHubScreen />);
+    fireEvent.press(view.getByText('거절'));
+    await waitFor(() => {
+      expect(declineRequest).toHaveBeenCalledWith(request.id);
+    });
+
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'friends'},
+    } as ReturnType<typeof useRoute>);
+    view.rerender(<FriendHubScreen />);
+
+    await act(async () => {
+      declineDeferred.reject(new Error('decline failed'));
+    });
+
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+
+  it('다른 FriendHub 알림 route로 전환된 뒤 이전 친구 요청 취소 실패 오류는 표시하지 않는다', async () => {
+    const request = createFriendRequest('request-cancel-a');
+    const cancelDeferred = createDeferred<void>();
+    const cancelRequest = jest.fn().mockReturnValue(cancelDeferred.promise);
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(
+      (_title, _message, buttons) => {
+        buttons?.find(button => button.text === '요청 취소')?.onPress?.();
+      },
+    );
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'requests'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(
+      createFriendHubData({
+        cancelRequest,
+        sentRequests: [request],
+      }),
+    );
+
+    const view = render(<FriendHubScreen />);
+    fireEvent.press(view.getByText('요청 취소'));
+    await waitFor(() => {
+      expect(cancelRequest).toHaveBeenCalledWith(request.id);
+    });
+
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'friends'},
+    } as ReturnType<typeof useRoute>);
+    view.rerender(<FriendHubScreen />);
+
+    await act(async () => {
+      cancelDeferred.reject(new Error('cancel failed'));
+    });
+
+    expect(alertSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('친구 요청 취소 확인 전에 route가 전환되면 이전 요청을 취소하지 않는다', async () => {
+    const request = createFriendRequest('request-cancel-b');
+    const cancelRequest = jest.fn().mockResolvedValue(undefined);
+    let confirmCancel: (() => void) | undefined;
+    jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => {
+      confirmCancel = buttons?.find(button => button.text === '요청 취소')?.onPress;
+    });
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'requests'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(
+      createFriendHubData({
+        cancelRequest,
+        sentRequests: [request],
+      }),
+    );
+
+    const view = render(<FriendHubScreen />);
+    fireEvent.press(view.getByText('요청 취소'));
+    expect(confirmCancel).toBeDefined();
+
+    mockedUseRoute.mockReturnValue({
+      params: {initialTab: 'friends'},
+    } as ReturnType<typeof useRoute>);
+    view.rerender(<FriendHubScreen />);
+    act(() => {
+      confirmCancel?.();
+    });
+
+    expect(cancelRequest).not.toHaveBeenCalled();
   });
 
   it('초대 수락 완료 전에 화면을 떠났으면 대상 화면으로 이동하지 않는다', async () => {
