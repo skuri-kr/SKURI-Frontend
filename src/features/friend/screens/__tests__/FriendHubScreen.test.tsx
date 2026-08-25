@@ -122,6 +122,17 @@ const createFriendHubData = (
   ...overrides,
 }) as ReturnType<typeof useFriendHubData>;
 
+const createDeferred = <T,>() => {
+  let reject!: (reason?: unknown) => void;
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    reject = rejectPromise;
+    resolve = resolvePromise;
+  });
+
+  return {promise, reject, resolve};
+};
+
 describe('FriendHubScreen', () => {
   beforeEach(() => {
     jest.resetAllMocks();
@@ -748,6 +759,180 @@ describe('FriendHubScreen', () => {
     });
     expect(mockedNavigateToTaxiChat).not.toHaveBeenCalled();
     expect(mockedNavigateToCommunityChat).not.toHaveBeenCalled();
+  });
+
+  it('다른 초대 알림으로 전환된 뒤 이전 초대 수락이 완료되어도 이동하지 않는다', async () => {
+    const invitationA = {
+      createdAt: '2026-08-23T12:00:00',
+      expiresAt: null,
+      expiryReason: null,
+      id: 'party-invitation-a',
+      inviter: {
+        department: null,
+        favorite: false,
+        id: 'friend-a',
+        nickname: '가람',
+        photoUrl: null,
+      },
+      respondedAt: null,
+      status: 'PENDING' as const,
+      target: {
+        currentMembers: 2,
+        departureName: '성결대학교',
+        departureTime: '2026-08-23T14:00:00',
+        destinationName: '안양역',
+        id: 'party-a',
+        maxMembers: 4,
+        status: 'OPEN' as const,
+        type: 'PARTY' as const,
+      },
+      type: 'PARTY' as const,
+    };
+    const invitationB = {
+      ...invitationA,
+      id: 'party-invitation-b',
+      inviter: {...invitationA.inviter, id: 'friend-b', nickname: '나래'},
+      target: {...invitationA.target, id: 'party-b'},
+    };
+    const acceptDeferred = createDeferred<{
+      invitationId: string;
+      status: 'ACCEPTED';
+      targetId: string;
+      type: 'PARTY';
+    }>();
+    const acceptInvitation = jest.fn().mockReturnValue(acceptDeferred.promise);
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitationA.id,
+        targetInvitationType: invitationA.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation,
+      chatError: undefined,
+      declineInvitation: jest.fn(),
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [invitationA, invitationB],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 2,
+      reload: jest.fn().mockResolvedValue(undefined),
+    });
+
+    const view = render(<FriendHubScreen />);
+    fireEvent.press(view.getAllByText('수락')[0]);
+
+    await waitFor(() => {
+      expect(acceptInvitation).toHaveBeenCalledWith(invitationA);
+    });
+
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitationB.id,
+        targetInvitationType: invitationB.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    view.rerender(<FriendHubScreen />);
+
+    await act(async () => {
+      acceptDeferred.resolve({
+        invitationId: invitationA.id,
+        status: 'ACCEPTED',
+        targetId: invitationA.target.id,
+        type: 'PARTY',
+      });
+    });
+
+    expect(mockedNavigateToTaxiAcceptancePendingBySeed).not.toHaveBeenCalled();
+    expect(mockedNavigateToTaxiChat).not.toHaveBeenCalled();
+    expect(mockedNavigateToCommunityChat).not.toHaveBeenCalled();
+  });
+
+  it('다른 초대 알림으로 전환된 뒤 이전 초대 수락 실패 오류는 표시하지 않는다', async () => {
+    const invitationA = {
+      createdAt: '2026-08-23T12:00:00',
+      expiresAt: null,
+      expiryReason: null,
+      id: 'party-invitation-a',
+      inviter: {
+        department: null,
+        favorite: false,
+        id: 'friend-a',
+        nickname: '가람',
+        photoUrl: null,
+      },
+      respondedAt: null,
+      status: 'PENDING' as const,
+      target: {
+        currentMembers: 2,
+        departureName: '성결대학교',
+        departureTime: '2026-08-23T14:00:00',
+        destinationName: '안양역',
+        id: 'party-a',
+        maxMembers: 4,
+        status: 'OPEN' as const,
+        type: 'PARTY' as const,
+      },
+      type: 'PARTY' as const,
+    };
+    const invitationB = {
+      ...invitationA,
+      id: 'party-invitation-b',
+      inviter: {...invitationA.inviter, id: 'friend-b', nickname: '나래'},
+      target: {...invitationA.target, id: 'party-b'},
+    };
+    const acceptDeferred = createDeferred<never>();
+    const acceptInvitation = jest.fn().mockReturnValue(acceptDeferred.promise);
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitationA.id,
+        targetInvitationType: invitationA.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendHubData.mockReturnValue(createFriendHubData());
+    mockedUseFriendInvitationsData.mockReturnValue({
+      acceptInvitation,
+      chatError: undefined,
+      declineInvitation: jest.fn(),
+      deleteInvitation: jest.fn(),
+      hasLoaded: true,
+      invitations: [invitationA, invitationB],
+      loading: false,
+      mutatingIds: new Set(),
+      partyError: undefined,
+      pendingCount: 2,
+      reload: jest.fn().mockResolvedValue(undefined),
+    });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+    const view = render(<FriendHubScreen />);
+    fireEvent.press(view.getAllByText('수락')[0]);
+
+    await waitFor(() => {
+      expect(acceptInvitation).toHaveBeenCalledWith(invitationA);
+    });
+
+    mockedUseRoute.mockReturnValue({
+      params: {
+        initialTab: 'invitations',
+        targetInvitationId: invitationB.id,
+        targetInvitationType: invitationB.type,
+      },
+    } as ReturnType<typeof useRoute>);
+    view.rerender(<FriendHubScreen />);
+    alertSpy.mockClear();
+
+    await act(async () => {
+      acceptDeferred.reject(new Error('accept failed'));
+    });
+
+    expect(alertSpy).not.toHaveBeenCalled();
   });
 
   it('파티원이 보낸 초대를 수락하면 파티장 승인 대기 화면으로 이동한다', async () => {

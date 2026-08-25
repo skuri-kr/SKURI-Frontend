@@ -237,6 +237,87 @@ describe('FriendDetailScreen', () => {
     );
   });
 
+  it('다른 친구로 전환된 뒤 이전 친구 초대 결과는 표시하지 않는다', async () => {
+    const navigation = {
+      goBack: jest.fn(),
+      isFocused: jest.fn().mockReturnValue(true),
+      navigate: jest.fn(),
+    };
+    const invitationDeferred = createDeferred<Array<{
+      friendId: string;
+      invitationId?: string;
+      outcome: 'ALREADY_PENDING';
+    }>>();
+    const createChatRoomInvitations = jest
+      .fn()
+      .mockReturnValue(invitationDeferred.promise);
+    mockedUseNavigation.mockReturnValue(
+      navigation as ReturnType<typeof useNavigation>,
+    );
+    mockedUseRoute.mockReturnValue({
+      params: {friendId: 'friend-1'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData());
+    mockedUseFriendInvitationRepository.mockReturnValue({
+      createChatRoomInvitations,
+      createPartyInvitations: jest.fn(),
+    } as unknown as ReturnType<typeof useFriendInvitationRepository>);
+    mockedUseChatRooms.mockReturnValue({
+      chatRooms: [
+        {
+          id: 'room-1',
+          isJoined: true,
+          isPublic: true,
+          memberCount: 3,
+          name: '전체 채팅방',
+          type: 'university',
+        },
+      ],
+      error: null,
+      loading: false,
+      refresh: jest.fn(),
+    });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+    const view = render(<FriendDetailScreen />);
+    fireEvent.press(view.getByText('공개 채팅방에 초대'));
+    const inviteAction = alertSpy.mock.calls
+      .find(([title]) => title === '친구 초대')?.[2]
+      ?.find(button => button.text === '초대');
+    act(() => {
+      inviteAction?.onPress?.();
+    });
+
+    await waitFor(() => {
+      expect(createChatRoomInvitations).toHaveBeenCalledWith('room-1', [
+        'friend-1',
+      ]);
+    });
+
+    mockedUseRoute.mockReturnValue({
+      params: {friendId: 'friend-2'},
+    } as ReturnType<typeof useRoute>);
+    mockedUseFriendDetailData.mockReturnValue(createFriendDetailData({
+      friend: {
+        department: null,
+        favorite: false,
+        id: 'friend-2',
+        nickname: '나래',
+        photoUrl: null,
+      },
+    }));
+    view.rerender(<FriendDetailScreen />);
+    alertSpy.mockClear();
+
+    await act(async () => {
+      invitationDeferred.resolve([
+        {friendId: 'friend-1', outcome: 'ALREADY_PENDING'},
+      ]);
+    });
+
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+
   it('모집 마감된 현재 택시파티에서도 친구 초대를 제공한다', () => {
     const navigation = {goBack: jest.fn(), isFocused: jest.fn().mockReturnValue(true), navigate: jest.fn()};
     mockedUseNavigation.mockReturnValue(navigation as ReturnType<typeof useNavigation>);
