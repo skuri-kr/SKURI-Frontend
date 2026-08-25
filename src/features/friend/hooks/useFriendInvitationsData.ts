@@ -50,6 +50,7 @@ export const useFriendInvitationsData = () => {
   );
   const listStateVersionRef = React.useRef(0);
   const reloadVersionRef = React.useRef(0);
+  const pendingReloadAfterMutationRef = React.useRef(false);
 
   const releaseReconciledMutations = React.useCallback(
     (type: FriendInvitation['type']) => {
@@ -71,7 +72,14 @@ export const useFriendInvitationsData = () => {
     [],
   );
 
-  const reload = React.useCallback(async () => {
+  const reload = React.useCallback(async ({
+    retryAfterMutation = true,
+  }: {
+    retryAfterMutation?: boolean;
+  } = {}) => {
+    if (retryAfterMutation && mutatingIdsRef.current.size > 0) {
+      pendingReloadAfterMutationRef.current = true;
+    }
     const requestVersion = reloadVersionRef.current + 1;
     reloadVersionRef.current = requestVersion;
     const listStateVersion = listStateVersionRef.current;
@@ -138,6 +146,18 @@ export const useFriendInvitationsData = () => {
     reload().catch(() => undefined);
   }, [reload]);
 
+  React.useEffect(() => {
+    if (
+      mutatingIds.size > 0 ||
+      !pendingReloadAfterMutationRef.current
+    ) {
+      return;
+    }
+
+    pendingReloadAfterMutationRef.current = false;
+    reload().catch(() => undefined);
+  }, [mutatingIds, reload]);
+
   const beginMutation = React.useCallback((invitationId: string) => {
     if (mutatingIdsRef.current.has(invitationId)) {
       return false;
@@ -176,7 +196,7 @@ export const useFriendInvitationsData = () => {
       invalidateData(FRIEND_INBOX_COUNTS_INVALIDATION_KEY);
 
       if (pendingReconciliationRef.current.size > 0) {
-        reload().catch(() => undefined);
+        reload({retryAfterMutation: false}).catch(() => undefined);
       }
     },
     [reload],
@@ -209,7 +229,7 @@ export const useFriendInvitationsData = () => {
               invitation.id,
               invitation.type,
             );
-            await reload();
+            await reload({retryAfterMutation: false});
             keepMutationLocked = pendingReconciliationRef.current.has(
               invitation.id,
             );
@@ -218,7 +238,7 @@ export const useFriendInvitationsData = () => {
         }
 
         pendingReconciliationRef.current.set(invitation.id, invitation.type);
-        await reload();
+        await reload({retryAfterMutation: false});
         keepMutationLocked = pendingReconciliationRef.current.has(
           invitation.id,
         );
@@ -249,7 +269,7 @@ export const useFriendInvitationsData = () => {
       } catch (error) {
         if (isUncertainMutationError(error)) {
           pendingReconciliationRef.current.set(invitation.id, invitation.type);
-          await reload();
+          await reload({retryAfterMutation: false});
           keepMutationLocked = pendingReconciliationRef.current.has(
             invitation.id,
           );
@@ -281,7 +301,7 @@ export const useFriendInvitationsData = () => {
       } catch (error) {
         if (isUncertainMutationError(error)) {
           pendingReconciliationRef.current.set(invitation.id, invitation.type);
-          await reload();
+          await reload({retryAfterMutation: false});
           keepMutationLocked = pendingReconciliationRef.current.has(
             invitation.id,
           );
