@@ -535,7 +535,8 @@ describe('useFriendHubData', () => {
     const refreshFriends = createDeferred<Array<typeof friend>>();
     repository.getFriends
       .mockResolvedValueOnce([friend])
-      .mockReturnValueOnce(refreshFriends.promise);
+      .mockReturnValueOnce(refreshFriends.promise)
+      .mockResolvedValueOnce([{...friend, favorite: true}]);
     repository.updateFavorite.mockReturnValue(favoriteUpdate.promise);
     mockedUseFriendRepository.mockReturnValue(
       repository as ReturnType<typeof useFriendRepository>,
@@ -562,6 +563,58 @@ describe('useFriendHubData', () => {
     });
 
     expect(result.current.friends).toEqual([{...friend, favorite: true}]);
+  });
+
+  it('즐겨찾기 변경 중 폐기된 친구 목록 새로고침은 완료 뒤 최신 목록으로 다시 조회한다', async () => {
+    const repository = createRepository();
+    const favoriteUpdate = createDeferred<void>();
+    const notificationRefresh = createDeferred<Array<typeof friend>>();
+    const newlyAcceptedFriend = {
+      ...friend,
+      id: 'friend-2',
+      nickname: '나래',
+    };
+    repository.getFriends
+      .mockResolvedValueOnce([friend])
+      .mockReturnValueOnce(notificationRefresh.promise)
+      .mockResolvedValueOnce([{...friend, favorite: true}, newlyAcceptedFriend]);
+    repository.updateFavorite.mockReturnValue(favoriteUpdate.promise);
+    mockedUseFriendRepository.mockReturnValue(
+      repository as ReturnType<typeof useFriendRepository>,
+    );
+
+    const {result} = renderHook(() => useFriendHubData());
+
+    await waitFor(() => {
+      expect(result.current.friends).toEqual([friend]);
+    });
+
+    let favoritePromise!: Promise<void>;
+    let notificationReloadPromise!: Promise<void>;
+    await act(async () => {
+      favoritePromise = result.current.updateFavorite(friend);
+      notificationReloadPromise = result.current.reloadFriends();
+    });
+
+    await act(async () => {
+      notificationRefresh.resolve([friend, newlyAcceptedFriend]);
+      await notificationReloadPromise;
+    });
+
+    expect(result.current.friends).toEqual([{...friend, favorite: true}]);
+
+    await act(async () => {
+      favoriteUpdate.resolve(undefined);
+      await favoritePromise;
+    });
+
+    await waitFor(() => {
+      expect(result.current.friends).toEqual([
+        {...friend, favorite: true},
+        newlyAcceptedFriend,
+      ]);
+    });
+    expect(repository.getFriends).toHaveBeenCalledTimes(3);
   });
 
   it('요청 처리 결과를 1.2초간 표시한 뒤 요청 카드를 제거한다', async () => {
