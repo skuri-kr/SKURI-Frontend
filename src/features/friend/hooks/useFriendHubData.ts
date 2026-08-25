@@ -108,6 +108,7 @@ export const useFriendHubData = () => {
     new Map<string, FriendRequestMutationAction>(),
   );
   const updatingFavoriteIdsRef = React.useRef(new Set<string>());
+  const pendingFriendsReloadAfterFavoriteRef = React.useRef(false);
   const requestCompletionTimersRef = React.useRef(
     new Map<string, ReturnType<typeof setTimeout>>(),
   );
@@ -126,6 +127,9 @@ export const useFriendHubData = () => {
       const shouldLoadFriends = scope?.friends ?? true;
       const shouldLoadReceivedRequests = scope?.receivedRequests ?? true;
       const shouldLoadSentRequests = scope?.sentRequests ?? true;
+      if (shouldLoadFriends && updatingFavoriteIdsRef.current.size > 0) {
+        pendingFriendsReloadAfterFavoriteRef.current = true;
+      }
       const targets = [
         ...(shouldLoadFriends ? ['friends'] : []),
         ...(shouldLoadReceivedRequests ? ['RECEIVED'] : []),
@@ -377,6 +381,7 @@ export const useFriendHubData = () => {
   const endFavoriteUpdate = React.useCallback((friendId: string) => {
     updatingFavoriteIdsRef.current.delete(friendId);
     setUpdatingFavoriteIds(new Set(updatingFavoriteIdsRef.current));
+    return updatingFavoriteIdsRef.current.size === 0;
   }, []);
 
   const completeRequest = React.useCallback(
@@ -452,10 +457,17 @@ export const useFriendHubData = () => {
         );
         throw favoriteError;
       } finally {
-        endFavoriteUpdate(friend.id);
+        const hasNoPendingFavoriteUpdates = endFavoriteUpdate(friend.id);
+        if (
+          hasNoPendingFavoriteUpdates &&
+          pendingFriendsReloadAfterFavoriteRef.current
+        ) {
+          pendingFriendsReloadAfterFavoriteRef.current = false;
+          reloadFriends().catch(() => undefined);
+        }
       }
     },
-    [beginFavoriteUpdate, endFavoriteUpdate, friendRepository],
+    [beginFavoriteUpdate, endFavoriteUpdate, friendRepository, reloadFriends],
   );
 
   const acceptRequest = React.useCallback(
