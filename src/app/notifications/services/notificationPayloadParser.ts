@@ -135,9 +135,9 @@ const parseCanonicalNotification = ({
         warnInvalidNotification(
           source,
           type,
-          'invitationId 또는 PARTY invitationType이 없습니다.',
+          'invitationId 또는 PARTY invitationType이 없어 초대 탭으로 이동합니다.',
         );
-        return null;
+        return {type};
       }
 
       return {type, invitationId, invitationType};
@@ -146,9 +146,9 @@ const parseCanonicalNotification = ({
         warnInvalidNotification(
           source,
           type,
-          'invitationId 또는 CHAT_ROOM invitationType이 없습니다.',
+          'invitationId 또는 CHAT_ROOM invitationType이 없어 초대 탭으로 이동합니다.',
         );
-        return null;
+        return {type};
       }
 
       return {type, invitationId, invitationType};

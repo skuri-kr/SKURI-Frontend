@@ -91,6 +91,7 @@ export const FriendHubScreen = () => {
   const [isInvitationTargetReloadPending, setIsInvitationTargetReloadPending] =
     React.useState(() => getRouteInvitationTarget(route.params) !== null);
   const invitationTargetReloadVersionRef = React.useRef(0);
+  const missingInvitationAlertTargetKeyRef = React.useRef<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
   const {
     acceptRequest,
@@ -220,6 +221,17 @@ export const FriendHubScreen = () => {
     );
 
     if (!targetExists) {
+      const targetKey = getInvitationTargetKey(highlightedInvitationTarget);
+      if (
+        missingInvitationAlertTargetKeyRef.current !== targetKey &&
+        navigation.isFocused()
+      ) {
+        missingInvitationAlertTargetKeyRef.current = targetKey;
+        Alert.alert(
+          '초대를 찾을 수 없어요',
+          '해당 초대는 이미 처리되었거나 만료되었어요.',
+        );
+      }
       setHighlightedInvitationTarget(null);
     }
   }, [
@@ -229,6 +241,7 @@ export const FriendHubScreen = () => {
     invitations,
     invitationsLoading,
     isInvitationTargetReloadPending,
+    navigation,
     partyInvitationError,
   ]);
 

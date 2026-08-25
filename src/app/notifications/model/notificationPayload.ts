@@ -15,13 +15,13 @@ export type NotificationPayload =
   | {type: 'FRIEND_DECLINED'; requestId: string}
   | {
       type: 'PARTY_INVITATION';
-      invitationId: string;
-      invitationType: 'PARTY';
+      invitationId?: string;
+      invitationType?: 'PARTY';
     }
   | {
       type: 'CHAT_ROOM_INVITATION';
-      invitationId: string;
-      invitationType: 'CHAT_ROOM';
+      invitationId?: string;
+      invitationType?: 'CHAT_ROOM';
     }
   | {type: 'POST_LIKED'; postId: string}
   | {type: 'COMMENT_CREATED'; postId: string; commentId: string}

@@ -62,10 +62,14 @@ export const getNotificationNavigationIntent = (
       return {
         kind: 'friendHub',
         initialTab: 'invitations',
-        targetInvitation: {
-          id: payload.invitationId,
-          type: payload.invitationType,
-        },
+        ...(payload.invitationId && payload.invitationType
+          ? {
+              targetInvitation: {
+                id: payload.invitationId,
+                type: payload.invitationType,
+              },
+            }
+          : {}),
       };
     case 'POST_LIKED':
       return {kind: 'boardDetail', postId: payload.postId};

@@ -53,11 +53,14 @@ const areAllVisibleNotificationsDisabled = (
   settings: MemberNotificationSetting,
 ) => NOTIFICATION_SETTING_KEYS.every(key => !settings[key]);
 
+const isAllNotificationsEnabled = (settings: MemberNotificationSetting) =>
+  settings.allNotifications && !areAllVisibleNotificationsDisabled(settings);
+
 export const mapMemberNotificationSettingsToScreenSource = (
   settings?: ResolvableMemberNotificationSettings,
 ): NotificationSettingsScreenSource => {
   const resolved = resolveMemberNotificationSettings(settings);
-  const allNotifications = !areAllVisibleNotificationsDisabled(resolved);
+  const allNotifications = isAllNotificationsEnabled(resolved);
 
   return {
     allNotifications,
@@ -99,6 +102,6 @@ export const buildToggleNotificationSettingPatch = ({
 
   return {
     [key]: enabled,
-    allNotifications: !areAllVisibleNotificationsDisabled(nextSettings),
+    allNotifications: isAllNotificationsEnabled(nextSettings),
   };
 };
