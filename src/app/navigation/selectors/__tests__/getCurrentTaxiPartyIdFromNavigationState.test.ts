@@ -44,13 +44,13 @@ const createTaxiState = (
   } as NavigationState);
 
 describe('getCurrentTaxiPartyIdFromNavigationState', () => {
-  it('대기 화면의 seed에서 현재 파티를 찾고 같은 파티 수락 이동을 건너뛴다', () => {
+  it('대기 화면의 seed에서 현재 파티를 찾고 같은 파티 수락 이동을 허용한다', () => {
     const state = createTaxiState('AcceptancePending', {
       seed: {partyId: 'party-1'},
     });
 
     expect(getCurrentTaxiPartyIdFromNavigationState(state)).toBe('party-1');
-    expect(shouldNavigateToAcceptedTaxiChat(state, 'party-1')).toBe(false);
+    expect(shouldNavigateToAcceptedTaxiChat(state, 'party-1')).toBe(true);
   });
 
   it('이미 열린 같은 파티 채팅으로는 다시 이동하지 않는다', () => {
