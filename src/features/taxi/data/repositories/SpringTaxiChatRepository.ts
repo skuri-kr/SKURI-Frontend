@@ -64,6 +64,12 @@ interface PendingSpecialMessageRequest {
   timeoutId: ReturnType<typeof setTimeout>;
 }
 
+interface StompConnectionAttempt {
+  cancel: () => void;
+  client: MinimalStompClient;
+  generation: number;
+}
+
 const MESSAGES_PAGE_SIZE = 100;
 const MAX_RECONCILIATION_BRIDGE_MESSAGES = 300;
 const SPECIAL_MESSAGE_TIMEOUT_MS = 8000;
@@ -226,6 +232,8 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
   private stompClient: MinimalStompClient | null = null;
 
   private stompConnectionPromise: Promise<MinimalStompClient> | null = null;
+
+  private stompConnectionAttempt: StompConnectionAttempt | null = null;
 
   private stompConnectTimeoutHandle: ReturnType<typeof setTimeout> | null =
     null;
@@ -768,6 +776,10 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
   private async deactivateStompClient() {
     const client = this.stompClient;
 
+    if (client) {
+      this.cancelStompConnectionAttempt(client);
+    }
+
     this.clearStompConnectTimeout();
     this.stompClientGeneration += 1;
     this.stompClient = null;
@@ -904,7 +916,18 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
 
           settled = true;
           clearConnectTimeout();
+          this.clearStompConnectionAttempt(client, generation);
           reject(error);
+        };
+
+        this.stompConnectionAttempt = {
+          cancel: () => {
+            safeReject(
+              createStompRepositoryError('채팅 실시간 연결이 취소되었습니다.'),
+            );
+          },
+          client,
+          generation,
         };
 
         connectTimeoutHandle = setTimeout(() => {
@@ -968,6 +991,7 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
           if (!settled) {
             settled = true;
             clearConnectTimeout();
+            this.clearStompConnectionAttempt(client, generation);
             resolve(client);
           }
         };
@@ -1029,6 +1053,8 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
         client.activate();
       },
     ).finally(() => {
+      this.clearStompConnectionAttempt(client, generation);
+
       if (this.isCurrentStompClient(client, generation)) {
         this.stompConnectionPromise = null;
       }
@@ -1431,6 +1457,28 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
 
     clearTimeout(this.stompConnectTimeoutHandle);
     this.stompConnectTimeoutHandle = null;
+  }
+
+  private cancelStompConnectionAttempt(client: MinimalStompClient) {
+    const attempt = this.stompConnectionAttempt;
+
+    if (attempt?.client !== client) {
+      return;
+    }
+
+    attempt.cancel();
+  }
+
+  private clearStompConnectionAttempt(
+    client: MinimalStompClient,
+    generation: number,
+  ) {
+    if (
+      this.stompConnectionAttempt?.client === client &&
+      this.stompConnectionAttempt.generation === generation
+    ) {
+      this.stompConnectionAttempt = null;
+    }
   }
 
   private isSubscribedCallback(
