@@ -147,4 +147,86 @@ describe('SpringTaxiChatRepository realtime reconnect', () => {
       ),
     ).toHaveLength(4);
   });
+
+  it('이전 구독의 연결 타임아웃이 새 STOMP 연결을 종료하거나 오류를 알리지 않는다', async () => {
+    jest.useFakeTimers();
+
+    try {
+      jest
+        .spyOn(taxiHomeApiClient, 'getParty')
+        .mockResolvedValue(partyResponse as never);
+      jest
+        .spyOn(taxiChatApiClient, 'getChatRoom')
+        .mockResolvedValue(roomResponse as never);
+      jest
+        .spyOn(taxiChatApiClient, 'getMessages')
+        .mockResolvedValue(messagePageResponse as never);
+      jest
+        .spyOn(taxiChatApiClient, 'markAsRead')
+        .mockResolvedValue({} as never);
+      const repository = new SpringTaxiChatRepository();
+      const firstOnError = jest.fn();
+
+      const unsubscribeFirst = repository.subscribeToPartyChat('party-1', {
+        onData: jest.fn(),
+        onError: firstOnError,
+      });
+      const firstClient = mockStompClients[0];
+
+      unsubscribeFirst();
+
+      const unsubscribeSecond = repository.subscribeToPartyChat('party-1', {
+        onData: jest.fn(),
+        onError: jest.fn(),
+      });
+      const secondClient = mockStompClients[1];
+
+      secondClient.connected = true;
+      secondClient.onConnect({});
+
+      await jest.advanceTimersByTimeAsync(10000);
+
+      expect(firstClient.deactivate).toHaveBeenCalledTimes(1);
+      expect(secondClient.deactivate).not.toHaveBeenCalled();
+      expect(firstOnError).not.toHaveBeenCalled();
+
+      unsubscribeSecond();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('활성 연결이 시간 초과되면 현재 구독에 오류를 알린다', async () => {
+    jest.useFakeTimers();
+
+    try {
+      jest
+        .spyOn(taxiHomeApiClient, 'getParty')
+        .mockResolvedValue(partyResponse as never);
+      jest
+        .spyOn(taxiChatApiClient, 'getChatRoom')
+        .mockResolvedValue(roomResponse as never);
+      jest
+        .spyOn(taxiChatApiClient, 'getMessages')
+        .mockResolvedValue(messagePageResponse as never);
+      jest
+        .spyOn(taxiChatApiClient, 'markAsRead')
+        .mockResolvedValue({} as never);
+      const repository = new SpringTaxiChatRepository();
+      const onError = jest.fn();
+
+      repository.subscribeToPartyChat('party-1', {
+        onData: jest.fn(),
+        onError,
+      });
+      const client = mockStompClients[0];
+
+      await jest.advanceTimersByTimeAsync(10000);
+
+      expect(client.deactivate).toHaveBeenCalledTimes(1);
+      expect(onError).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
