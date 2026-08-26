@@ -13,6 +13,8 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Animated from 'react-native-reanimated';
+import {getRootNavigationState} from '@/app/navigation/navigationRef';
+import {shouldNavigateToAcceptedTaxiChat} from '@/app/navigation/selectors/getCurrentTaxiPartyIdFromNavigationState';
 
 import {
   StateCard,
@@ -72,13 +74,20 @@ export const AcceptancePendingScreen = () => {
     }
 
     if (data.requestState === 'accepted') {
-      navigation.reset({
-        index: 1,
-        routes: [
-          {name: 'TaxiMain'},
-          {name: 'Chat', params: {partyId: data.partyId}},
-        ],
-      });
+      if (
+        shouldNavigateToAcceptedTaxiChat(
+          getRootNavigationState(),
+          data.partyId,
+        )
+      ) {
+        navigation.reset({
+          index: 1,
+          routes: [
+            {name: 'TaxiMain'},
+            {name: 'Chat', params: {partyId: data.partyId}},
+          ],
+        });
+      }
       return;
     }
 

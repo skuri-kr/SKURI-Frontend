@@ -2,7 +2,22 @@ import type {CampusStackParamList} from '@/app/navigation/types';
 import type {Party} from '@/features/taxi';
 import type {TaxiAcceptancePendingSeed} from '@/features/taxi/model/taxiAcceptancePendingViewData';
 
-import {runWhenNavigationReady, rootNavigationRef} from '../navigationRef';
+import {shouldNavigateToAcceptedTaxiChat} from '../selectors/getCurrentTaxiPartyIdFromNavigationState';
+import {
+  getRootNavigationState,
+  runWhenNavigationReady,
+  rootNavigationRef,
+} from '../navigationRef';
+
+const navigateToTaxiChatRoute = (partyId: string) => {
+  rootNavigationRef.navigate('Main', {
+    screen: 'TaxiTab',
+    params: {
+      screen: 'Chat',
+      params: {partyId},
+    },
+  });
+};
 
 export const navigateToBoardDetail = (
   postId: string,
@@ -97,13 +112,16 @@ export const navigateToTaxiScreen = () =>
 
 export const navigateToTaxiChat = (partyId: string) =>
   runWhenNavigationReady(() => {
-    rootNavigationRef.navigate('Main', {
-      screen: 'TaxiTab',
-      params: {
-        screen: 'Chat',
-        params: {partyId},
-      },
-    });
+    navigateToTaxiChatRoute(partyId);
+  });
+
+export const navigateToAcceptedTaxiChat = (partyId: string) =>
+  runWhenNavigationReady(() => {
+    if (!shouldNavigateToAcceptedTaxiChat(getRootNavigationState(), partyId)) {
+      return;
+    }
+
+    navigateToTaxiChatRoute(partyId);
   });
 
 export const navigateToTaxiAcceptancePending = (

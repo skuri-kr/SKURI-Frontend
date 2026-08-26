@@ -1,7 +1,5 @@
 import React from 'react';
-import {getRootNavigationState} from '@/app/navigation/navigationRef';
-import {shouldNavigateToAcceptedTaxiChat} from '@/app/navigation/selectors/getCurrentTaxiPartyIdFromNavigationState';
-import {navigateToTaxiChat} from '@/app/navigation/services/appRouteNavigation';
+import {navigateToAcceptedTaxiChat} from '@/app/navigation/services/appRouteNavigation';
 
 import {useUserDisplayNames} from '@/features/user';
 
@@ -228,11 +226,7 @@ export function useJoinRequestModal({
   }, [currentJoinRequest, suppressJoinRequest]);
 
   const handleJoinRequestAccepted = React.useCallback((partyId: string) => {
-    if (!shouldNavigateToAcceptedTaxiChat(getRootNavigationState(), partyId)) {
-      return;
-    }
-
-    navigateToTaxiChat(partyId);
+    navigateToAcceptedTaxiChat(partyId);
   }, []);
 
   return {

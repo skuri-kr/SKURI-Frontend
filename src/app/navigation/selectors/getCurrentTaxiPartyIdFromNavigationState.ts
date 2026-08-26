@@ -53,9 +53,8 @@ export const shouldNavigateToAcceptedTaxiChat = (
 ) => {
   const route = getCurrentLeafRouteFromNavigationState(state);
 
-  if (route?.name !== 'AcceptancePending' && route?.name !== 'Chat') {
-    return true;
-  }
-
-  return getCurrentTaxiPartyIdFromNavigationState(state) !== partyId;
+  return !(
+    route?.name === 'Chat' &&
+    getCurrentTaxiPartyIdFromNavigationState(state) === partyId
+  );
 };
