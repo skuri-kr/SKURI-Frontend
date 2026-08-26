@@ -229,4 +229,31 @@ describe('SpringTaxiChatRepository realtime reconnect', () => {
       jest.useRealTimers();
     }
   });
+
+  it('연결 중 구독을 해제하면 대기 중인 메시지 전송을 취소 오류로 종료한다', async () => {
+    jest
+      .spyOn(taxiHomeApiClient, 'getParty')
+      .mockResolvedValue(partyResponse as never);
+    jest
+      .spyOn(taxiChatApiClient, 'getChatRoom')
+      .mockResolvedValue(roomResponse as never);
+    jest
+      .spyOn(taxiChatApiClient, 'getMessages')
+      .mockResolvedValue(messagePageResponse as never);
+    jest.spyOn(taxiChatApiClient, 'markAsRead').mockResolvedValue({} as never);
+    const repository = new SpringTaxiChatRepository();
+    const onError = jest.fn();
+    const unsubscribe = repository.subscribeToPartyChat('party-1', {
+      onData: jest.fn(),
+      onError,
+    });
+    const client = mockStompClients[0];
+    const pendingSend = repository.sendMessage('party-1', '안녕하세요');
+
+    unsubscribe();
+
+    await expect(pendingSend).rejects.toThrow('채팅 실시간 연결이 취소되었습니다.');
+    expect(client.deactivate).toHaveBeenCalledTimes(1);
+    expect(onError).not.toHaveBeenCalled();
+  });
 });
