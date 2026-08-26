@@ -64,6 +64,12 @@ interface PendingSpecialMessageRequest {
   timeoutId: ReturnType<typeof setTimeout>;
 }
 
+interface StompConnectionAttempt {
+  cancel: () => void;
+  client: MinimalStompClient;
+  generation: number;
+}
+
 const MESSAGES_PAGE_SIZE = 100;
 const MAX_RECONCILIATION_BRIDGE_MESSAGES = 300;
 const SPECIAL_MESSAGE_TIMEOUT_MS = 8000;
@@ -226,6 +232,11 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
   private stompClient: MinimalStompClient | null = null;
 
   private stompConnectionPromise: Promise<MinimalStompClient> | null = null;
+
+  private stompConnectionAttempt: StompConnectionAttempt | null = null;
+
+  private stompConnectTimeoutHandle: ReturnType<typeof setTimeout> | null =
+    null;
 
   private stompClientGeneration = 0;
 
@@ -448,7 +459,9 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     const initialSnapshotPromise = this.loadPartyChat(partyId, true);
 
     initialSnapshotPromise.catch(error => {
-      callbacks.onError(error as Error);
+      if (this.isSubscribedCallback(partyId, state, callbacks)) {
+        callbacks.onError(error as Error);
+      }
     });
 
     this.ensureStompClient()
@@ -468,7 +481,9 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
         await this.reconcileSubscribedPartyChat(partyId);
       })
       .catch(error => {
-        callbacks.onError(error as Error);
+        if (this.isSubscribedCallback(partyId, state, callbacks)) {
+          callbacks.onError(error as Error);
+        }
       });
 
     return () => {
@@ -761,6 +776,11 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
   private async deactivateStompClient() {
     const client = this.stompClient;
 
+    if (client) {
+      this.cancelStompConnectionAttempt(client);
+    }
+
+    this.clearStompConnectTimeout();
     this.stompClientGeneration += 1;
     this.stompClient = null;
     this.stompConnectionPromise = null;
@@ -873,18 +893,7 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
     this.stompConnectionPromise = new Promise<MinimalStompClient>(
       (resolve, reject) => {
         let settled = false;
-        let connectTimeoutHandle: ReturnType<typeof setTimeout> | null =
-          setTimeout(() => {
-            const error = createStompRepositoryError(
-              '채팅 실시간 연결 시간이 초과되었습니다.',
-              {
-                timeoutMs: STOMP_CONNECT_TIMEOUT_MS,
-              },
-            );
-
-            safeReject(error);
-            this.deactivateStompClient().catch(() => undefined);
-          }, STOMP_CONNECT_TIMEOUT_MS);
+        let connectTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
         const clearConnectTimeout = () => {
           if (!connectTimeoutHandle) {
@@ -892,6 +901,11 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
           }
 
           clearTimeout(connectTimeoutHandle);
+
+          if (this.stompConnectTimeoutHandle === connectTimeoutHandle) {
+            this.stompConnectTimeoutHandle = null;
+          }
+
           connectTimeoutHandle = null;
         };
 
@@ -902,8 +916,37 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
 
           settled = true;
           clearConnectTimeout();
+          this.clearStompConnectionAttempt(client, generation);
           reject(error);
         };
+
+        this.stompConnectionAttempt = {
+          cancel: () => {
+            safeReject(
+              createStompRepositoryError('채팅 실시간 연결이 취소되었습니다.'),
+            );
+          },
+          client,
+          generation,
+        };
+
+        connectTimeoutHandle = setTimeout(() => {
+          if (!this.isCurrentStompClient(client, generation)) {
+            clearConnectTimeout();
+            return;
+          }
+
+          const error = createStompRepositoryError(
+            '채팅 실시간 연결 시간이 초과되었습니다.',
+            {
+              timeoutMs: STOMP_CONNECT_TIMEOUT_MS,
+            },
+          );
+
+          safeReject(error);
+          this.deactivateStompClient().catch(() => undefined);
+        }, STOMP_CONNECT_TIMEOUT_MS);
+        this.stompConnectTimeoutHandle = connectTimeoutHandle;
 
         client.beforeConnect = async () => {
           try {
@@ -948,6 +991,7 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
           if (!settled) {
             settled = true;
             clearConnectTimeout();
+            this.clearStompConnectionAttempt(client, generation);
             resolve(client);
           }
         };
@@ -1009,6 +1053,8 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
         client.activate();
       },
     ).finally(() => {
+      this.clearStompConnectionAttempt(client, generation);
+
       if (this.isCurrentStompClient(client, generation)) {
         this.stompConnectionPromise = null;
       }
@@ -1401,6 +1447,48 @@ export class SpringTaxiChatRepository implements ITaxiChatRepository {
   private hasActiveSubscribers() {
     return [...this.partyStates.values()].some(
       state => state.subscribers.size > 0,
+    );
+  }
+
+  private clearStompConnectTimeout() {
+    if (!this.stompConnectTimeoutHandle) {
+      return;
+    }
+
+    clearTimeout(this.stompConnectTimeoutHandle);
+    this.stompConnectTimeoutHandle = null;
+  }
+
+  private cancelStompConnectionAttempt(client: MinimalStompClient) {
+    const attempt = this.stompConnectionAttempt;
+
+    if (attempt?.client !== client) {
+      return;
+    }
+
+    attempt.cancel();
+  }
+
+  private clearStompConnectionAttempt(
+    client: MinimalStompClient,
+    generation: number,
+  ) {
+    if (
+      this.stompConnectionAttempt?.client === client &&
+      this.stompConnectionAttempt.generation === generation
+    ) {
+      this.stompConnectionAttempt = null;
+    }
+  }
+
+  private isSubscribedCallback(
+    partyId: string,
+    state: PartyChatState,
+    callbacks: SubscriptionCallbacks<TaxiChatSourceData | null>,
+  ) {
+    return (
+      this.partyStates.get(partyId) === state &&
+      state.subscribers.has(callbacks)
     );
   }
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import {navigateToTaxiChat} from '@/app/navigation/services/appRouteNavigation';
+import {navigateToAcceptedTaxiChat} from '@/app/navigation/services/appRouteNavigation';
 
 import {useUserDisplayNames} from '@/features/user';
 
@@ -225,12 +225,9 @@ export function useJoinRequestModal({
     suppressJoinRequest(currentJoinRequest.id);
   }, [currentJoinRequest, suppressJoinRequest]);
 
-  const handleJoinRequestAccepted = React.useCallback(
-    (partyId: string) => {
-      navigateToTaxiChat(partyId);
-    },
-    [],
-  );
+  const handleJoinRequestAccepted = React.useCallback((partyId: string) => {
+    navigateToAcceptedTaxiChat(partyId);
+  }, []);
 
   return {
     handleAccept,

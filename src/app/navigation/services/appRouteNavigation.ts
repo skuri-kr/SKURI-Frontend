@@ -2,7 +2,49 @@ import type {CampusStackParamList} from '@/app/navigation/types';
 import type {Party} from '@/features/taxi';
 import type {TaxiAcceptancePendingSeed} from '@/features/taxi/model/taxiAcceptancePendingViewData';
 
-import {runWhenNavigationReady, rootNavigationRef} from '../navigationRef';
+import {
+  getCurrentTaxiStackNavigationState,
+  isCurrentTaxiAcceptancePending,
+  shouldNavigateToAcceptedTaxiChat,
+} from '../selectors/getCurrentTaxiPartyIdFromNavigationState';
+import {
+  getRootNavigationState,
+  runWhenNavigationReady,
+  rootNavigationRef,
+} from '../navigationRef';
+
+const navigateToTaxiChatRoute = (partyId: string) => {
+  rootNavigationRef.navigate('Main', {
+    screen: 'TaxiTab',
+    params: {
+      screen: 'Chat',
+      params: {partyId},
+    },
+  });
+};
+
+const resetCurrentTaxiStackToAcceptedChat = (partyId: string) => {
+  const taxiStackState = getCurrentTaxiStackNavigationState(
+    getRootNavigationState(),
+  );
+
+  if (!taxiStackState) {
+    navigateToTaxiChatRoute(partyId);
+    return;
+  }
+
+  rootNavigationRef.dispatch({
+    type: 'RESET',
+    target: taxiStackState.key,
+    payload: {
+      index: 1,
+      routes: [
+        {name: 'TaxiMain'},
+        {name: 'Chat', params: {partyId}},
+      ],
+    },
+  });
+};
 
 export const navigateToBoardDetail = (
   postId: string,
@@ -97,13 +139,23 @@ export const navigateToTaxiScreen = () =>
 
 export const navigateToTaxiChat = (partyId: string) =>
   runWhenNavigationReady(() => {
-    rootNavigationRef.navigate('Main', {
-      screen: 'TaxiTab',
-      params: {
-        screen: 'Chat',
-        params: {partyId},
-      },
-    });
+    navigateToTaxiChatRoute(partyId);
+  });
+
+export const navigateToAcceptedTaxiChat = (partyId: string) =>
+  runWhenNavigationReady(() => {
+    const navigationState = getRootNavigationState();
+
+    if (!shouldNavigateToAcceptedTaxiChat(navigationState, partyId)) {
+      return;
+    }
+
+    if (isCurrentTaxiAcceptancePending(navigationState, partyId)) {
+      resetCurrentTaxiStackToAcceptedChat(partyId);
+      return;
+    }
+
+    navigateToTaxiChatRoute(partyId);
   });
 
 export const navigateToTaxiAcceptancePending = (
