@@ -2,7 +2,11 @@ import type {CampusStackParamList} from '@/app/navigation/types';
 import type {Party} from '@/features/taxi';
 import type {TaxiAcceptancePendingSeed} from '@/features/taxi/model/taxiAcceptancePendingViewData';
 
-import {shouldNavigateToAcceptedTaxiChat} from '../selectors/getCurrentTaxiPartyIdFromNavigationState';
+import {
+  getCurrentTaxiStackNavigationState,
+  isCurrentTaxiAcceptancePending,
+  shouldNavigateToAcceptedTaxiChat,
+} from '../selectors/getCurrentTaxiPartyIdFromNavigationState';
 import {
   getRootNavigationState,
   runWhenNavigationReady,
@@ -15,6 +19,29 @@ const navigateToTaxiChatRoute = (partyId: string) => {
     params: {
       screen: 'Chat',
       params: {partyId},
+    },
+  });
+};
+
+const resetCurrentTaxiStackToAcceptedChat = (partyId: string) => {
+  const taxiStackState = getCurrentTaxiStackNavigationState(
+    getRootNavigationState(),
+  );
+
+  if (!taxiStackState) {
+    navigateToTaxiChatRoute(partyId);
+    return;
+  }
+
+  rootNavigationRef.dispatch({
+    type: 'RESET',
+    target: taxiStackState.key,
+    payload: {
+      index: 1,
+      routes: [
+        {name: 'TaxiMain'},
+        {name: 'Chat', params: {partyId}},
+      ],
     },
   });
 };
@@ -117,7 +144,14 @@ export const navigateToTaxiChat = (partyId: string) =>
 
 export const navigateToAcceptedTaxiChat = (partyId: string) =>
   runWhenNavigationReady(() => {
-    if (!shouldNavigateToAcceptedTaxiChat(getRootNavigationState(), partyId)) {
+    const navigationState = getRootNavigationState();
+
+    if (!shouldNavigateToAcceptedTaxiChat(navigationState, partyId)) {
+      return;
+    }
+
+    if (isCurrentTaxiAcceptancePending(navigationState, partyId)) {
+      resetCurrentTaxiStackToAcceptedChat(partyId);
       return;
     }
 

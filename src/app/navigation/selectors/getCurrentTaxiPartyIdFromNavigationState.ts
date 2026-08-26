@@ -4,6 +4,21 @@ import {getCurrentLeafRouteFromNavigationState} from './getCurrentLeafRouteFromN
 
 type NavigationStateLike = NavigationState | PartialState<NavigationState>;
 
+type NavigationRouteLike = {
+  name: string;
+  state?: NavigationStateLike;
+};
+
+const getCurrentRoute = (state: NavigationStateLike | undefined) => {
+  if (!state || state.routes.length === 0) {
+    return undefined;
+  }
+
+  return state.routes[
+    state.index ?? state.routes.length - 1
+  ] as NavigationRouteLike | undefined;
+};
+
 const getStringParam = (
   params: Record<string, unknown> | undefined,
   key: string,
@@ -45,6 +60,40 @@ export const getCurrentTaxiPartyIdFromNavigationState = (
   return party && typeof party === 'object'
     ? getStringParam(party as Record<string, unknown>, 'id')
     : undefined;
+};
+
+export const getCurrentTaxiStackNavigationState = (
+  state: NavigationStateLike | undefined,
+) => {
+  let currentState = state;
+
+  while (currentState) {
+    const currentRoute = getCurrentRoute(currentState);
+
+    if (!currentRoute?.state) {
+      return undefined;
+    }
+
+    if (currentRoute.name === 'TaxiTab') {
+      return currentRoute.state;
+    }
+
+    currentState = currentRoute.state;
+  }
+
+  return undefined;
+};
+
+export const isCurrentTaxiAcceptancePending = (
+  state: NavigationStateLike | undefined,
+  partyId: string,
+) => {
+  const route = getCurrentLeafRouteFromNavigationState(state);
+
+  return (
+    route?.name === 'AcceptancePending' &&
+    getCurrentTaxiPartyIdFromNavigationState(state) === partyId
+  );
 };
 
 export const shouldNavigateToAcceptedTaxiChat = (
