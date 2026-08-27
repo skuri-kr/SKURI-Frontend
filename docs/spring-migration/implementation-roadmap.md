@@ -496,6 +496,7 @@ SSE 운영 제약:
 | 목록 조회 최적화 | `/v1/notices`는 목록 전용 projection으로 필요한 컬럼만 select하고, `thumbnailUrl` 저장 컬럼을 그대로 사용한다. 목록 경로에서는 `bodyHtml/bodyText/attachments`를 select하지 않는다. |
 | 공지 댓글 수정 정책 | `PATCH /v1/notice-comments/{id}`는 `content`와 optional `isAnonymous`를 지원하며, 익명 전환 시 기존 번호 재사용/신규 부여 정책을 따른다 |
 | 공지 댓글 좋아요 | `notice_comment_likes` 저장 + `notice_comments.likeCount` 동기화, 목록/생성/수정 응답에 `isLiked` 합성 |
+| 공지 댓글 신고 | `POST /v1/reports`의 `targetType=NOTICE_COMMENT`로 삭제되지 않은 공지 댓글을 신고하며, 작성자 본인과 동일 대상 재신고는 공통 신고 정책으로 차단 |
 | 공지 북마크 저장 모델 | `NoticeLike`와 분리된 `notice_bookmarks` 테이블, 등록/취소는 idempotent |
 
 #### 5-3. API
@@ -655,9 +656,10 @@ SSE 운영 제약:
 | `CafeteriaMenu` | `cafeteria_menus` | 학식 메뉴 |
 
 `Report` 기준 enum:
-- `targetType`: `POST`, `COMMENT`, `MEMBER`, `CHAT_MESSAGE`, `CHAT_ROOM`, `TAXI_PARTY`
+- `targetType`: `POST`, `COMMENT`, `NOTICE_COMMENT`, `MEMBER`, `CHAT_MESSAGE`, `CHAT_ROOM`, `TAXI_PARTY`
 - `status`: `PENDING`, `REVIEWING`, `ACTIONED`, `REJECTED`
 - duplicate policy: `reporterId + targetType + targetId` 전 상태 기준 재신고 금지
+- `NOTICE_COMMENT.targetAuthorId = noticeComment.userId`, 삭제 댓글은 `NOTICE_COMMENT_NOT_FOUND`
 - `CHAT_MESSAGE.targetAuthorId = message.senderId`
 - `CHAT_ROOM.targetAuthorId = chatRoom.createdBy` (seed/public 방처럼 creator가 없으면 `null` 허용, `PARTY` 타입 방은 제외)
 - `TAXI_PARTY.targetAuthorId = party.leaderId`

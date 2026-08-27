@@ -3218,13 +3218,24 @@ Authorization:Bearer <firebase_id_token>
 #### POST /v1/reports
 신고 등록
 
-**targetType:** `POST` | `COMMENT` | `MEMBER` | `CHAT_MESSAGE` | `CHAT_ROOM` | `TAXI_PARTY`
+**targetType:** `POST` | `COMMENT` | `NOTICE_COMMENT` | `MEMBER` | `CHAT_MESSAGE` | `CHAT_ROOM` | `TAXI_PARTY`
 
+- `NOTICE_COMMENT`: `targetId = noticeCommentId`, 삭제되지 않은 공지 댓글만 신고할 수 있으며 `targetAuthorId = noticeComment.userId`
 - `CHAT_MESSAGE`: `targetId = messageId`, `targetAuthorId = message.senderId`
 - `CHAT_ROOM`: `targetId = chatRoomId`, 파티 채팅방(`type=PARTY`)은 대상에서 제외하며 일반 채팅방만 허용
 - `CHAT_ROOM`의 seed/public 방처럼 `createdBy`가 없으면 신고는 허용하고 `targetAuthorId = null`로 저장
 - `TAXI_PARTY`: `targetId = partyId`, `targetAuthorId = party.leaderId`
-- `404` 대상 없음은 `POST_NOT_FOUND`, `COMMENT_NOT_FOUND`, `MEMBER_NOT_FOUND`, `CHAT_MESSAGE_NOT_FOUND`, `CHAT_ROOM_NOT_FOUND`, `PARTY_NOT_FOUND` 중 하나를 반환합니다.
+- `404` 대상 없음은 `POST_NOT_FOUND`, `COMMENT_NOT_FOUND`, `NOTICE_COMMENT_NOT_FOUND`, `MEMBER_NOT_FOUND`, `CHAT_MESSAGE_NOT_FOUND`, `CHAT_ROOM_NOT_FOUND`, `PARTY_NOT_FOUND` 중 하나를 반환합니다.
+
+**Request Example - NOTICE_COMMENT:**
+```json
+{
+  "targetType": "NOTICE_COMMENT",
+  "targetId": "notice_comment_uuid",
+  "category": "ABUSE",
+  "reason": "공지 댓글에 부적절한 표현이 있습니다."
+}
+```
 
 **Request Example - CHAT_MESSAGE:**
 ```json
@@ -6313,7 +6324,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 | 파라미터 | 타입 | 설명 |
 |---------|------|------|
 | `status` | string | 신고 상태 필터 (`PENDING`, `REVIEWING`, `ACTIONED`, `REJECTED`) |
-| `targetType` | string | 신고 대상 필터 (`POST`, `COMMENT`, `MEMBER`, `CHAT_MESSAGE`, `CHAT_ROOM`, `TAXI_PARTY`) |
+| `targetType` | string | 신고 대상 필터 (`POST`, `COMMENT`, `NOTICE_COMMENT`, `MEMBER`, `CHAT_MESSAGE`, `CHAT_ROOM`, `TAXI_PARTY`) |
 | `page` | int | 페이지 번호 (기본 0, 0 이상) |
 | `size` | int | 페이지 크기 (기본 20, 1~100) |
 
