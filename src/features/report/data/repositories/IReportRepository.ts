@@ -8,6 +8,7 @@ export type ReportCategory =
 export type ReportTargetType =
   | 'POST'
   | 'COMMENT'
+  | 'NOTICE_COMMENT'
   | 'MEMBER'
   | 'CHAT_MESSAGE'
   | 'CHAT_ROOM'

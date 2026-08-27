@@ -21,6 +21,8 @@ import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Animated from 'react-native-reanimated';
 
+import {useReportRepository} from '@/di';
+import type {ReportCategory} from '@/features/report';
 import {
   ArticleDetailSkeleton,
   DetailBackHeader,
@@ -33,6 +35,7 @@ import {
   StateCard,
 } from '@/shared/design-system/components';
 import {COLORS, SPACING} from '@/shared/design-system/tokens';
+import {ReportReasonModal} from '@/shared/ui/ReportReasonModal';
 import {
   useKeyboardInset,
   useScreenEnterAnimation,
@@ -42,6 +45,10 @@ import {
 import {NoticeDetailAttachments} from '../components/NoticeDetailAttachments';
 import {useNoticeDetailData} from '../hooks/useNoticeDetailData';
 import type {NoticeStackParamList} from '../model/navigation';
+import {
+  NOTICE_REPORT_CATEGORIES,
+  submitNoticeCommentReport,
+} from '../services/noticeReportService';
 
 type NoticeDetailNavigationProp = NativeStackNavigationProp<
   NoticeStackParamList,
@@ -56,12 +63,21 @@ export const NoticeDetailScreen = () => {
     useRoute<
       NativeStackScreenProps<NoticeStackParamList, 'NoticeDetail'>['route']
     >();
+  const reportRepository = useReportRepository();
   const insets = useSafeAreaInsets();
   const initialCommentId = route.params?.initialCommentId;
   const {height: keyboardHeight, isVisible: isKeyboardVisible} =
     useKeyboardInset();
   const screenAnimatedStyle = useScreenEnterAnimation();
   const [refreshing, setRefreshing] = React.useState(false);
+  const [isReportSubmitting, setIsReportSubmitting] = React.useState(false);
+  const [isReportVisible, setIsReportVisible] = React.useState(false);
+  const [reportReason, setReportReason] = React.useState('');
+  const [reportTargetCommentId, setReportTargetCommentId] = React.useState<
+    string | null
+  >(null);
+  const [selectedReportCategory, setSelectedReportCategory] =
+    React.useState<ReportCategory | null>(null);
   const {
     cancelCommentEdit,
     cancelCommentReply,
@@ -118,6 +134,71 @@ export const NoticeDetailScreen = () => {
   const handlePressReturnToList = React.useCallback(() => {
     navigation.navigate('NoticeMain');
   }, [navigation]);
+
+  const handleCloseReportModal = React.useCallback(() => {
+    if (isReportSubmitting) {
+      return;
+    }
+
+    setIsReportVisible(false);
+    setReportTargetCommentId(null);
+    setSelectedReportCategory(null);
+    setReportReason('');
+  }, [isReportSubmitting]);
+
+  const handleOpenCommentReport = React.useCallback((commentId: string) => {
+    setReportTargetCommentId(commentId);
+    setSelectedReportCategory(null);
+    setReportReason('');
+    setIsReportVisible(true);
+  }, []);
+
+  const handleSubmitReport = React.useCallback(async () => {
+    if (!reportTargetCommentId) {
+      return;
+    }
+
+    if (!selectedReportCategory) {
+      Alert.alert('신고 유형 선택', '신고 유형을 선택해주세요.');
+      return;
+    }
+
+    if (!reportReason.trim()) {
+      Alert.alert('신고 사유 입력', '신고 사유를 입력해주세요.');
+      return;
+    }
+
+    try {
+      setIsReportSubmitting(true);
+      await submitNoticeCommentReport(
+        reportRepository,
+        reportTargetCommentId,
+        selectedReportCategory,
+        reportReason,
+      );
+
+      handleCloseReportModal();
+      Alert.alert(
+        '신고 접수 완료',
+        '신고가 접수되었습니다. 운영팀이 확인 후 처리할 예정입니다.',
+      );
+    } catch (caughtError) {
+      Alert.alert(
+        '오류',
+        caughtError instanceof Error
+          ? caughtError.message
+          : '신고 접수에 실패했습니다.',
+      );
+    } finally {
+      setIsReportSubmitting(false);
+    }
+  }, [
+    handleCloseReportModal,
+    reportReason,
+    reportRepository,
+    reportTargetCommentId,
+    selectedReportCategory,
+  ]);
 
   const handleToggleLike = React.useCallback(() => {
     toggleLike().catch(toggleError => {
@@ -556,6 +637,11 @@ export const NoticeDetailScreen = () => {
                             ? undefined
                             : () => handleStartReplyingComment(comment.id)
                         }
+                        onPressReport={
+                          comment.isDeleted || comment.isMine
+                            ? undefined
+                            : () => handleOpenCommentReport(comment.id)
+                        }
                       />
                     </View>
                   ))}
@@ -620,6 +706,20 @@ export const NoticeDetailScreen = () => {
         ) : null}
 
         <DetailBackHeader onPressBack={handlePressBack} />
+        <ReportReasonModal
+          categories={NOTICE_REPORT_CATEGORIES}
+          onChangeReason={setReportReason}
+          onClose={handleCloseReportModal}
+          onSelectCategory={setSelectedReportCategory}
+          onSubmit={() => {
+            handleSubmitReport().catch(() => undefined);
+          }}
+          reason={reportReason}
+          selectedCategory={selectedReportCategory}
+          submitting={isReportSubmitting}
+          title="공지 댓글 신고"
+          visible={isReportVisible}
+        />
       </Animated.View>
     </SafeAreaView>
   );

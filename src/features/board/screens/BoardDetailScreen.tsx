@@ -675,7 +675,7 @@ export const BoardDetailScreen = () => {
                             : () => handleStartReplyingComment(comment.id)
                         }
                         onPressReport={
-                          comment.isDeleted
+                          comment.isDeleted || comment.isMine
                             ? undefined
                             : () => handleOpenCommentReport(comment.id)
                         }
