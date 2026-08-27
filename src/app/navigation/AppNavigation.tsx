@@ -2,6 +2,8 @@ import React, { PropsWithChildren } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import BootSplash from 'react-native-bootsplash';
 
+import {AppLinkRuntime} from '@/app/linking';
+
 import {
   flushPendingNavigationActions,
   rootNavigationRef,
@@ -17,6 +19,7 @@ export const AppNavigation = ({ children }: PropsWithChildren) => {
   return (
     <NavigationContainer ref={rootNavigationRef} onReady={handleNavigationReady}>
       <RootNavigator />
+      <AppLinkRuntime />
       {children}
     </NavigationContainer>
   );

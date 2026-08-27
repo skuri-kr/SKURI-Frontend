@@ -7,6 +7,7 @@ interface BoardDetailPopupMenuProps {
   onPressDelete: () => void;
   onPressEdit: () => void;
   onPressReport: () => void;
+  onPressShare: () => void;
   right?: number;
   showManageActions?: boolean;
   top: number;
@@ -18,12 +19,20 @@ export const BoardDetailPopupMenu = ({
   onPressDelete,
   onPressEdit,
   onPressReport,
+  onPressShare,
   right = 12,
   showManageActions = true,
   top,
   visible,
 }: BoardDetailPopupMenuProps) => {
   const items = [
+    {
+      iconName: 'share-outline',
+      id: 'share',
+      label: '공유',
+      onPress: onPressShare,
+      type: 'action' as const,
+    },
     {
       iconName: 'flag-outline',
       id: 'report',

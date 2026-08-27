@@ -986,7 +986,7 @@ Debug·Metro 체감과 Release 성능을 구분한다. 실제 기기 QA를 수�
 - 공개 콘텐츠 전역 차단 필터
 - 관리자 친구 관계망 관리
 
-딥링크 후속 작업 시 현재 skuri custom scheme의 native 등록만 믿지 않고 NavigationContainer linking, cold start, universal/app link 도메인, QR 이전 버전 호환을 별도 설계한다.
+공지·이번 주 학식·커뮤니티 게시글 공유용 앱 링크는 Frontend [#33](https://github.com/skuri-kr/SKURI-Frontend/pull/33)에서 구현했다. `link.skuri.kr`의 HTTPS 링크를 NavigationContainer linking으로 해석하고, cold·warm start 및 로그인·온보딩 대기 구간을 거쳐 대상 화면으로 이동한다. iOS Universal Links와 Android App Links 검증 설정도 함께 추가했으며, 실제 활성화에는 새 모바일 버전 배포와 iOS·Android 실기기 확인이 필요하다. URL 딥링크를 이용한 친구 추가는 여전히 이번 V1 제외 범위다.
 
 ---
 

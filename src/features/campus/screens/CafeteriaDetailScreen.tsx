@@ -1,10 +1,18 @@
 import React from 'react';
-import {ActivityIndicator, Alert, ScrollView, StyleSheet, View} from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  Share,
+  StyleSheet,
+  View,
+} from 'react-native';
 import {RouteProp, useNavigation, useRoute} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 
+import {buildCafeteriaShareMessage} from '@/app/linking';
 import type {CampusStackParamList} from '@/app/navigation/types';
 import {StateCard} from '@/shared/design-system/components';
 import {
@@ -85,11 +93,20 @@ export const CafeteriaDetailScreen = () => {
     [upsertReaction],
   );
 
+  const handlePressShare = React.useCallback(async () => {
+    try {
+      await Share.share({message: buildCafeteriaShareMessage()});
+    } catch {
+      Alert.alert('공유 오류', '학식 링크를 공유하지 못했습니다.');
+    }
+  }, []);
+
   return (
     <SafeAreaView edges={['left', 'right']} style={styles.safeArea}>
       <View style={styles.container}>
         <CafeteriaDetailHeader
           onPressBack={() => navigation.goBack()}
+          onPressShare={handlePressShare}
           title={data?.title ?? '학식 메뉴'}
         />
 

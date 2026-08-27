@@ -10,11 +10,13 @@ import {
 
 interface CafeteriaDetailHeaderProps {
   onPressBack: () => void;
+  onPressShare: () => void;
   title: string;
 }
 
 export const CafeteriaDetailHeader = ({
   onPressBack,
+  onPressShare,
   title,
 }: CafeteriaDetailHeaderProps) => {
   const insets = useSafeAreaInsets();
@@ -40,7 +42,18 @@ export const CafeteriaDetailHeader = ({
             <Text style={styles.title}>{title}</Text>
           </View>
 
-          <View style={styles.rightSpacer} />
+          <TouchableOpacity
+            accessibilityLabel="학식 공유"
+            accessibilityRole="button"
+            activeOpacity={0.82}
+            onPress={onPressShare}
+            style={styles.shareButton}>
+            <Icon
+              color={COLORS.text.secondary}
+              name="share-outline"
+              size={20}
+            />
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -80,8 +93,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 28,
   },
-  rightSpacer: {
+  shareButton: {
+    alignItems: 'center',
     height: 32,
+    justifyContent: 'center',
     width: 32,
   },
 });

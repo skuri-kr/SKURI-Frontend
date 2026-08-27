@@ -8,6 +8,7 @@ import {
   Platform,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -21,6 +22,10 @@ import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Animated from 'react-native-reanimated';
 
+import {
+  buildNoticeShareMessage,
+  getMatchingNoticeShareTitle,
+} from '@/app/linking';
 import {useReportRepository} from '@/di';
 import type {ReportCategory} from '@/features/report';
 import {
@@ -134,6 +139,24 @@ export const NoticeDetailScreen = () => {
   const handlePressReturnToList = React.useCallback(() => {
     navigation.navigate('NoticeMain');
   }, [navigation]);
+
+  const handlePressShare = React.useCallback(async () => {
+    const noticeId = route.params?.noticeId;
+    if (!noticeId) {
+      return;
+    }
+
+    try {
+      await Share.share({
+        message: buildNoticeShareMessage(
+          noticeId,
+          getMatchingNoticeShareTitle(noticeId, notice),
+        ),
+      });
+    } catch {
+      Alert.alert('공유 오류', '공지 링크를 공유하지 못했습니다.');
+    }
+  }, [notice, route.params?.noticeId]);
 
   const handleCloseReportModal = React.useCallback(() => {
     if (isReportSubmitting) {
@@ -705,7 +728,25 @@ export const NoticeDetailScreen = () => {
           </>
         ) : null}
 
-        <DetailBackHeader onPressBack={handlePressBack} />
+        <DetailBackHeader
+          onPressBack={handlePressBack}
+          rightAccessory={
+            notice ? (
+              <TouchableOpacity
+                accessibilityLabel="공지 공유"
+                accessibilityRole="button"
+                activeOpacity={0.82}
+                onPress={handlePressShare}
+                style={styles.shareButton}>
+                <Icon
+                  color={COLORS.text.secondary}
+                  name="share-outline"
+                  size={20}
+                />
+              </TouchableOpacity>
+            ) : undefined
+          }
+        />
         <ReportReasonModal
           categories={NOTICE_REPORT_CATEGORIES}
           onChangeReason={setReportReason}
@@ -827,5 +868,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: SPACING.lg,
+  },
+  shareButton: {
+    alignItems: 'center',
+    height: 36,
+    justifyContent: 'center',
+    marginRight: -6,
+    width: 36,
   },
 });
