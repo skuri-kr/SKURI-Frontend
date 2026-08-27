@@ -5,6 +5,7 @@ import {
   buildCafeteriaShareUrl,
   buildNoticeShareMessage,
   buildNoticeShareUrl,
+  getMatchingNoticeShareTitle,
 } from '../appLinkShare';
 
 describe('앱 링크 공유 URL', () => {
@@ -26,6 +27,21 @@ describe('앱 링크 공유 URL', () => {
 });
 
 describe('앱 링크 공유 메시지', () => {
+  it('현재 공지 ID가 공유 대상과 일치할 때만 제목을 사용한다', () => {
+    expect(
+      getMatchingNoticeShareTitle('notice-2', {
+        id: 'notice-1',
+        title: '이전 공지',
+      }),
+    ).toBeUndefined();
+    expect(
+      getMatchingNoticeShareTitle('notice-2', {
+        id: 'notice-2',
+        title: '현재 공지',
+      }),
+    ).toBe('현재 공지');
+  });
+
   it('공지 제목과 링크를 함께 제공한다', () => {
     expect(buildNoticeShareMessage('notice-1', '수강 신청 안내')).toBe(
       '수강 신청 안내\nhttps://link.skuri.kr/notice/notice-1',
