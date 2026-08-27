@@ -59,3 +59,61 @@ describe('상세 콘텐츠 텍스트 선택', () => {
     expect(view.getByText('삭제된 댓글입니다').props.selectable).toBe(false);
   });
 });
+
+describe('상세 댓글 액션', () => {
+  const comment = {
+    authorLabel: '작성자',
+    body: '댓글 본문',
+    dateLabel: '08.27 12:00',
+    id: 'comment-1',
+    isDeleted: false,
+    isLiked: false,
+    isReply: false,
+    likeCount: 0,
+  };
+
+  it('내 댓글에는 수정과 삭제만 표시한다', () => {
+    const view = render(
+      <DetailCommentCard
+        comment={{...comment, isMine: true}}
+        onPressDelete={jest.fn()}
+        onPressEdit={jest.fn()}
+        onPressReport={jest.fn()}
+      />,
+    );
+
+    expect(view.getByText('수정')).toBeTruthy();
+    expect(view.getByText('삭제')).toBeTruthy();
+    expect(view.queryByText('신고')).toBeNull();
+  });
+
+  it('다른 사람 댓글에는 신고만 표시한다', () => {
+    const view = render(
+      <DetailCommentCard
+        comment={{...comment, isMine: false}}
+        onPressDelete={jest.fn()}
+        onPressEdit={jest.fn()}
+        onPressReport={jest.fn()}
+      />,
+    );
+
+    expect(view.queryByText('수정')).toBeNull();
+    expect(view.queryByText('삭제')).toBeNull();
+    expect(view.getByText('신고')).toBeTruthy();
+  });
+
+  it('삭제된 댓글에는 오른쪽 액션을 표시하지 않는다', () => {
+    const view = render(
+      <DetailCommentCard
+        comment={{...comment, isDeleted: true, isMine: true}}
+        onPressDelete={jest.fn()}
+        onPressEdit={jest.fn()}
+        onPressReport={jest.fn()}
+      />,
+    );
+
+    expect(view.queryByText('수정')).toBeNull();
+    expect(view.queryByText('삭제')).toBeNull();
+    expect(view.queryByText('신고')).toBeNull();
+  });
+});
