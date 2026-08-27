@@ -6,4 +6,5 @@ export {
   buildCafeteriaShareUrl,
   buildNoticeShareMessage,
   buildNoticeShareUrl,
+  getMatchingNoticeShareTitle,
 } from './appLinkShare';

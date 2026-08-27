@@ -12,6 +12,12 @@ export const buildCafeteriaShareUrl = (): string =>
 export const buildBoardShareUrl = (postId: string): string =>
   `${LINK_ORIGIN}/board/${encodeURIComponent(postId)}`;
 
+export const getMatchingNoticeShareTitle = (
+  noticeId: string,
+  notice?: {id: string; title: string} | null,
+): string | undefined =>
+  notice?.id === noticeId ? notice.title : undefined;
+
 export const buildNoticeShareMessage = (
   noticeId: string,
   title?: string,

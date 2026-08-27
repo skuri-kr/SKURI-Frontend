@@ -22,7 +22,10 @@ import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Animated from 'react-native-reanimated';
 
-import {buildNoticeShareMessage} from '@/app/linking';
+import {
+  buildNoticeShareMessage,
+  getMatchingNoticeShareTitle,
+} from '@/app/linking';
 import {useReportRepository} from '@/di';
 import type {ReportCategory} from '@/features/report';
 import {
@@ -145,12 +148,15 @@ export const NoticeDetailScreen = () => {
 
     try {
       await Share.share({
-        message: buildNoticeShareMessage(noticeId, notice?.title),
+        message: buildNoticeShareMessage(
+          noticeId,
+          getMatchingNoticeShareTitle(noticeId, notice),
+        ),
       });
     } catch {
       Alert.alert('공유 오류', '공지 링크를 공유하지 못했습니다.');
     }
-  }, [notice?.title, route.params?.noticeId]);
+  }, [notice, route.params?.noticeId]);
 
   const handleCloseReportModal = React.useCallback(() => {
     if (isReportSubmitting) {
