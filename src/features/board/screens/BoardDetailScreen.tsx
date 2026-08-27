@@ -7,6 +7,7 @@ import {
   Platform,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -20,6 +21,7 @@ import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Animated from 'react-native-reanimated';
 
+import {buildBoardShareMessage} from '@/app/linking';
 import {useReportRepository} from '@/di';
 import type {ReportCategory} from '@/features/report';
 import {
@@ -236,6 +238,19 @@ export const BoardDetailScreen = () => {
 
     Alert.alert('게시글 수정', '수정할 게시글 정보를 찾지 못했습니다.');
   }, [navigation, route.params?.postId]);
+
+  const handlePressShare = React.useCallback(async () => {
+    const postId = route.params?.postId;
+    if (!postId) {
+      return;
+    }
+
+    try {
+      await Share.share({message: buildBoardShareMessage(postId)});
+    } catch {
+      Alert.alert('공유 오류', '게시글 링크를 공유하지 못했습니다.');
+    }
+  }, [route.params?.postId]);
 
   const handlePressDelete = React.useCallback(() => {
     Alert.alert('게시글 삭제', '이 게시글을 삭제하시겠습니까?', [
@@ -753,6 +768,7 @@ export const BoardDetailScreen = () => {
           onPressDelete={handlePressDelete}
           onPressEdit={handlePressEdit}
           onPressReport={handleOpenPostReport}
+          onPressShare={handlePressShare}
           right={12}
           showManageActions={canManageActions}
           top={insets.top + 44}
