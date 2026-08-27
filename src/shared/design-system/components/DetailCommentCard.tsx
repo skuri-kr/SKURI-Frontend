@@ -39,6 +39,11 @@ export const DetailCommentCard = ({
   onPressReply,
   replyDisabled = false,
 }: DetailCommentCardProps) => {
+  const showManageActions = Boolean(
+    comment.isMine && (onPressEdit || onPressDelete),
+  );
+  const showReportAction = Boolean(!comment.isMine && onPressReport);
+
   return (
     <View style={[styles.card, comment.isReply ? styles.replyCard : null]}>
       <View style={styles.headerRow}>
@@ -117,9 +122,9 @@ export const DetailCommentCard = ({
             </TouchableOpacity>
           </View>
 
-          {onPressEdit || onPressDelete || onPressReport ? (
+          {showManageActions || showReportAction ? (
             <View style={styles.trailingActionsRow}>
-              {onPressEdit ? (
+              {showManageActions && onPressEdit ? (
                 <TouchableOpacity
                   accessibilityRole="button"
                   activeOpacity={0.8}
@@ -127,7 +132,7 @@ export const DetailCommentCard = ({
                   <Text style={styles.actionLabel}>수정</Text>
                 </TouchableOpacity>
               ) : null}
-              {onPressDelete ? (
+              {showManageActions && onPressDelete ? (
                 <TouchableOpacity
                   accessibilityRole="button"
                   activeOpacity={deleteDisabled ? 1 : 0.8}
@@ -136,7 +141,7 @@ export const DetailCommentCard = ({
                   <Text style={styles.deleteActionLabel}>삭제</Text>
                 </TouchableOpacity>
               ) : null}
-              {onPressReport ? (
+              {showReportAction && onPressReport ? (
                 <TouchableOpacity
                   accessibilityRole="button"
                   activeOpacity={0.8}
