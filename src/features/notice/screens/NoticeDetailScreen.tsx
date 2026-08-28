@@ -743,9 +743,10 @@ export const NoticeDetailScreen = () => {
                 style={styles.shareButton}>
                 <Icon
                   color={COLORS.text.secondary}
-                  name="link-outline"
+                  name="link"
                   size={20}
                 />
+                <Text style={styles.shareButtonLabel}>공지 공유하기</Text>
               </TouchableOpacity>
             ) : undefined
           }
@@ -874,8 +875,16 @@ const styles = StyleSheet.create({
   },
   shareButton: {
     alignItems: 'center',
-    height: 36,
+    flexDirection: 'row',
+    gap: SPACING.xs,
+    minHeight: 36,
     justifyContent: 'center',
-    width: 36,
+    paddingHorizontal: SPACING.sm,
+  },
+  shareButtonLabel: {
+    color: COLORS.text.secondary,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
   },
 });
