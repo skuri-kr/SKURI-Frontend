@@ -84,13 +84,21 @@ export const navigateToNoticeDetail = (
     });
   });
 
-export const navigateToAppNoticeDetail = (noticeId: string) =>
+export const navigateToAppNoticeDetail = (
+  noticeId: string,
+  options?: {initialCommentId?: string},
+) =>
   runWhenNavigationReady(() => {
     rootNavigationRef.navigate('Main', {
       screen: 'CampusTab',
       params: {
         screen: 'AppNoticeDetail',
-        params: {noticeId},
+        params: {
+          noticeId,
+          ...(options?.initialCommentId
+            ? {initialCommentId: options.initialCommentId}
+            : {}),
+        },
       },
     });
   });

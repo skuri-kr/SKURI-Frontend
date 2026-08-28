@@ -26,6 +26,7 @@ export type NotificationPayload =
   | {type: 'POST_LIKED'; postId: string}
   | {type: 'COMMENT_CREATED'; postId: string; commentId: string}
   | {type: 'COMMENT_CREATED'; noticeId: string; commentId: string}
+  | {type: 'COMMENT_CREATED'; appNoticeId: string; commentId: string}
   | {type: 'NOTICE'; noticeId: string}
   | {type: 'APP_NOTICE'; appNoticeId: string}
   | {type: 'ACADEMIC_SCHEDULE'; academicScheduleId: string};

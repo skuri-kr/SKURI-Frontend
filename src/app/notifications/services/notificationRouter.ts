@@ -82,6 +82,14 @@ export const getNotificationNavigationIntent = (
         };
       }
 
+      if ('appNoticeId' in payload) {
+        return {
+          kind: 'appNoticeDetail',
+          noticeId: payload.appNoticeId,
+          initialCommentId: payload.commentId,
+        };
+      }
+
       return {
         kind: 'noticeDetail',
         noticeId: payload.noticeId,
@@ -138,7 +146,9 @@ export const openNotificationNavigationIntent = (
         initialCommentId: intent.initialCommentId,
       });
     case 'appNoticeDetail':
-      return navigateToAppNoticeDetail(intent.noticeId);
+      return navigateToAppNoticeDetail(intent.noticeId, {
+        initialCommentId: intent.initialCommentId,
+      });
     case 'academicCalendarDetail':
       return navigateToAcademicCalendarDetail(intent.scheduleId);
     default:

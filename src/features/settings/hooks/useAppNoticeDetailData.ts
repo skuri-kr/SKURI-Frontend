@@ -1,102 +1,318 @@
 import React from 'react';
 
-import {useAuth} from '@/features/auth';
 import {useAppNoticeRepository} from '@/di/useRepository';
+import {useAuth} from '@/features/auth';
+import type {NoticeCommentTreeNode} from '@/features/notice/model/types';
+import {useCommentAnonymousPreference} from '@/shared/hooks';
+import {
+  flattenVisibleCommentTree,
+  type FlattenedCommentTreeEntry,
+} from '@/shared/lib/comments';
+import {formatKoreanCompactDateTime} from '@/shared/lib/date';
+import type {ContentDetailCommentViewData} from '@/shared/types/contentDetailViewData';
 
 import {assembleAppNoticeDetailViewData} from '../application/appNoticeViewAssembler';
-import type {
-  AppNoticeBadgeViewData,
-  AppNoticeDetailViewData,
-} from '../model/appNoticeViewData';
+import type {AppNotice} from '../data/repositories/IAppNoticeRepository';
+import type {AppNoticeBadgeViewData} from '../model/appNoticeViewData';
 
-interface UseAppNoticeDetailDataResult {
-  data: AppNoticeDetailViewData | null;
-  error: string | null;
-  loading: boolean;
-  reload: () => Promise<void>;
+export interface AppNoticeDetailCommentItem
+  extends ContentDetailCommentViewData {
+  isEditable: boolean;
 }
 
 const buildBadges = (
   important: boolean,
   categoryLabel: string,
-): AppNoticeBadgeViewData[] => {
-  const badges: AppNoticeBadgeViewData[] = [];
+): AppNoticeBadgeViewData[] => [
+  ...(important
+    ? [{id: 'important', label: '중요', tone: 'danger' as const}]
+    : []),
+  {id: 'category', label: categoryLabel, tone: 'neutral'},
+];
 
-  if (important) {
-    badges.push({
-      id: 'important',
-      label: '중요',
-      tone: 'danger',
-    });
-  }
-
-  badges.push({
-    id: 'category',
-    label: categoryLabel,
-    tone: 'neutral',
+const updateCommentTree = (
+  comments: NoticeCommentTreeNode[],
+  commentId: string,
+  updater: (comment: NoticeCommentTreeNode) => NoticeCommentTreeNode,
+): NoticeCommentTreeNode[] =>
+  comments.map(comment => {
+    const next = comment.id === commentId ? updater(comment) : comment;
+    return {...next, replies: updateCommentTree(next.replies, commentId, updater)};
   });
 
-  return badges;
-};
+const getAuthorLabel = (comment: NoticeCommentTreeNode) =>
+  comment.isAnonymous
+    ? `익명${comment.anonymousOrder ?? ''}`
+    : comment.userDisplayName;
 
-export const useAppNoticeDetailData = (
-  noticeId: string | undefined,
-): UseAppNoticeDetailDataResult => {
+const getReplyTargetLabel = (comment: NoticeCommentTreeNode) =>
+  `${getAuthorLabel(comment)} 님에게 답글`;
+
+const toCommentItems = (
+  entries: FlattenedCommentTreeEntry<NoticeCommentTreeNode>[],
+): AppNoticeDetailCommentItem[] =>
+  entries.map(({comment, parent}) => ({
+    authorLabel: getAuthorLabel(comment),
+    authorProfileImage:
+      comment.isAnonymous || comment.isDeleted
+        ? null
+        : comment.authorProfileImage,
+    body: comment.content,
+    dateLabel: formatKoreanCompactDateTime(comment.createdAt),
+    id: comment.id,
+    isAuthorAdmin:
+      !comment.isAnonymous && !comment.isDeleted && Boolean(comment.isAuthorAdmin),
+    isDeleted: Boolean(comment.isDeleted),
+    isEditable: Boolean(comment.isAuthor && !comment.isDeleted),
+    isLiked: Boolean(comment.isLiked),
+    isMine: Boolean(comment.isAuthor),
+    isReply: Boolean(comment.parentId),
+    likeCount: comment.likeCount ?? 0,
+    replyTargetLabel: parent ? getReplyTargetLabel(parent) : undefined,
+  }));
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error && error.message
+    ? error.message
+    : '앱 공지사항을 다시 불러와주세요.';
+
+export const useAppNoticeDetailData = (noticeId?: string) => {
   const {user} = useAuth();
-  const appNoticeRepository = useAppNoticeRepository();
-  const [data, setData] = React.useState<AppNoticeDetailViewData | null>(null);
+  const repository = useAppNoticeRepository();
+  const {
+    isAnonymous: storedAnonymous,
+    toggleAnonymousPreference: toggleStoredAnonymous,
+  } = useCommentAnonymousPreference();
+  const [notice, setNotice] = React.useState<AppNotice | null>(null);
+  const [comments, setComments] = React.useState<NoticeCommentTreeNode[]>([]);
+  const [commentDraft, setCommentDraft] = React.useState('');
+  const [editingCommentId, setEditingCommentId] = React.useState<string | null>(null);
+  const [replyTargetCommentId, setReplyTargetCommentId] = React.useState<string | null>(null);
+  const [commentAnonymousDraft, setCommentAnonymousDraft] = React.useState<boolean | null>(null);
+  const [commentLikePendingIds, setCommentLikePendingIds] = React.useState<string[]>([]);
+  const [submittingComment, setSubmittingComment] = React.useState(false);
+  const [togglingLike, setTogglingLike] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const requestIdRef = React.useRef(0);
 
-  const load = React.useCallback(async () => {
-    if (!noticeId) {
-      setData(null);
-      setError('앱 공지사항 ID가 없습니다.');
-      setLoading(false);
+  const flattenedEntries = React.useMemo(
+    () => flattenVisibleCommentTree(comments),
+    [comments],
+  );
+  const commentItems = React.useMemo(
+    () => toCommentItems(flattenedEntries),
+    [flattenedEntries],
+  );
+  const editingComment = flattenedEntries.find(
+    entry => entry.comment.id === editingCommentId,
+  )?.comment;
+  const replyTargetComment = flattenedEntries.find(
+    entry => entry.comment.id === replyTargetCommentId,
+  )?.comment;
+  const commentAnonymousValue = commentAnonymousDraft ?? storedAnonymous;
+
+  const refreshComments = React.useCallback(async () => {
+    if (!noticeId || !user?.uid) {
+      setComments([]);
       return;
     }
+    setComments(await repository.getComments(noticeId));
+  }, [noticeId, repository, user?.uid]);
 
+  const load = React.useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
-
     try {
-      const notice = await appNoticeRepository.getAppNotice(noticeId);
-
-      if (!notice) {
-        setData(null);
+      if (!noticeId) {
+        setNotice(null);
+        setComments([]);
+        setError('앱 공지사항 ID가 없습니다.');
+        return;
+      }
+      const [nextNotice, nextComments] = await Promise.all([
+        repository.getAppNotice(noticeId),
+        user?.uid ? repository.getComments(noticeId) : Promise.resolve([]),
+      ]);
+      if (requestId !== requestIdRef.current) return;
+      if (!nextNotice) {
+        setNotice(null);
+        setComments([]);
         setError('앱 공지사항을 찾을 수 없습니다.');
         return;
       }
-
-      const viewData = assembleAppNoticeDetailViewData(notice);
-
-      setData({
-        ...viewData,
-        badges: buildBadges(notice.priority === 'urgent', viewData.categoryLabel),
-      });
-
+      setNotice(nextNotice);
+      setComments(nextComments);
       if (user?.uid) {
-        appNoticeRepository.markAsRead(noticeId).catch(markError => {
+        repository.markAsRead(noticeId).catch(markError => {
           console.error('앱 공지 읽음 처리에 실패했습니다.', markError);
         });
       }
     } catch (loadError) {
-      console.error('앱 공지사항 상세를 불러오지 못했습니다.', loadError);
-      setData(null);
-      setError('앱 공지사항을 불러오지 못했습니다.');
+      if (requestId === requestIdRef.current) {
+        setError(getErrorMessage(loadError));
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [appNoticeRepository, noticeId, user?.uid]);
+  }, [noticeId, repository, user?.uid]);
 
   React.useEffect(() => {
-    load();
+    load().catch(() => undefined);
   }, [load]);
 
+  React.useEffect(() => {
+    setCommentDraft('');
+    setEditingCommentId(null);
+    setReplyTargetCommentId(null);
+    setCommentAnonymousDraft(null);
+  }, [noticeId]);
+
+  const toggleLike = React.useCallback(async () => {
+    if (!noticeId || !user?.uid || !notice || togglingLike) {
+      throw new Error('로그인이 필요합니다.');
+    }
+    const previous = {isLiked: notice.isLiked, likeCount: notice.likeCount};
+    const optimistic = {
+      isLiked: !previous.isLiked,
+      likeCount: Math.max(0, previous.likeCount + (previous.isLiked ? -1 : 1)),
+    };
+    setNotice(current => (current ? {...current, ...optimistic} : current));
+    setTogglingLike(true);
+    try {
+      const state = await repository.toggleLike(noticeId);
+      setNotice(current => (current ? {...current, ...state} : current));
+    } catch (toggleError) {
+      setNotice(current => (current ? {...current, ...previous} : current));
+      throw toggleError;
+    } finally {
+      setTogglingLike(false);
+    }
+  }, [notice, noticeId, repository, togglingLike, user?.uid]);
+
+  const toggleCommentLike = React.useCallback(async (commentId: string) => {
+    if (!noticeId || !user?.uid || commentLikePendingIds.includes(commentId)) {
+      throw new Error('로그인이 필요합니다.');
+    }
+    const target = flattenedEntries.find(entry => entry.comment.id === commentId)?.comment;
+    if (!target) throw new Error('댓글을 찾을 수 없습니다.');
+    const previous = {isLiked: Boolean(target.isLiked), likeCount: target.likeCount ?? 0};
+    const optimistic = {
+      isLiked: !previous.isLiked,
+      likeCount: Math.max(0, previous.likeCount + (previous.isLiked ? -1 : 1)),
+    };
+    setComments(current => updateCommentTree(current, commentId, comment => ({...comment, ...optimistic})));
+    setCommentLikePendingIds(current => [...current, commentId]);
+    try {
+      const state = await repository.toggleCommentLike(noticeId, commentId);
+      setComments(current => updateCommentTree(current, commentId, comment => ({...comment, ...state})));
+    } catch (toggleError) {
+      setComments(current => updateCommentTree(current, commentId, comment => ({...comment, ...previous})));
+      throw toggleError;
+    } finally {
+      setCommentLikePendingIds(current => current.filter(id => id !== commentId));
+    }
+  }, [commentLikePendingIds, flattenedEntries, noticeId, repository, user?.uid]);
+
+  const submitComment = React.useCallback(async () => {
+    if (!noticeId || !user?.uid || !notice) throw new Error('로그인이 필요합니다.');
+    const content = commentDraft.trim();
+    if (!content) throw new Error('댓글 내용을 입력해주세요.');
+    setSubmittingComment(true);
+    try {
+      let commentId = editingCommentId;
+      if (editingCommentId) {
+        await repository.updateComment(noticeId, editingCommentId, content, commentAnonymousValue);
+      } else {
+        commentId = await repository.createComment(noticeId, {
+          content,
+          isAnonymous: storedAnonymous,
+          parentId: replyTargetCommentId,
+          userDisplayName: user.displayName ?? '익명',
+          userId: user.uid,
+        });
+        setNotice(current => current ? {...current, commentCount: current.commentCount + 1} : current);
+      }
+      await refreshComments();
+      setCommentDraft('');
+      setEditingCommentId(null);
+      setReplyTargetCommentId(null);
+      setCommentAnonymousDraft(null);
+      return {commentId};
+    } finally {
+      setSubmittingComment(false);
+    }
+  }, [commentAnonymousValue, commentDraft, editingCommentId, notice, noticeId, refreshComments, replyTargetCommentId, repository, storedAnonymous, user]);
+
+  const deleteComment = React.useCallback(async (commentId: string) => {
+    if (!noticeId || !user?.uid) throw new Error('로그인이 필요합니다.');
+    await repository.deleteComment(noticeId, commentId);
+    await refreshComments();
+    setNotice(current => current ? {...current, commentCount: Math.max(0, current.commentCount - 1)} : current);
+    if (editingCommentId === commentId) setEditingCommentId(null);
+    if (replyTargetCommentId === commentId) setReplyTargetCommentId(null);
+    setCommentDraft('');
+  }, [editingCommentId, noticeId, refreshComments, replyTargetCommentId, repository, user?.uid]);
+
+  const startEditingComment = React.useCallback((commentId: string) => {
+    const target = flattenedEntries.find(entry => entry.comment.id === commentId)?.comment;
+    if (!target?.isAuthor || target.isDeleted) return;
+    setEditingCommentId(commentId);
+    setReplyTargetCommentId(null);
+    setCommentDraft(target.content);
+    setCommentAnonymousDraft(Boolean(target.isAnonymous));
+  }, [flattenedEntries]);
+
+  const startReplyingComment = React.useCallback((commentId: string) => {
+    const target = flattenedEntries.find(entry => entry.comment.id === commentId)?.comment;
+    if (!target || target.isDeleted) return;
+    setEditingCommentId(null);
+    setReplyTargetCommentId(commentId);
+    setCommentDraft('');
+    setCommentAnonymousDraft(null);
+  }, [flattenedEntries]);
+
+  const toggleCommentAnonymousPreference = React.useCallback(() => {
+    if (editingCommentId) {
+      setCommentAnonymousDraft(current => !(current ?? Boolean(editingComment?.isAnonymous)));
+    } else {
+      toggleStoredAnonymous();
+    }
+  }, [editingComment?.isAnonymous, editingCommentId, toggleStoredAnonymous]);
+
+  const viewData = React.useMemo(() => {
+    if (!notice) return null;
+    const data = assembleAppNoticeDetailViewData(notice);
+    return {...data, badges: buildBadges(notice.priority === 'urgent', data.categoryLabel)};
+  }, [notice]);
+
   return {
-    data,
+    cancelCommentEdit: () => { setEditingCommentId(null); setCommentDraft(''); setCommentAnonymousDraft(null); },
+    cancelCommentReply: () => { setReplyTargetCommentId(null); setCommentDraft(''); },
+    commentAnonymousDisabled: submittingComment,
+    commentAnonymousValue,
+    commentDraft,
+    commentItems,
+    commentLikePendingIds,
+    data: viewData,
+    deleteComment,
+    editingCommentId,
     error,
+    isEditingComment: Boolean(editingCommentId),
+    isReplyingComment: Boolean(replyTargetCommentId),
     loading,
+    notice,
     reload: load,
+    replyTargetLabel: replyTargetComment ? getReplyTargetLabel(replyTargetComment) : null,
+    setCommentDraft,
+    startEditingComment,
+    startReplyingComment,
+    submitComment,
+    submittingComment,
+    toggleCommentAnonymousPreference,
+    toggleCommentLike,
+    toggleLike,
+    togglingLike,
   };
 };

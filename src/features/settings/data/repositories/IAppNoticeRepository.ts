@@ -2,6 +2,10 @@
 // 앱 내 공지사항 데이터 접근 추상화
 
 import type { SubscriptionCallbacks, Unsubscribe } from '@/shared/types/subscription';
+import type {
+  NoticeCommentFormData,
+  NoticeCommentTreeNode,
+} from '@/features/notice/model/types';
 
 /**
  * 앱 공지사항 타입
@@ -16,6 +20,11 @@ export interface AppNotice {
   updatedAt?: Date;
   imageUrls?: string[];
   actionUrl?: string;
+  actionLabel?: string;
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  isLiked: boolean;
 }
 
 export interface AppNoticeReadState {
@@ -50,6 +59,23 @@ export interface IAppNoticeRepository {
    * @returns 공지사항 또는 null
    */
   getAppNotice(noticeId: string): Promise<AppNotice | null>;
+  getComments(noticeId: string): Promise<NoticeCommentTreeNode[]>;
+  createComment(
+    noticeId: string,
+    comment: NoticeCommentFormData & {userId: string; userDisplayName: string},
+  ): Promise<string>;
+  updateComment(
+    noticeId: string,
+    commentId: string,
+    content: string,
+    isAnonymous?: boolean,
+  ): Promise<void>;
+  deleteComment(noticeId: string, commentId: string): Promise<void>;
+  toggleLike(noticeId: string): Promise<{isLiked: boolean; likeCount: number}>;
+  toggleCommentLike(
+    noticeId: string,
+    commentId: string,
+  ): Promise<{commentId: string; isLiked: boolean; likeCount: number}>;
 
   /**
    * 단일 앱 공지사항 실시간 구독

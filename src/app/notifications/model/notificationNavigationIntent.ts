@@ -10,5 +10,5 @@ export type NotificationNavigationIntent =
   | {kind: 'friendDetail'; friendPublicId: string}
   | {kind: 'boardDetail'; postId: string; initialCommentId?: string}
   | {kind: 'noticeDetail'; noticeId: string; initialCommentId?: string}
-  | {kind: 'appNoticeDetail'; noticeId: string}
+  | {kind: 'appNoticeDetail'; noticeId: string; initialCommentId?: string}
   | {kind: 'academicCalendarDetail'; scheduleId: string};

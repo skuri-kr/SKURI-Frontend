@@ -23,6 +23,8 @@ export interface AppNoticeFeedViewData {
 }
 
 export interface AppNoticeDetailViewData {
+  actionLabel?: string;
+  actionUrl?: string;
   authorLabel: string;
   badges: AppNoticeBadgeViewData[];
   bodyParagraphs: string[];
@@ -32,4 +34,7 @@ export interface AppNoticeDetailViewData {
   publishedLabel: string;
   title: string;
   viewCountLabel?: string;
+  likeCount: number;
+  commentCount: number;
+  isLiked: boolean;
 }

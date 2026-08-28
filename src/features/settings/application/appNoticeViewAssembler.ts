@@ -70,7 +70,7 @@ const toFeedItem = (notice: AppNotice): AppNoticeFeedCardViewData => ({
   publishedLabel: formatKoreanRelativeTime(notice.publishedAt),
   summary: toSummary(notice.content),
   title: notice.title,
-  viewCountLabel: undefined,
+  viewCountLabel: (notice.viewCount ?? 0).toLocaleString('ko-KR'),
 });
 
 export const assembleAppNoticeFeedViewData = (
@@ -85,6 +85,8 @@ export const assembleAppNoticeDetailViewData = (
   notice: AppNotice,
 ): AppNoticeDetailViewData => {
   return {
+    actionLabel: notice.actionLabel,
+    actionUrl: notice.actionUrl,
     authorLabel: APP_NOTICE_AUTHOR_LABEL,
     badges: [],
     bodyParagraphs: toParagraphs(notice.content),
@@ -93,6 +95,9 @@ export const assembleAppNoticeDetailViewData = (
     id: notice.id,
     publishedLabel: formatKoreanRelativeTime(notice.publishedAt),
     title: notice.title,
-    viewCountLabel: undefined,
+    viewCountLabel: (notice.viewCount ?? 0).toLocaleString('ko-KR'),
+    likeCount: notice.likeCount ?? 0,
+    commentCount: notice.commentCount ?? 0,
+    isLiked: Boolean(notice.isLiked),
   };
 };
