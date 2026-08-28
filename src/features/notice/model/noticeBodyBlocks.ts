@@ -1,21 +1,61 @@
-import type {ContentDetailBodyBlockViewData} from '@/shared/types/contentDetailViewData';
+import {DomUtils, parseDocument} from 'htmlparser2';
+
+import {normalizeExternalWebUrl} from '@/shared/lib/url/contentLinks';
+import type {
+  ContentDetailBodyBlockViewData,
+  ContentDetailTextSegmentViewData,
+} from '@/shared/types/contentDetailViewData';
 
 import {normalizeNoticeHtml} from './selectors';
 import type {Notice} from './types';
 
-const TABLE_TOKEN_PATTERN = /\[\[TABLE:(\d+)\]\]/;
-const IMAGE_TOKEN_PATTERN = /\[\[IMG:(\d+)\]\]/;
+const NOTICE_CONTENT_BASE_URL = 'https://www.sungkyul.ac.kr';
+const BLOCK_TAGS = new Set([
+  'article',
+  'blockquote',
+  'div',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'li',
+  'ol',
+  'p',
+  'section',
+  'ul',
+]);
+const IGNORED_TAGS = new Set(['script', 'style', 'iframe', 'object', 'embed']);
 
-const decodeHtmlEntities = (value: string) =>
-  value
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"');
+type HtmlNode = ReturnType<typeof parseDocument>['children'][number];
+
+const mergeParagraphSegments = (
+  segments: ContentDetailTextSegmentViewData[],
+): ContentDetailTextSegmentViewData[] => {
+  const mergedSegments: ContentDetailTextSegmentViewData[] = [];
+
+  segments.forEach(segment => {
+    const previousSegment = mergedSegments[mergedSegments.length - 1];
+    const hasSameTarget =
+      previousSegment?.type === segment.type &&
+      (segment.type === 'text' ||
+        (previousSegment.type === 'link' &&
+          previousSegment.url === segment.url));
+
+    if (previousSegment && hasSameTarget) {
+      previousSegment.text += segment.text;
+      return;
+    }
+
+    mergedSegments.push({...segment});
+  });
+
+  return mergedSegments;
+};
 
 export const buildNoticeBodyBlocks = (
-  notice: Pick<Notice, 'content' | 'contentDetail' | 'id' | 'title'>,
+  notice: Pick<Notice, 'content' | 'contentDetail' | 'id' | 'link' | 'title'>,
 ): ContentDetailBodyBlockViewData[] => {
   const html = normalizeNoticeHtml(
     notice.contentDetail || notice.content || '',
@@ -31,76 +71,170 @@ export const buildNoticeBodyBlocks = (
     ];
   }
 
-  const tables: string[] = [];
-  const images: string[] = [];
+  const blocks: ContentDetailBodyBlockViewData[] = [];
+  const contentBaseUrl =
+    normalizeExternalWebUrl(notice.link) ?? NOTICE_CONTENT_BASE_URL;
+  let paragraphSegments: ContentDetailTextSegmentViewData[] = [];
+  let blockSequence = 0;
 
-  const tokenized = html
-    .replace(/<table[\s\S]*?<\/table>/gi, match => {
-      const tableIndex = tables.push(match) - 1;
-      return `\n[[TABLE:${tableIndex}]]\n`;
-    })
-    .replace(
-      /<img[^>]*src=["']([^"']+)["'][^>]*>/gi,
-      (_match, imageUrl) => {
-        const imageIndex = images.push(imageUrl) - 1;
-        return `\n[[IMG:${imageIndex}]]\n`;
-      },
-    )
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|section|article|h[1-6])>/gi, '\n\n')
-    .replace(/<li[^>]*>/gi, '- ')
-    .replace(/<\/li>/gi, '\n')
-    .replace(/<[^>]+>/g, '');
+  const nextBlockId = (type: string) => {
+    blockSequence += 1;
+    return `${notice.id}-${type}-${blockSequence}`;
+  };
 
-  const blocks = tokenized
-    .split(/(\[\[TABLE:\d+\]\]|\[\[IMG:\d+\]\])/g)
-    .reduce<ContentDetailBodyBlockViewData[]>((accumulator, segment, index) => {
-      const tableMatch = segment.match(TABLE_TOKEN_PATTERN);
+  const appendText = (rawText: string, linkUrl?: string) => {
+    let normalizedText = rawText.replace(/\s+/g, ' ');
 
-      if (tableMatch) {
-        const tableHtml = tables[Number(tableMatch[1])];
+    if (!normalizedText) {
+      return;
+    }
 
-        if (tableHtml) {
-          accumulator.push({
-            html: tableHtml,
-            id: `${notice.id}-table-${index + 1}`,
-            type: 'table',
-          });
-        }
+    const previousSegment = paragraphSegments[paragraphSegments.length - 1];
+    if (!previousSegment) {
+      normalizedText = normalizedText.trimStart();
+    } else if (
+      (previousSegment.text.endsWith(' ') ||
+        previousSegment.text.endsWith('\n')) &&
+      normalizedText.startsWith(' ')
+    ) {
+      normalizedText = normalizedText.trimStart();
+    }
 
-        return accumulator;
+    if (!normalizedText) {
+      return;
+    }
+
+    paragraphSegments.push(
+      linkUrl
+        ? {text: normalizedText, type: 'link', url: linkUrl}
+        : {text: normalizedText, type: 'text'},
+    );
+    paragraphSegments = mergeParagraphSegments(paragraphSegments);
+  };
+
+  const flushParagraph = () => {
+    const nextSegments = mergeParagraphSegments(paragraphSegments);
+    paragraphSegments = [];
+
+    if (nextSegments.length === 0) {
+      return;
+    }
+
+    nextSegments[0].text = nextSegments[0].text.trimStart();
+    nextSegments[nextSegments.length - 1].text =
+      nextSegments[nextSegments.length - 1].text.trimEnd();
+
+    const nonEmptySegments = nextSegments.filter(segment => segment.text);
+    const text = nonEmptySegments.map(segment => segment.text).join('');
+
+    if (!text) {
+      return;
+    }
+
+    blocks.push({
+      id: nextBlockId('paragraph'),
+      segments: nonEmptySegments.some(segment => segment.type === 'link')
+        ? nonEmptySegments
+        : undefined,
+      text,
+      type: 'paragraph',
+    });
+  };
+
+  const walk = (node: HtmlNode, activeLinkUrl?: string) => {
+    if (DomUtils.isText(node)) {
+      appendText(node.data, activeLinkUrl);
+      return;
+    }
+
+    if (!DomUtils.isTag(node)) {
+      if (DomUtils.hasChildren(node)) {
+        node.children.forEach(child => walk(child, activeLinkUrl));
       }
+      return;
+    }
 
-      const imageMatch = segment.match(IMAGE_TOKEN_PATTERN);
+    const tagName = node.name.toLowerCase();
 
-      if (imageMatch) {
-        const imageUrl = images[Number(imageMatch[1])];
+    if (IGNORED_TAGS.has(tagName)) {
+      return;
+    }
 
-        if (imageUrl) {
-          accumulator.push({
-            id: `${notice.id}-image-${index + 1}`,
-            imageUrl,
-            type: 'image',
-          });
-        }
+    if (tagName === 'table') {
+      flushParagraph();
+      blocks.push({
+        baseUrl: contentBaseUrl,
+        html: DomUtils.getOuterHTML(node),
+        id: nextBlockId('table'),
+        type: 'table',
+      });
+      return;
+    }
 
-        return accumulator;
-      }
+    if (tagName === 'img') {
+      flushParagraph();
+      const rawImageUrl = (node.attribs.src?.trim() ?? '').replace(
+        /^http:\/\//i,
+        'https://',
+      );
+      const validatedImageUrl = normalizeExternalWebUrl(
+        rawImageUrl,
+        contentBaseUrl,
+      );
+      const imageUrl =
+        validatedImageUrl && /^https?:\/\//i.test(rawImageUrl)
+          ? rawImageUrl
+          : validatedImageUrl;
 
-      decodeHtmlEntities(segment)
-        .split(/\n{2,}/)
-        .map(paragraph => paragraph.trim())
-        .filter(Boolean)
-        .forEach((paragraph, paragraphIndex) => {
-          accumulator.push({
-            id: `${notice.id}-paragraph-${index + 1}-${paragraphIndex + 1}`,
-            text: paragraph,
-            type: 'paragraph',
-          });
+      if (imageUrl) {
+        const alt = node.attribs.alt?.trim();
+        blocks.push({
+          alt: alt || undefined,
+          id: nextBlockId('image'),
+          imageUrl,
+          ...(activeLinkUrl ? {linkUrl: activeLinkUrl} : {}),
+          type: 'image',
         });
+      }
+      return;
+    }
 
-      return accumulator;
-    }, []);
+    if (tagName === 'br') {
+      const previousSegment = paragraphSegments[paragraphSegments.length - 1];
+
+      if (previousSegment?.text.endsWith('\n')) {
+        flushParagraph();
+      } else {
+        paragraphSegments.push(
+          activeLinkUrl
+            ? {text: '\n', type: 'link', url: activeLinkUrl}
+            : {text: '\n', type: 'text'},
+        );
+        paragraphSegments = mergeParagraphSegments(paragraphSegments);
+      }
+      return;
+    }
+
+    const nextLinkUrl =
+      tagName === 'a'
+        ? normalizeExternalWebUrl(node.attribs.href ?? '', contentBaseUrl) ??
+          activeLinkUrl
+        : activeLinkUrl;
+
+    if (tagName === 'li') {
+      appendText('- ', nextLinkUrl);
+    }
+
+    node.children.forEach(child => walk(child, nextLinkUrl));
+
+    if (BLOCK_TAGS.has(tagName)) {
+      flushParagraph();
+    }
+  };
+
+  const document = parseDocument(html, {decodeEntities: true});
+  document.children.forEach(child => walk(child));
+  flushParagraph();
 
   return blocks.length > 0
     ? blocks

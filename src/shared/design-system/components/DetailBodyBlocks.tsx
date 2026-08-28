@@ -1,12 +1,18 @@
 import React from 'react';
-import {Image, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
-import type {WebViewMessageEvent} from 'react-native-webview';
+import {Alert, Image, StyleSheet, TouchableOpacity, View} from 'react-native';
+import type {
+  WebViewMessageEvent,
+  WebViewNavigation,
+} from 'react-native-webview';
 import {WebView} from 'react-native-webview';
 
+import {openExternalWebUrl} from '@/shared/lib/device/openExternalWebUrl';
+import {normalizeExternalWebUrl} from '@/shared/lib/url/contentLinks';
 import type {ContentDetailBodyBlockViewData} from '@/shared/types/contentDetailViewData';
 
 import {COLORS, RADIUS, SPACING} from '../tokens';
 import {ImageLightboxModal, type ImageLightboxItem} from './ImageLightboxModal';
+import {LinkifiedText} from './LinkifiedText';
 import {SkeletonImage} from './SkeletonImage';
 
 interface DetailBodyBlocksProps {
@@ -17,11 +23,12 @@ const IMAGE_ASPECT_RATIO_FALLBACK = 16 / 9;
 const imageAspectRatioCache = new Map<string, number>();
 const prefetchedImageUrlCache = new Set<string>();
 
-const DETAIL_TABLE_HTML = (tableHtml: string) => `
+const DETAIL_TABLE_HTML = (tableHtml: string, baseUrl?: string) => `
 <!doctype html>
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
+    <base href="${baseUrl ?? 'https://www.sungkyul.ac.kr/'}" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
@@ -91,6 +98,11 @@ const DETAIL_TABLE_HTML = (tableHtml: string) => `
       p {
         margin: 0;
       }
+
+      a {
+        color: #2563eb;
+        text-decoration: underline;
+      }
     </style>
   </head>
   <body>
@@ -106,6 +118,69 @@ const DETAIL_TABLE_HTML = (tableHtml: string) => `
         const wrap = document.querySelector('.table-wrap');
         const shell = document.querySelector('.table-fit-shell');
         const content = document.querySelector('.table-fit-content');
+
+        const linkifyTextNodes = () => {
+          if (!content || !document.createTreeWalker) {
+            return;
+          }
+
+          const walker = document.createTreeWalker(
+            content,
+            NodeFilter.SHOW_TEXT,
+          );
+          const textNodes = [];
+
+          while (walker.nextNode()) {
+            const textNode = walker.currentNode;
+            const parentTag = textNode.parentElement && textNode.parentElement.tagName;
+
+            if (parentTag !== 'A' && parentTag !== 'SCRIPT' && parentTag !== 'STYLE') {
+              textNodes.push(textNode);
+            }
+          }
+
+          textNodes.forEach(textNode => {
+            const sourceText = textNode.nodeValue || '';
+            const urlPattern = /(?:https?:\\/\\/|www\\.)[a-z0-9.-]+(?::\\d+)?(?:[/?#][^\\s<>"']*)?/gi;
+            const fragment = document.createDocumentFragment();
+            let cursor = 0;
+            let match;
+
+            while ((match = urlPattern.exec(sourceText)) !== null) {
+              const matchedText = match[0];
+              const linkText = matchedText.replace(/[.,!?;:)\\]}>'"’”]+$/u, '');
+
+              if (!linkText) {
+                continue;
+              }
+
+              fragment.appendChild(
+                document.createTextNode(sourceText.slice(cursor, match.index)),
+              );
+
+              const anchor = document.createElement('a');
+              anchor.href = /^www\\./i.test(linkText)
+                ? 'https://' + linkText
+                : linkText;
+              anchor.textContent = linkText;
+              fragment.appendChild(anchor);
+
+              const trailingText = matchedText.slice(linkText.length);
+              if (trailingText) {
+                fragment.appendChild(document.createTextNode(trailingText));
+              }
+
+              cursor = match.index + matchedText.length;
+            }
+
+            if (cursor === 0) {
+              return;
+            }
+
+            fragment.appendChild(document.createTextNode(sourceText.slice(cursor)));
+            textNode.parentNode && textNode.parentNode.replaceChild(fragment, textNode);
+          });
+        };
 
         const applyFit = () => {
           const table = content && content.querySelector('table');
@@ -153,6 +228,7 @@ const DETAIL_TABLE_HTML = (tableHtml: string) => `
         };
 
         window.addEventListener('load', function () {
+          linkifyTextNodes();
           refreshLayout();
           setTimeout(refreshLayout, 120);
           setTimeout(refreshLayout, 320);
@@ -173,7 +249,15 @@ const DETAIL_TABLE_HTML = (tableHtml: string) => `
 </html>
 `;
 
-const DetailTableBlock = ({html}: {html: string}) => {
+const DetailTableBlock = ({
+  baseUrl,
+  html,
+  onOpenUrl,
+}: {
+  baseUrl?: string;
+  html: string;
+  onOpenUrl: (url: string) => void;
+}) => {
   const [height, setHeight] = React.useState(0);
 
   const handleMessage = React.useCallback((event: WebViewMessageEvent) => {
@@ -186,15 +270,47 @@ const DetailTableBlock = ({html}: {html: string}) => {
     }
   }, []);
 
+  const handleShouldStartLoad = React.useCallback(
+    (request: WebViewNavigation) => {
+      if (
+        request.url === 'about:blank' ||
+        request.url.startsWith('data:text/html')
+      ) {
+        return true;
+      }
+
+      const targetUrl = normalizeExternalWebUrl(request.url);
+
+      if (targetUrl) {
+        onOpenUrl(targetUrl);
+      }
+
+      return false;
+    },
+    [onOpenUrl],
+  );
+
   return (
     <View style={styles.tableFrame}>
       <WebView
         automaticallyAdjustContentInsets={false}
         originWhitelist={['*']}
         onMessage={handleMessage}
+        onOpenWindow={event => {
+          const targetUrl = normalizeExternalWebUrl(
+            event.nativeEvent.targetUrl,
+          );
+
+          if (targetUrl) {
+            onOpenUrl(targetUrl);
+          }
+        }}
+        onShouldStartLoadWithRequest={handleShouldStartLoad}
         scrollEnabled
-        source={{html: DETAIL_TABLE_HTML(html)}}
+        setSupportMultipleWindows={false}
+        source={{html: DETAIL_TABLE_HTML(html, baseUrl)}}
         style={[styles.tableWebView, {height}]}
+        testID="detail-table-webview"
       />
     </View>
   );
@@ -383,6 +499,15 @@ export const DetailBodyBlocks = ({blocks}: DetailBodyBlocksProps) => {
     [imageIndexById],
   );
 
+  const handleOpenUrl = React.useCallback((url: string) => {
+    openExternalWebUrl(url).catch(() => {
+      Alert.alert(
+        '링크 열기 오류',
+        '외부 브라우저에서 링크를 열지 못했습니다.',
+      );
+    });
+  }, []);
+
   return (
     <View>
       {blocks.map((block, index) => {
@@ -394,20 +519,42 @@ export const DetailBodyBlocks = ({blocks}: DetailBodyBlocksProps) => {
             resolvedAspectRatios[block.id] ??
             IMAGE_ASPECT_RATIO_FALLBACK;
           const disableSkeleton =
-            prefetchedImages[block.id] || prefetchedImageUrlCache.has(block.imageUrl);
+            prefetchedImages[block.id] ||
+            prefetchedImageUrlCache.has(block.imageUrl);
 
           return (
             <TouchableOpacity
               key={block.id}
-              accessibilityLabel={block.alt ?? '이미지 크게 보기'}
+              accessibilityHint={
+                block.linkUrl
+                  ? '탭하면 링크를 열고, 길게 누르면 이미지를 크게 봅니다.'
+                  : undefined
+              }
+              accessibilityLabel={
+                block.alt ??
+                (block.linkUrl ? '링크가 있는 이미지' : '이미지 크게 보기')
+              }
               accessibilityRole="button"
               activeOpacity={0.92}
+              delayLongPress={450}
+              onLongPress={
+                block.linkUrl
+                  ? () => {
+                      handlePressImage(block.id);
+                    }
+                  : undefined
+              }
               onPress={() => {
+                if (block.linkUrl) {
+                  handleOpenUrl(block.linkUrl);
+                  return;
+                }
+
                 handlePressImage(block.id);
               }}
               style={!isLast ? styles.blockSpacing : null}>
               <SkeletonImage
-                accessibilityLabel={block.alt}
+                accessible={false}
                 disableSkeleton={disableSkeleton}
                 resizeMode="cover"
                 source={{uri: block.imageUrl}}
@@ -425,18 +572,23 @@ export const DetailBodyBlocks = ({blocks}: DetailBodyBlocksProps) => {
         if (block.type === 'table') {
           return (
             <View key={block.id} style={!isLast ? styles.blockSpacing : null}>
-              <DetailTableBlock html={block.html} />
+              <DetailTableBlock
+                baseUrl={block.baseUrl}
+                html={block.html}
+                onOpenUrl={handleOpenUrl}
+              />
             </View>
           );
         }
 
         return (
-          <Text
+          <LinkifiedText
             key={block.id}
+            segments={block.segments}
             selectable
-            style={[styles.paragraph, !isLast ? styles.blockSpacing : null]}>
-            {block.text}
-          </Text>
+            style={[styles.paragraph, !isLast ? styles.blockSpacing : null]}
+            text={block.text}
+          />
         );
       })}
 
