@@ -139,6 +139,35 @@ describe('buildNoticeBodyBlocks', () => {
     ]);
   });
 
+  it('pre 앞의 일반 문단을 별도 본문 블록으로 분리한다', () => {
+    const blocks = buildNoticeBodyBlocks(
+      notice('<div>소개<pre>  A\n B</pre></div>'),
+    );
+
+    expect(blocks).toEqual([
+      expect.objectContaining({text: '소개', type: 'paragraph'}),
+      expect.objectContaining({text: '  A\n B', type: 'paragraph'}),
+    ]);
+  });
+
+  it('표 HTML의 실행 태그와 이벤트 속성을 제거한다', () => {
+    const blocks = buildNoticeBodyBlocks(
+      notice(
+        '<table onclick="window.location=\'https://example.com/redirect\'"><tr><td><a href="https://example.com/apply" onclick="window.location=\'https://example.com/redirect\'">신청</a><img src="https://example.com/image.png" onerror="window.location=\'https://example.com/redirect\'"><script>window.location="https://example.com/redirect"</script></td></tr></table>',
+      ),
+    );
+    const table = blocks.find(block => block.type === 'table');
+
+    expect(table).toEqual(expect.objectContaining({type: 'table'}));
+
+    if (table?.type === 'table') {
+      expect(table.html).toContain('href="https://example.com/apply"');
+      expect(table.html).not.toContain('<script');
+      expect(table.html).not.toContain('onclick=');
+      expect(table.html).not.toContain('onerror=');
+    }
+  });
+
   it('HTML 텍스트 링크의 문구와 URL을 보존한다', () => {
     const blocks = buildNoticeBodyBlocks(
       notice(
