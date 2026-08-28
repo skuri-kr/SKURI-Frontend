@@ -92,11 +92,20 @@ endpoint:
 
 - `GET /v1/app-notices`
 - `GET /v1/app-notices/{appNoticeId}`
+- `GET /v1/app-notices/{appNoticeId}/comments`
+- `POST /v1/app-notices/{appNoticeId}/comments`
+- `POST /v1/app-notices/{appNoticeId}/like`
+- `DELETE /v1/app-notices/{appNoticeId}/like`
+- `PATCH /v1/app-notice-comments/{commentId}`
+- `DELETE /v1/app-notice-comments/{commentId}`
+- `POST /v1/app-notice-comments/{commentId}/like`
+- `DELETE /v1/app-notice-comments/{commentId}/like`
 
 현재 사용처:
 
 - 앱 공지 목록 화면
 - 앱 공지 상세 화면
+- 앱 공지 상세의 좋아요, 댓글·답글, 댓글 수정·삭제·좋아요
 - Notification Hub의 App Notice 탭
 
 코드:
@@ -105,6 +114,7 @@ endpoint:
 - `src/features/settings/data/repositories/SpringAppNoticeRepository.ts`
 - `src/features/settings/hooks/useAppNoticeFeedData.ts`
 - `src/features/settings/hooks/useAppNoticeDetailData.ts`
+- `src/features/settings/screens/AppNoticeDetailScreen.tsx`
 
 ### 3.3 Notification Center + realtime
 

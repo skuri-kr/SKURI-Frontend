@@ -235,6 +235,14 @@ Phase B 완료 판단 근거:
 - App Notice
   - `GET /v1/app-notices`
   - `GET /v1/app-notices/{appNoticeId}`
+  - `GET /v1/app-notices/{appNoticeId}/comments`
+  - `POST /v1/app-notices/{appNoticeId}/comments`
+  - `POST /v1/app-notices/{appNoticeId}/like`
+  - `DELETE /v1/app-notices/{appNoticeId}/like`
+  - `PATCH /v1/app-notice-comments/{commentId}`
+  - `DELETE /v1/app-notice-comments/{commentId}`
+  - `POST /v1/app-notice-comments/{commentId}/like`
+  - `DELETE /v1/app-notice-comments/{commentId}/like`
 - Notification Center
   - `GET /v1/notifications`
   - `POST /v1/notifications/{notificationId}/read`
@@ -252,7 +260,7 @@ Phase B 완료 판단 근거:
 계약 확인 결과:
 
 - 로컬 `http://localhost:8080/v3/api-docs`, `/Users/jisung/skuri-backend`, markdown 명세를 모두 대조했고, 실제 구현은 `/v3/api-docs`를 1순위 기준으로 맞췄다.
-- App Notice는 backend 응답에 작성자/조회수 필드가 없어서 assembler에서 화면 전용 placeholder/optional 값으로 흡수했다.
+- App Notice는 backend의 `viewCount`, `likeCount`, `commentCount`, `isLiked`를 사용하며 작성자 필드는 없으므로 assembler에서 작성자 표시만 화면 전용 값으로 흡수한다.
 - Notification enum은 backend canonical enum을 repository mapper에서 기존 app navigation이 소비하는 문자열로 정규화했다.
 - Notification의 `POST_LIKED + noticeId`는 `notice_post_like`로 유지하되 알림함 icon/탭 이동에서 notice detail dead path가 되지 않게 정리했다.
 - SpringAppNoticeRepository의 상세 404는 공통 API mapper가 반환하는 `RepositoryError(NOT_FOUND)` 기준으로 null 처리한다.
@@ -265,7 +273,7 @@ Phase B 완료 판단 근거:
 
 - `RepositoryProvider`의 `appNoticeRepository` 기본 구현은 `SpringAppNoticeRepository`다.
 - `RepositoryProvider`의 `notificationRepository` 기본 구현은 `SpringNotificationRepository`다.
-- App Notice 목록/상세 hook은 feature-local entrypoint 없이 중앙 DI의 `appNoticeRepository`를 직접 사용한다.
+- App Notice 목록/상세와 상세 상호작용 hook은 feature-local entrypoint 없이 중앙 DI의 `appNoticeRepository`를 직접 사용한다.
 - Notification Center hook은 feature-local entrypoint 없이 중앙 DI의 `notificationRepository`를 직접 사용한다.
 - Notification Center 읽음 처리/전체 읽음 처리/단건 삭제는 Spring REST를 호출한다.
 - Taxi Home은 feature-local repository entrypoint 없이 `loadTaxiHomeQueryResult()` query를 통해 실제 파티 목록, 내 활성 파티, 내 pending join request 상태를 읽는다.

@@ -89,11 +89,12 @@ Spring canonical type은 다음과 같다.
 
 현재 서버:
 - `COMMENT_CREATED` 하나로 통일
-- 문맥은 `data.postId` 또는 `data.noticeId`로 판단
+- 문맥은 `data.postId`, `data.noticeId`, `data.appNoticeId`로 판단
 
 즉, 클라이언트는 `type === 'COMMENT_CREATED'`일 때
 - `postId`가 있으면 게시글 댓글 알림
 - `noticeId`가 있으면 공지 댓글 알림
+- `appNoticeId`가 있으면 앱 공지 댓글 알림
 으로 처리해야 한다.
 
 #### `CHAT_MESSAGE`
@@ -178,6 +179,7 @@ Spring canonical type은 다음과 같다.
 | `POST_LIKED` | `postId` | 게시글 상세 |
 | `COMMENT_CREATED` + `postId` | `postId`, `commentId` | 게시글 상세 |
 | `COMMENT_CREATED` + `noticeId` | `noticeId`, `commentId` | 공지 상세 |
+| `COMMENT_CREATED` + `appNoticeId` | `appNoticeId`, `commentId` | 앱 공지 상세 |
 | `NOTICE` | `noticeId` | 학교 공지 상세 |
 | `APP_NOTICE` | `appNoticeId` | 앱 공지 상세 |
 | `ACADEMIC_SCHEDULE` | `academicScheduleId` | 학사 일정 상세 |
@@ -197,7 +199,7 @@ Spring canonical type은 다음과 같다.
 
 수정 방향:
 - switch 분기를 canonical enum 기준으로 교체
-- `COMMENT_CREATED`는 `postId` / `noticeId`로 문맥 분기
+- `COMMENT_CREATED`는 `postId` / `noticeId` / `appNoticeId`로 문맥 분기
 - `CHAT_MESSAGE`는 `chatRoomId` 기준 처리
 - `PARTY_ENDED`, `ACADEMIC_SCHEDULE` 추가
 - 백그라운드/앱 재오픈/앱 종료 후 알림 클릭 핸들링도 동일 계약으로 통일
@@ -216,7 +218,7 @@ Spring canonical type은 다음과 같다.
 수정 방향:
 - foreground banner 상태도 canonical source 기준으로 정리
 - `ACADEMIC_SCHEDULE` 추가
-- `COMMENT_CREATED`는 `postId`/`noticeId` 문맥으로 나누기
+- `COMMENT_CREATED`는 `postId`/`noticeId`/`appNoticeId` 문맥으로 나누기
 - `CHAT_MESSAGE`는 `chatRoomId` 기준으로 이동
 
 주의:
@@ -233,7 +235,7 @@ Spring canonical type은 다음과 같다.
 수정 방향:
 - icon map을 canonical enum 기준으로 변경
 - `PARTY_ENDED`, `ACADEMIC_SCHEDULE`, `POST_LIKED` 추가
-- `COMMENT_CREATED`는 `postId` 또는 `noticeId` 기준으로 이동
+- `COMMENT_CREATED`는 `postId`, `noticeId`, `appNoticeId` 기준으로 이동
 - `CHAT_MESSAGE`는 `chatRoomId` 기준 이동
 
 ### 5.4 알림 훅
@@ -449,7 +451,7 @@ Spring 기준으로는:
 
 ### 주의
 
-- `COMMENT_CREATED`는 `postId` / `noticeId` 문맥 분기 필수
+- `COMMENT_CREATED`는 `postId` / `noticeId` / `appNoticeId` 문맥 분기 필수
 - `CHAT_MESSAGE`는 `chatRoomId` 기준 처리
 - `PARTY_ENDED`는 예전 `party_deleted`에 대응하지만 이름이 다르다
 - `APP_NOTICE`와 `NOTICE`는 이동 대상이 다르다
@@ -463,7 +465,7 @@ Spring 기준으로는:
 ### 구현 체크리스트
 
 - [ ] push 수신 switch가 canonical enum만 사용한다
-- [ ] `COMMENT_CREATED` 문맥 분기가 `postId` / `noticeId` 기준으로 구현되었다
+- [ ] `COMMENT_CREATED` 문맥 분기가 `postId` / `noticeId` / `appNoticeId` 기준으로 구현되었다
 - [ ] `CHAT_MESSAGE`가 `chatRoomId` 기준으로 처리된다
 - [ ] `ACADEMIC_SCHEDULE` 핸들러가 존재한다
 - [ ] Notification inbox가 Firestore가 아니라 Spring API를 사용한다
@@ -481,7 +483,7 @@ Spring 기준으로는:
 - [ ] 인앱 알림함 목록/읽음/삭제가 Spring API와 동작한다
 - [ ] unread count가 SSE 이벤트와 동기화된다
 - [ ] `NOTICE` / `APP_NOTICE` / `ACADEMIC_SCHEDULE` 이동이 각각 맞다
-- [ ] `COMMENT_CREATED`가 게시글/공지에서 각각 올바르게 이동한다
+- [ ] `COMMENT_CREATED`가 게시글/학교 공지/앱 공지에서 각각 올바르게 이동한다
 - [ ] `CHAT_MESSAGE`가 공개 채팅/파티 채팅 문맥에서 올바르게 처리된다
 - [ ] token refresh 시 중복 없이 서버에 등록된다
 - [ ] 로그아웃 후 재로그인 시 push 수신이 정상 복구된다
