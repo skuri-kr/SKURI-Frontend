@@ -10,6 +10,7 @@ export interface AppNoticeBadgeViewData {
 
 export interface AppNoticeFeedCardViewData {
   badges: AppNoticeBadgeViewData[];
+  content: string;
   id: string;
   previewImage?: ImageSourcePropType;
   publishedLabel: string;

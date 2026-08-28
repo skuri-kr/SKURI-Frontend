@@ -17,19 +17,21 @@ export const StartupModalHost = () => {
     startupModalMode,
   } = useAppBootstrap();
   const shouldLoadAppNotices =
-    startupModalMode === 'force-update' || startupModalMode === 'soft-update';
+    startupModalMode === 'force-update' ||
+    startupModalMode === 'soft-update' ||
+    startupModalMode === 'maintenance';
   const appNoticeFeed = useAppNoticeFeedData({enabled: shouldLoadAppNotices});
 
   const noticeItems = React.useMemo<StartupNoticeItem[]>(() => {
     if (
-      startupModalMode === 'hidden' ||
-      startupModalMode === 'maintenance' ||
-      !appNoticeFeed.data
+      startupModalMode === 'hidden' || !appNoticeFeed.data
     ) {
       return [];
     }
 
-    return appNoticeFeed.data.items.slice(0, MAX_NOTICE_COUNT).map(item => ({
+    const limit = startupModalMode === 'maintenance' ? 1 : MAX_NOTICE_COUNT;
+    return appNoticeFeed.data.items.slice(0, limit).map(item => ({
+      body: item.content,
       id: item.id,
       isImportant: item.badges.some(badge => badge.tone === 'danger'),
       publishedLabel: item.publishedLabel,

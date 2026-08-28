@@ -63,6 +63,7 @@ const toCategoryLabel = (category: AppNotice['category']) =>
 
 const toFeedItem = (notice: AppNotice): AppNoticeFeedCardViewData => ({
   badges: [],
+  content: notice.content,
   id: notice.id,
   previewImage: notice.imageUrls?.[0]
     ? toImageSource(notice.imageUrls[0])

@@ -22,6 +22,7 @@ export type StartupModalMode =
 export type VisibleStartupModalMode = Exclude<StartupModalMode, 'hidden'>;
 
 export interface StartupNoticeItem {
+  body: string;
   id: string;
   isImportant?: boolean;
   publishedLabel: string;
