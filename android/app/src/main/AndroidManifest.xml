@@ -56,6 +56,18 @@
           android:scheme="https"
           android:host="link.skuri.kr"
           android:pathPrefix="/board/" />
+        <data
+          android:scheme="https"
+          android:host="open.skuri.kr"
+          android:pathPrefix="/notice/" />
+        <data
+          android:scheme="https"
+          android:host="open.skuri.kr"
+          android:path="/cafeteria" />
+        <data
+          android:scheme="https"
+          android:host="open.skuri.kr"
+          android:pathPrefix="/board/" />
       </intent-filter>
     </activity>
   </application>
