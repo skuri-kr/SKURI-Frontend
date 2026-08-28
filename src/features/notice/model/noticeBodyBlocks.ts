@@ -26,6 +26,17 @@ const BLOCK_TAGS = new Set([
   'ul',
 ]);
 const IGNORED_TAGS = new Set(['script', 'style', 'iframe', 'object', 'embed']);
+const TABLE_IGNORED_TAGS = new Set([
+  'base',
+  'embed',
+  'form',
+  'iframe',
+  'link',
+  'meta',
+  'object',
+  'script',
+  'style',
+]);
 
 type HtmlNode = ReturnType<typeof parseDocument>['children'][number];
 
@@ -51,6 +62,30 @@ const mergeParagraphSegments = (
   });
 
   return mergedSegments;
+};
+
+const sanitizeTableNode = (node: HtmlNode) => {
+  if (DomUtils.isTag(node)) {
+    if (TABLE_IGNORED_TAGS.has(node.name.toLowerCase())) {
+      DomUtils.removeElement(node);
+      return;
+    }
+
+    Object.keys(node.attribs).forEach(attributeName => {
+      const normalizedAttributeName = attributeName.toLowerCase();
+
+      if (
+        normalizedAttributeName.startsWith('on') ||
+        normalizedAttributeName === 'srcdoc'
+      ) {
+        delete node.attribs[attributeName];
+      }
+    });
+  }
+
+  if (DomUtils.hasChildren(node)) {
+    [...node.children].forEach(sanitizeTableNode);
+  }
 };
 
 export const buildNoticeBodyBlocks = (
@@ -197,6 +232,7 @@ export const buildNoticeBodyBlocks = (
 
     if (tagName === 'table') {
       flushParagraph();
+      sanitizeTableNode(node);
       blocks.push({
         baseUrl: contentBaseUrl,
         html: DomUtils.getOuterHTML(node),
@@ -265,6 +301,14 @@ export const buildNoticeBodyBlocks = (
 
     if (tagName === 'li') {
       appendText('- ', nextLinkUrl);
+    }
+
+    if (tagName === 'pre' && !preserveWhitespace) {
+      if (listDepth > 0) {
+        appendListItemLineBreak();
+      } else {
+        flushParagraph();
+      }
     }
 
     node.children.forEach(child =>
