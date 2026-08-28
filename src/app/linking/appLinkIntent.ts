@@ -1,5 +1,5 @@
-const LINK_HOST = 'link.skuri.kr';
-const APP_SCHEME_HOST = 'open';
+const LINK_HOSTS = new Set(['link.skuri.kr', 'open.skuri.kr']);
+const APP_SCHEME_PATTERN = /^skuri:\/\/open\/?(?:\?([^#]*))?(?:#.*)?$/i;
 const SAFE_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 export type AppLinkIntent =
@@ -26,7 +26,11 @@ const restoreNoticeId = (shareId: string): string =>
   shareId.replace(/-/g, '+').replace(/_/g, '/');
 
 const parseHttpsIntent = (url: URL): AppLinkIntent | null => {
-  if (url.protocol !== 'https:' || url.hostname !== LINK_HOST || url.port) {
+  if (
+    url.protocol !== 'https:' ||
+    !LINK_HOSTS.has(url.hostname) ||
+    url.port
+  ) {
     return null;
   }
 
@@ -55,17 +59,19 @@ const parseHttpsIntent = (url: URL): AppLinkIntent | null => {
   return null;
 };
 
-const parseCustomSchemeIntent = (url: URL): AppLinkIntent | null => {
-  if (url.protocol !== 'skuri:' || url.hostname !== APP_SCHEME_HOST) {
+const parseCustomSchemeIntent = (rawUrl: string): AppLinkIntent | null => {
+  const match = APP_SCHEME_PATTERN.exec(rawUrl);
+  if (!match) {
     return null;
   }
 
-  const target = url.searchParams.get('target');
+  const searchParams = new URLSearchParams(match[1] ?? '');
+  const target = searchParams.get('target');
   if (target === 'cafeteria') {
     return {kind: 'cafeteria'};
   }
 
-  const id = parseSafeId(url.searchParams.get('id') ?? undefined);
+  const id = parseSafeId(searchParams.get('id') ?? undefined);
   if (!id) {
     return null;
   }
@@ -82,11 +88,13 @@ const parseCustomSchemeIntent = (url: URL): AppLinkIntent | null => {
 };
 
 export const parseAppLinkUrl = (rawUrl: string): AppLinkIntent | null => {
+  if (/^skuri:/i.test(rawUrl)) {
+    return parseCustomSchemeIntent(rawUrl);
+  }
+
   try {
     const url = new URL(rawUrl);
-    return url.protocol === 'https:'
-      ? parseHttpsIntent(url)
-      : parseCustomSchemeIntent(url);
+    return parseHttpsIntent(url);
   } catch {
     return null;
   }
