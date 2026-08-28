@@ -78,4 +78,32 @@ describe('ToastProvider', () => {
     announceForAccessibility.mockRestore();
     restorePlatformOS();
   });
+
+  it('Android에서 같은 메시지를 다시 표시하면 live region을 새로 마운트한다', () => {
+    const announceForAccessibility = jest
+      .spyOn(AccessibilityInfo, 'announceForAccessibility')
+      .mockImplementation(() => undefined);
+    const restorePlatformOS = mockPlatformOS('android');
+    const view = render(
+      <ToastProvider>
+        <ToastTrigger />
+      </ToastProvider>,
+    );
+
+    fireEvent.press(view.getByText('토스트 표시'));
+    const firstLiveRegion = view.UNSAFE_getByProps({
+      accessibilityLiveRegion: 'polite',
+    });
+
+    fireEvent.press(view.getByText('토스트 표시'));
+    const secondLiveRegion = view.UNSAFE_getByProps({
+      accessibilityLiveRegion: 'polite',
+    });
+
+    expect(secondLiveRegion).not.toBe(firstLiveRegion);
+    expect(announceForAccessibility).not.toHaveBeenCalled();
+
+    announceForAccessibility.mockRestore();
+    restorePlatformOS();
+  });
 });
