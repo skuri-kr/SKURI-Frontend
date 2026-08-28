@@ -178,14 +178,14 @@ describe('상세 본문 외부 링크', () => {
     expect(mockOpenUrl).not.toHaveBeenCalled();
   });
 
-  it('표의 명시 링크와 평문 URL을 외부 브라우저로 전달한다', async () => {
-    const balancedUrl =
-      'https://en.wikipedia.org/wiki/Function_(mathematics)';
+  it('표의 명시 링크 하위 텍스트는 유지하고 평문 URL만 외부 브라우저로 전달한다', async () => {
+    const explicitUrl = 'https://example.com/apply';
+    const terminalPunctuationUrl = 'https://en.wikipedia.org/wiki/Yahoo!';
     const view = render(
       <DetailBodyBlocks
         blocks={[
           {
-            html: `<table><tr><td>${balancedUrl}</td></tr></table>`,
+            html: `<table><tr><td><a href="${explicitUrl}"><span>${terminalPunctuationUrl}</span></a></td><td>${terminalPunctuationUrl}</td></tr></table>`,
             id: 'table-1',
             type: 'table',
           },
@@ -199,17 +199,22 @@ describe('상세 본문 외부 링크', () => {
       'stripTrailingUrlPunctuation',
     );
     expect(webView.props.source.html).toContain('closingCount <= openingCount');
+    expect(webView.props.source.html).toContain('hasExcludedAncestor');
+    expect(webView.props.source.html).toContain(
+      "currentElement.tagName === 'A'",
+    );
+    expect(webView.props.source.html).toContain(terminalPunctuationUrl);
     expect(
       webView.props.onShouldStartLoadWithRequest({url: 'about:blank'}),
     ).toBe(true);
     expect(
       webView.props.onShouldStartLoadWithRequest({
-        url: balancedUrl,
+        url: explicitUrl,
       }),
     ).toBe(false);
 
     await waitFor(() => {
-      expect(mockOpenUrl).toHaveBeenCalledWith(balancedUrl);
+      expect(mockOpenUrl).toHaveBeenCalledWith(explicitUrl);
     });
   });
 });
