@@ -205,6 +205,7 @@ describe('상세 본문 외부 링크', () => {
     );
     expect(webView.props.source.html).toContain(terminalPunctuationUrl);
     expect(webView.props.source.html).toContain('[a-z0-9.-]+');
+    expect(webView.props.source.html).toContain("(?:'[^\\s<>\"']+)*)?");
     expect(webView.props.source.html).not.toContain('\\p{L}');
     expect(
       webView.props.onShouldStartLoadWithRequest({url: 'about:blank'}),

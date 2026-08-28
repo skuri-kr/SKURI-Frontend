@@ -67,6 +67,22 @@ describe('본문 URL 구간 분리', () => {
     ]);
   });
 
+  it('URL 경로 안의 작은따옴표는 보존하고 바깥 인용부호는 제외한다', () => {
+    expect(
+      linkifyContentText(
+        "참고: 'https://en.wikipedia.org/wiki/Director's_cut' 확인",
+      ),
+    ).toEqual([
+      {text: "참고: '", type: 'text'},
+      {
+        text: "https://en.wikipedia.org/wiki/Director's_cut",
+        type: 'link',
+        url: "https://en.wikipedia.org/wiki/Director's_cut",
+      },
+      {text: "' 확인", type: 'text'},
+    ]);
+  });
+
   it.each([
     'https://en.wikipedia.org/wiki/Yahoo!',
     'https://example.com/path.',
