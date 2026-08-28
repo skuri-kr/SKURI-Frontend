@@ -57,7 +57,10 @@ export const ToastProvider = ({children}: PropsWithChildren) => {
       animation.stopAnimation();
       animation.setValue(0);
       setMessage(normalizedMessage);
-      AccessibilityInfo.announceForAccessibility(normalizedMessage);
+
+      if (Platform.OS === 'ios') {
+        AccessibilityInfo.announceForAccessibility(normalizedMessage);
+      }
 
       Animated.timing(animation, {
         duration: TOAST_ANIMATION_DURATION,
