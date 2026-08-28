@@ -7,6 +7,7 @@ describe('mapNoticeCommentDto', () => {
       authorId: 'member-1',
       authorName: '홍길동',
       authorProfileImage: 'https://cdn.skuri.app/profiles/member-current.png',
+      isAuthorAdmin: true,
       content: '댓글 내용',
       createdAt: '2026-08-28T10:00:00',
       depth: 0,
@@ -23,5 +24,6 @@ describe('mapNoticeCommentDto', () => {
     expect(comment.authorProfileImage).toBe(
       'https://cdn.skuri.app/profiles/member-current.png',
     );
+    expect(comment.isAuthorAdmin).toBe(true);
   });
 });

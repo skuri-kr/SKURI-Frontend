@@ -5,6 +5,7 @@ import {
   ContentStatsRow,
   ListCardThumbnail,
   ProfileAvatar,
+  VerifiedAuthorBadge,
 } from '@/shared/design-system/components';
 import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
 
@@ -57,6 +58,7 @@ export const CommunityBoardPostCard = ({
         <View style={styles.authorRow}>
           <ProfileAvatar photoUrl={item.authorProfileImage} size={20} />
           <Text style={styles.authorLabel}>{item.authorLabel}</Text>
+          {item.isAuthorAdmin ? <VerifiedAuthorBadge /> : null}
         </View>
         <ContentStatsRow
           bookmarkCount={item.bookmarkCount}

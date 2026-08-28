@@ -54,6 +54,7 @@ export function buildBoardPostCreatePayload(
     authorId: author.uid,
     authorName: author.displayName || '익명',
     authorProfileImage: author.photoURL ?? null,
+    isAuthorAdmin: false,
     isAnonymous: !!formData.isAnonymous,
     isPinned: false,
     isDeleted: false,

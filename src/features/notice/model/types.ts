@@ -40,6 +40,7 @@ export interface NoticeComment {
   userId: string;
   userDisplayName: string;
   authorProfileImage?: string | null;
+  isAuthorAdmin?: boolean;
   content: string;
   createdAt: Date;
   updatedAt?: Date;

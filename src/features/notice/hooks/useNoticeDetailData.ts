@@ -89,6 +89,8 @@ const toCommentItems = (
       comment.isAnonymous || comment.isDeleted
         ? null
         : comment.authorProfileImage,
+    isAuthorAdmin:
+      !comment.isAnonymous && !comment.isDeleted && Boolean(comment.isAuthorAdmin),
     body: comment.content,
     dateLabel: formatKoreanCompactDateTime(comment.createdAt),
     id: comment.id,

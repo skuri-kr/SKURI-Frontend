@@ -6,10 +6,12 @@ import {COLORS, SPACING} from '@/shared/design-system/tokens';
 
 import {ProfileAvatar} from './ProfileAvatar';
 import {ToneBadge} from './ToneBadge';
+import {VerifiedAuthorBadge} from './VerifiedAuthorBadge';
 
 interface DetailTitleHeaderProps {
   authorLabel?: string;
   authorProfileImage?: string | null;
+  isAuthorAdmin?: boolean;
   badges?: ContentDetailBadgeViewData[];
   dateLabel?: string;
   title: string;
@@ -19,6 +21,7 @@ interface DetailTitleHeaderProps {
 export const DetailTitleHeader = ({
   authorLabel,
   authorProfileImage,
+  isAuthorAdmin = false,
   badges = [],
   dateLabel,
   title,
@@ -49,6 +52,7 @@ export const DetailTitleHeader = ({
               <>
                 <ProfileAvatar photoUrl={authorProfileImage} />
                 <Text style={styles.authorLabel}>{authorLabel}</Text>
+                {isAuthorAdmin ? <VerifiedAuthorBadge /> : null}
               </>
             ) : null}
           </View>

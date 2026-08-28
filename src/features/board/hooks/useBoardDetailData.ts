@@ -86,6 +86,8 @@ const toCommentItems = (
       comment.isAnonymous || comment.isDeleted
         ? null
         : comment.authorProfileImage,
+    isAuthorAdmin:
+      !comment.isAnonymous && !comment.isDeleted && Boolean(comment.isAuthorAdmin),
     body: comment.content,
     dateLabel: formatKoreanCompactDateTime(comment.createdAt),
     id: comment.id,
@@ -105,6 +107,7 @@ const toViewData = (
 ): ContentDetailViewData => ({
   authorLabel: post.isAnonymous ? '익명' : post.authorName,
   authorProfileImage: post.isAnonymous ? null : post.authorProfileImage,
+  isAuthorAdmin: !post.isAnonymous && Boolean(post.isAuthorAdmin),
   bodyBlocks: [
     ...splitParagraphs(post.content).map((paragraph, index) => ({
       id: `${post.id}-paragraph-${index + 1}`,
@@ -548,6 +551,7 @@ export const useBoardDetailData = (postId?: string) => {
           authorId: user.uid,
           authorName: user.displayName ?? '익명',
           authorProfileImage: user.photoURL ?? null,
+          isAuthorAdmin: false,
           content: trimmedComment,
           isAnonymous: isCommentAnonymousPreferred,
           isAuthor: true,

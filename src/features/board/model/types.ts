@@ -39,6 +39,7 @@ export interface BoardPost {
   authorId: string;
   authorName: string;
   authorProfileImage?: string | null;
+  isAuthorAdmin?: boolean;
   isAnonymous?: boolean;
   anonId?: string;
   category: BoardPostCategoryId;
@@ -66,6 +67,7 @@ export interface BoardComment {
   authorId: string;
   authorName: string;
   authorProfileImage: string | null;
+  isAuthorAdmin?: boolean;
   isAnonymous?: boolean;
   isAuthor?: boolean;
   isPostAuthor?: boolean;
