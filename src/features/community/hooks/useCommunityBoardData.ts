@@ -48,6 +48,7 @@ const toBoardPostViewData = (
 ): CommunityBoardPostViewData => ({
   authorLabel: post.isAnonymous ? '익명' : post.authorName,
   authorProfileImage: post.isAnonymous ? null : post.authorProfileImage,
+  isAuthorAdmin: !post.isAnonymous && Boolean(post.isAuthorAdmin),
   bookmarkCount: post.bookmarkCount,
   categoryLabel: BOARD_CATEGORY_LABEL_MAP[post.category],
   commentCount: post.commentCount,

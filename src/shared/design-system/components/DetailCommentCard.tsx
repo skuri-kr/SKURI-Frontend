@@ -17,6 +17,7 @@ import {
 } from '../tokens';
 import {LinkifiedText} from './LinkifiedText';
 import {ProfileAvatar} from './ProfileAvatar';
+import {VerifiedAuthorBadge} from './VerifiedAuthorBadge';
 
 interface DetailCommentCardProps {
   comment: ContentDetailCommentViewData;
@@ -56,6 +57,7 @@ export const DetailCommentCard = ({
             size={24}
           />
           <Text style={styles.authorLabel}>{comment.authorLabel}</Text>
+          {comment.isAuthorAdmin ? <VerifiedAuthorBadge /> : null}
           {comment.isPostAuthor ? (
             <View style={[styles.metaBadge, styles.postAuthorBadge]}>
               <Text style={[styles.metaBadgeLabel, styles.postAuthorBadgeLabel]}>

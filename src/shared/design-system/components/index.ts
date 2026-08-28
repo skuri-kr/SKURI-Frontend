@@ -38,3 +38,4 @@ export {StackHeader} from './StackHeader';
 export {StateCard} from './StateCard';
 export {ToggleSwitch} from './ToggleSwitch';
 export {ToneBadge} from './ToneBadge';
+export {VerifiedAuthorBadge} from './VerifiedAuthorBadge';

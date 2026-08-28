@@ -628,6 +628,7 @@ export const BoardDetailScreen = () => {
               <DetailTitleHeader
                 authorLabel={data.authorLabel}
                 authorProfileImage={data.authorProfileImage}
+                isAuthorAdmin={data.isAuthorAdmin}
                 badges={data.metaBadges}
                 dateLabel={data.dateLabel}
                 title={data.title}
