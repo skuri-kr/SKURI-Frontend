@@ -1,6 +1,6 @@
 # RN Spring API 커버리지와 로깅 가이드
 
-> 최종 수정일: 2026-04-01
+> 최종 수정일: 2026-08-28
 > 관련 문서: [RN Spring 연동 진행 현황](./frontend-migration-status.md) | [RN Spring 연동 로드맵](./frontend-integration-roadmap.md) | [RN Spring 연동 아키텍처 가이드](./frontend-architecture-guideline.md) | [API 명세](./api-specification.md)
 
 ---
@@ -37,6 +37,7 @@
   - Board / Community board의 list/detail/comments/like/bookmark/write/edit
   - Notice 본체의 home/detail/read/like/comments
   - Campus academic / cafeteria 본체
+  - 공지·게시물 짧은 공유 링크 발급/해석
   - Minecraft overview / players / 내 계정 CRUD / public SSE
 - 부분 연결
   - Taxi Party domain 전체
@@ -517,6 +518,37 @@ runtime note:
 - server overview / players는 `GET` 초기 로드 후 `GET /v1/sse/minecraft` signal/payload로 동기화한다.
 - whitelist players는 `PLAYERS_SNAPSHOT`, `PLAYER_UPSERT`, `PLAYER_REMOVE` 이벤트를 직접 반영한다.
 - 계정 등록/삭제는 REST mutation 성공 후 `getMyAccounts()`를 다시 호출해 화면 상태를 맞춘다.
+
+### 3.11 Share Link
+
+상태:
+
+- 연결 완료
+
+endpoint:
+
+- `POST /v1/share-links`
+- `GET /v1/share-links/{resourceType}/{code}/resolve`
+
+현재 사용처:
+
+- 학교 공지 상세 공유: 원본 공지 ID로 8자리 코드 발급 후 URL 공유
+- 커뮤니티 게시물 상세 공유: 삭제·숨김되지 않은 원본 ID로 코드 발급 후 URL 공유
+- cold/warm 앱 링크: 로그인·온보딩 완료 뒤 코드를 원본 ID로 해석하고 기존 상세 화면 이동
+- 학식 공유는 날짜 없이 `https://link.skuri.kr/cafeteria`를 유지하며 서버 해석을 호출하지 않음
+
+코드:
+
+- `src/app/linking/shareLinkClient.ts`
+- `src/app/linking/AppLinkRuntime.tsx`
+- `src/features/notice/screens/NoticeDetailScreen.tsx`
+- `src/features/board/screens/BoardDetailScreen.tsx`
+
+runtime note:
+
+- 앱은 8자리 Base58 코드만 수용하고 기존 Base64/원본 ID 긴 링크는 거부한다.
+- resolve는 인증 토큰이 준비된 메인 진입 이후 수행한다. 새 링크 또는 route 전환이 발생하면 이전 비동기 결과와 오류 알림을 무시한다.
+- 공개 웹 preview API는 웹의 책임이며 RN 앱은 호출하지 않는다. deferred deep link도 제공하지 않는다.
 
 ---
 
