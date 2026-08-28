@@ -627,6 +627,7 @@ export const BoardDetailScreen = () => {
               showsVerticalScrollIndicator={false}>
               <DetailTitleHeader
                 authorLabel={data.authorLabel}
+                authorProfileImage={data.authorProfileImage}
                 badges={data.metaBadges}
                 dateLabel={data.dateLabel}
                 title={data.title}

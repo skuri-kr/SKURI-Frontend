@@ -4,6 +4,7 @@ import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {
   ContentStatsRow,
   ListCardThumbnail,
+  ProfileAvatar,
 } from '@/shared/design-system/components';
 import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
 
@@ -53,7 +54,10 @@ export const CommunityBoardPostCard = ({
       </View>
 
       <View style={styles.footerRow}>
-        <Text style={styles.authorLabel}>{item.authorLabel}</Text>
+        <View style={styles.authorRow}>
+          <ProfileAvatar photoUrl={item.authorProfileImage} size={20} />
+          <Text style={styles.authorLabel}>{item.authorLabel}</Text>
+        </View>
         <ContentStatsRow
           bookmarkCount={item.bookmarkCount}
           commentCount={item.commentCount}
@@ -135,5 +139,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     marginRight: SPACING.sm,
+  },
+  authorRow: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: SPACING.xs,
+    minWidth: 0,
   },
 });

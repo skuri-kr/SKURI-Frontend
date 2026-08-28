@@ -18,6 +18,7 @@ export interface CommunityBoardSearchFilters {
 
 export interface CommunityBoardSourceItem {
   authorName: string;
+  authorProfileImage?: string | null;
   bookmarkCount: number;
   category: CommunityBoardCategory;
   commentCount: number;

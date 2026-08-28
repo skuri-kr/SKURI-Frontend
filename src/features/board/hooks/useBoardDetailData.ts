@@ -82,6 +82,10 @@ const toCommentItems = (
 ): BoardDetailCommentItem[] =>
   comments.map(({comment, parent}) => ({
     authorLabel: getCommentAuthorLabel(comment),
+    authorProfileImage:
+      comment.isAnonymous || comment.isDeleted
+        ? null
+        : comment.authorProfileImage,
     body: comment.content,
     dateLabel: formatKoreanCompactDateTime(comment.createdAt),
     id: comment.id,
@@ -100,6 +104,7 @@ const toViewData = (
   comments: BoardDetailCommentItem[],
 ): ContentDetailViewData => ({
   authorLabel: post.isAnonymous ? '익명' : post.authorName,
+  authorProfileImage: post.isAnonymous ? null : post.authorProfileImage,
   bodyBlocks: [
     ...splitParagraphs(post.content).map((paragraph, index) => ({
       id: `${post.id}-paragraph-${index + 1}`,

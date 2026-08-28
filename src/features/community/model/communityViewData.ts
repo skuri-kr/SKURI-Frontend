@@ -11,6 +11,7 @@ export interface CommunityBoardFeaturedViewData {
 
 export interface CommunityBoardPostViewData {
   authorLabel: string;
+  authorProfileImage?: string | null;
   bookmarkCount: number;
   categoryLabel: string;
   commentCount: number;
