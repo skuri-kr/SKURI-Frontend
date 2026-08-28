@@ -74,6 +74,7 @@ export const buildNoticeBodyBlocks = (
   const contentBaseUrl =
     normalizeExternalWebUrl(notice.link) ?? NOTICE_CONTENT_BASE_URL;
   let paragraphSegments: ContentDetailTextSegmentViewData[] = [];
+  let preserveParagraphWhitespace = false;
   let blockSequence = 0;
 
   const nextBlockId = (type: string) => {
@@ -81,17 +82,28 @@ export const buildNoticeBodyBlocks = (
     return `${notice.id}-${type}-${blockSequence}`;
   };
 
-  const appendText = (rawText: string, linkUrl?: string) => {
-    let normalizedText = rawText.replace(/\s+/g, ' ');
+  const appendText = (
+    rawText: string,
+    linkUrl?: string,
+    preserveWhitespace = false,
+  ) => {
+    let normalizedText = preserveWhitespace
+      ? rawText
+      : rawText.replace(/\s+/g, ' ');
 
     if (!normalizedText) {
       return;
     }
 
+    if (preserveWhitespace) {
+      preserveParagraphWhitespace = true;
+    }
+
     const previousSegment = paragraphSegments[paragraphSegments.length - 1];
-    if (!previousSegment) {
+    if (!preserveWhitespace && !previousSegment) {
       normalizedText = normalizedText.trimStart();
     } else if (
+      !preserveWhitespace &&
       (previousSegment.text.endsWith(' ') ||
         previousSegment.text.endsWith('\n')) &&
       normalizedText.startsWith(' ')
@@ -125,14 +137,18 @@ export const buildNoticeBodyBlocks = (
   const flushParagraph = () => {
     const nextSegments = mergeParagraphSegments(paragraphSegments);
     paragraphSegments = [];
+    const shouldPreserveWhitespace = preserveParagraphWhitespace;
+    preserveParagraphWhitespace = false;
 
     if (nextSegments.length === 0) {
       return;
     }
 
-    nextSegments[0].text = nextSegments[0].text.trimStart();
-    nextSegments[nextSegments.length - 1].text =
-      nextSegments[nextSegments.length - 1].text.trimEnd();
+    if (!shouldPreserveWhitespace) {
+      nextSegments[0].text = nextSegments[0].text.trimStart();
+      nextSegments[nextSegments.length - 1].text =
+        nextSegments[nextSegments.length - 1].text.trimEnd();
+    }
 
     const nonEmptySegments = nextSegments.filter(segment => segment.text);
     const text = nonEmptySegments.map(segment => segment.text).join('');
@@ -151,21 +167,29 @@ export const buildNoticeBodyBlocks = (
     });
   };
 
-  const walk = (node: HtmlNode, activeLinkUrl?: string, listDepth = 0) => {
+  const walk = (
+    node: HtmlNode,
+    activeLinkUrl?: string,
+    listDepth = 0,
+    preserveWhitespace = false,
+  ) => {
     if (DomUtils.isText(node)) {
-      appendText(node.data, activeLinkUrl);
+      appendText(node.data, activeLinkUrl, preserveWhitespace);
       return;
     }
 
     if (!DomUtils.isTag(node)) {
       if (DomUtils.hasChildren(node)) {
-        node.children.forEach(child => walk(child, activeLinkUrl, listDepth));
+        node.children.forEach(child =>
+          walk(child, activeLinkUrl, listDepth, preserveWhitespace),
+        );
       }
       return;
     }
 
     const tagName = node.name.toLowerCase();
     const isList = tagName === 'ol' || tagName === 'ul';
+    const isPreformatted = preserveWhitespace || tagName === 'pre';
 
     if (IGNORED_TAGS.has(tagName)) {
       return;
@@ -213,6 +237,11 @@ export const buildNoticeBodyBlocks = (
     }
 
     if (tagName === 'br') {
+      if (isPreformatted) {
+        appendText('\n', activeLinkUrl, true);
+        return;
+      }
+
       const previousSegment = paragraphSegments[paragraphSegments.length - 1];
 
       if (previousSegment?.text.endsWith('\n')) {
@@ -239,7 +268,12 @@ export const buildNoticeBodyBlocks = (
     }
 
     node.children.forEach(child =>
-      walk(child, nextLinkUrl, isList ? listDepth + 1 : listDepth),
+      walk(
+        child,
+        nextLinkUrl,
+        isList ? listDepth + 1 : listDepth,
+        isPreformatted,
+      ),
     );
 
     if (tagName === 'li') {
@@ -247,8 +281,21 @@ export const buildNoticeBodyBlocks = (
       return;
     }
 
-    if (BLOCK_TAGS.has(tagName) && listDepth === 0) {
-      flushParagraph();
+    if (tagName === 'pre') {
+      if (listDepth > 0) {
+        appendListItemLineBreak();
+      } else {
+        flushParagraph();
+      }
+      return;
+    }
+
+    if (BLOCK_TAGS.has(tagName)) {
+      if (listDepth > 0) {
+        appendListItemLineBreak();
+      } else {
+        flushParagraph();
+      }
     }
   };
 
