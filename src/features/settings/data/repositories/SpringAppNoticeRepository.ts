@@ -67,13 +67,19 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
   async createComment(
     noticeId: string,
     comment: NoticeCommentFormData & {userId: string; userDisplayName: string},
-  ): Promise<string> {
+  ): Promise<NoticeComment> {
     const response = await appNoticeApiClient.createComment(noticeId, {
       content: comment.content.trim(),
       isAnonymous: Boolean(comment.isAnonymous),
       parentId: comment.parentId,
     });
-    return response.data.id;
+    const createdComment = mapNoticeCommentDto(noticeId, response.data);
+    const nextComments = [
+      ...flattenComments(this.commentCache.get(noticeId) ?? []),
+      createdComment,
+    ];
+    this.commentCache.set(noticeId, buildCommentTree(nextComments));
+    return createdComment;
   }
 
   async updateComment(

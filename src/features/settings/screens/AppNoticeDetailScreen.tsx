@@ -61,6 +61,7 @@ export const AppNoticeDetailScreen = () => {
   const scrollRef = React.useRef<ScrollView>(null);
   const composerRef = React.useRef<TextInput>(null);
   const commentOffsetsRef = React.useRef(new Map<string, number>());
+  const bodyCardOffsetRef = React.useRef(0);
   const commentSectionOffsetRef = React.useRef(0);
   const appliedInitialCommentRef = React.useRef<string | null>(null);
   const {
@@ -115,7 +116,13 @@ export const AppNoticeDetailScreen = () => {
           if (offset == null) return;
           scrollRef.current?.scrollTo({
             animated: true,
-            y: Math.max(0, commentSectionOffsetRef.current + offset - SPACING.lg),
+            y: Math.max(
+              0,
+              bodyCardOffsetRef.current +
+                commentSectionOffsetRef.current +
+                offset -
+                SPACING.lg,
+            ),
           });
         }, 120);
       })
@@ -139,7 +146,13 @@ export const AppNoticeDetailScreen = () => {
       if (offset == null) return;
       scrollRef.current?.scrollTo({
         animated: true,
-        y: Math.max(0, commentSectionOffsetRef.current + offset - SPACING.lg),
+        y: Math.max(
+          0,
+          bodyCardOffsetRef.current +
+            commentSectionOffsetRef.current +
+            offset -
+            SPACING.lg,
+        ),
       });
     }, 160);
   }, [commentItems.length, route.params?.initialCommentId]);
@@ -176,7 +189,7 @@ export const AppNoticeDetailScreen = () => {
       <StackHeader onPressBack={() => navigation.goBack()} title="앱 공지사항" />
 
       {loading && !data ? <ArticleDetailSkeleton /> : null}
-      {!loading && (!data || error) ? (
+      {!loading && !data ? (
         <View style={styles.stateContainer}>
           <StateCard
             actionLabel="다시 시도"
@@ -190,6 +203,14 @@ export const AppNoticeDetailScreen = () => {
 
       {data ? (
         <>
+          {error ? (
+            <View style={styles.refreshErrorBanner}>
+              <Text style={styles.refreshErrorText}>{error}</Text>
+              <TouchableOpacity onPress={() => reload().catch(() => undefined)}>
+                <Text style={styles.refreshErrorAction}>다시 시도</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           <ScrollView
             ref={scrollRef}
             contentContainerStyle={styles.scrollContent}
@@ -207,7 +228,11 @@ export const AppNoticeDetailScreen = () => {
               <AppNoticeHeroCarousel images={data.galleryImages} />
             ) : null}
 
-            <View style={styles.bodyCard}>
+            <View
+              onLayout={event => {
+                bodyCardOffsetRef.current = event.nativeEvent.layout.y;
+              }}
+              style={styles.bodyCard}>
               <View style={styles.badgeRow}>
                 {data.badges.map(badge => <AppNoticeBadge key={badge.id} badge={badge} />)}
               </View>
@@ -368,6 +393,16 @@ const styles = StyleSheet.create({
   metaSeparator: {color: COLORS.border.default, fontSize: 12},
   paragraphGroup: {gap: SPACING.md},
   reactionRow: {flexDirection: 'row', marginTop: SPACING.xl},
+  refreshErrorAction: {color: COLORS.status.danger, fontSize: 13, fontWeight: '700'},
+  refreshErrorBanner: {
+    alignItems: 'center',
+    backgroundColor: COLORS.accent.pinkSoft,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+  },
+  refreshErrorText: {color: COLORS.status.danger, flex: 1, fontSize: 13},
   scrollContent: {paddingBottom: 100},
   stateContainer: {flex: 1, justifyContent: 'center', paddingHorizontal: SPACING.lg},
   title: {color: COLORS.text.primary, fontSize: 20, fontWeight: '700', lineHeight: 30, marginBottom: SPACING.md},

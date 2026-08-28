@@ -2,7 +2,10 @@ import React from 'react';
 
 import {useAppNoticeRepository} from '@/di/useRepository';
 import {useAuth} from '@/features/auth';
-import type {NoticeCommentTreeNode} from '@/features/notice/model/types';
+import type {
+  NoticeComment,
+  NoticeCommentTreeNode,
+} from '@/features/notice/model/types';
 import {useCommentAnonymousPreference} from '@/shared/hooks';
 import {
   flattenVisibleCommentTree,
@@ -39,6 +42,28 @@ const updateCommentTree = (
     const next = comment.id === commentId ? updater(comment) : comment;
     return {...next, replies: updateCommentTree(next.replies, commentId, updater)};
   });
+
+const appendCommentToTree = (
+  comments: NoticeCommentTreeNode[],
+  createdComment: NoticeComment,
+): NoticeCommentTreeNode[] => {
+  const nextComment: NoticeCommentTreeNode = {...createdComment, replies: []};
+  if (!createdComment.parentId) {
+    return [...comments, nextComment];
+  }
+
+  let inserted = false;
+  const appendToParent = (nodes: NoticeCommentTreeNode[]): NoticeCommentTreeNode[] =>
+    nodes.map(node => {
+      if (node.id === createdComment.parentId) {
+        inserted = true;
+        return {...node, replies: [...node.replies, nextComment]};
+      }
+      return {...node, replies: appendToParent(node.replies)};
+    });
+  const nextComments = appendToParent(comments);
+  return inserted ? nextComments : [...nextComments, nextComment];
+};
 
 const getAuthorLabel = (comment: NoticeCommentTreeNode) =>
   comment.isAnonymous
@@ -225,16 +250,20 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       if (editingCommentId) {
         await repository.updateComment(noticeId, editingCommentId, content, commentAnonymousValue);
       } else {
-        commentId = await repository.createComment(noticeId, {
+        const createdComment = await repository.createComment(noticeId, {
           content,
           isAnonymous: storedAnonymous,
           parentId: replyTargetCommentId,
           userDisplayName: user.displayName ?? '익명',
           userId: user.uid,
         });
+        commentId = createdComment.id;
+        setComments(current => appendCommentToTree(current, createdComment));
         setNotice(current => current ? {...current, commentCount: current.commentCount + 1} : current);
       }
-      await refreshComments();
+      if (editingCommentId) {
+        await refreshComments();
+      }
       setCommentDraft('');
       setEditingCommentId(null);
       setReplyTargetCommentId(null);
@@ -250,9 +279,16 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     await repository.deleteComment(noticeId, commentId);
     await refreshComments();
     setNotice(current => current ? {...current, commentCount: Math.max(0, current.commentCount - 1)} : current);
-    if (editingCommentId === commentId) setEditingCommentId(null);
-    if (replyTargetCommentId === commentId) setReplyTargetCommentId(null);
-    setCommentDraft('');
+    if (editingCommentId === commentId) {
+      setEditingCommentId(null);
+      setCommentDraft('');
+      setCommentAnonymousDraft(null);
+    }
+    if (replyTargetCommentId === commentId) {
+      setReplyTargetCommentId(null);
+      setCommentDraft('');
+      setCommentAnonymousDraft(null);
+    }
   }, [editingCommentId, noticeId, refreshComments, replyTargetCommentId, repository, user?.uid]);
 
   const startEditingComment = React.useCallback((commentId: string) => {

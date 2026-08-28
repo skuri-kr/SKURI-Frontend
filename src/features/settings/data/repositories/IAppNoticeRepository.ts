@@ -3,6 +3,7 @@
 
 import type { SubscriptionCallbacks, Unsubscribe } from '@/shared/types/subscription';
 import type {
+  NoticeComment,
   NoticeCommentFormData,
   NoticeCommentTreeNode,
 } from '@/features/notice/model/types';
@@ -63,7 +64,7 @@ export interface IAppNoticeRepository {
   createComment(
     noticeId: string,
     comment: NoticeCommentFormData & {userId: string; userDisplayName: string},
-  ): Promise<string>;
+  ): Promise<NoticeComment>;
   updateComment(
     noticeId: string,
     commentId: string,
