@@ -15,6 +15,7 @@ import {
   SHADOWS,
   SPACING,
 } from '../tokens';
+import {LinkifiedText} from './LinkifiedText';
 
 interface DetailCommentCardProps {
   comment: ContentDetailCommentViewData;
@@ -76,9 +77,13 @@ export const DetailCommentCard = ({
         </View>
       ) : null}
 
-      <Text selectable={!comment.isDeleted} style={styles.bodyText}>
-        {comment.body}
-      </Text>
+      {comment.isDeleted ? (
+        <Text selectable={false} style={styles.bodyText}>
+          {comment.body}
+        </Text>
+      ) : (
+        <LinkifiedText selectable style={styles.bodyText} text={comment.body} />
+      )}
 
       {!comment.isDeleted ? (
         <View style={styles.footerRow}>

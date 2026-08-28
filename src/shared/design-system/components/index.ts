@@ -14,6 +14,7 @@ export {InfoBanner} from './InfoBanner';
 export {ImageLightboxModal} from './ImageLightboxModal';
 export type {ImageLightboxItem} from './ImageLightboxModal';
 export {ListCardThumbnail} from './ListCardThumbnail';
+export {LinkifiedText} from './LinkifiedText';
 export {PageHeader} from './PageHeader';
 export {SelectionDropdown} from './SelectionDropdown';
 export {SettingsRow} from './SettingsRow';

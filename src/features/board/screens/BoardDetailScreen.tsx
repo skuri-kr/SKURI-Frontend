@@ -7,7 +7,6 @@ import {
   Platform,
   RefreshControl,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -22,7 +21,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import Animated from 'react-native-reanimated';
 
 import {
-  buildBoardShareMessage,
+  copyShareUrlToClipboard,
   createContentShareUrl,
 } from '@/app/linking';
 import {useReportRepository} from '@/di';
@@ -39,6 +38,7 @@ import {
   StateCard,
 } from '@/shared/design-system/components';
 import {COLORS, SPACING} from '@/shared/design-system/tokens';
+import {useToast} from '@/shared/ui/ToastProvider';
 import {
   useKeyboardInset,
   useScreenEnterAnimation,
@@ -69,6 +69,7 @@ export const BoardDetailScreen = () => {
       NativeStackScreenProps<BoardStackParamList, 'BoardDetail'>['route']
     >();
   const reportRepository = useReportRepository();
+  const {showToast} = useToast();
   const insets = useSafeAreaInsets();
   const {height: keyboardHeight, isVisible: isKeyboardVisible} =
     useKeyboardInset();
@@ -85,6 +86,7 @@ export const BoardDetailScreen = () => {
     | null
   >(null);
   const [refreshing, setRefreshing] = React.useState(false);
+  const [isCopyingShareUrl, setIsCopyingShareUrl] = React.useState(false);
   const {
     cancelCommentEdit,
     cancelCommentReply,
@@ -244,17 +246,20 @@ export const BoardDetailScreen = () => {
 
   const handlePressShare = React.useCallback(async () => {
     const postId = route.params?.postId;
-    if (!postId) {
+    if (!postId || isCopyingShareUrl) {
       return;
     }
 
+    setIsCopyingShareUrl(true);
     try {
       const shareUrl = await createContentShareUrl('BOARD', postId);
-      await Share.share({message: buildBoardShareMessage(shareUrl)});
+      copyShareUrlToClipboard(shareUrl, showToast);
     } catch {
-      Alert.alert('공유 오류', '게시글 링크를 공유하지 못했습니다.');
+      Alert.alert('복사 오류', '게시글 링크를 복사하지 못했습니다.');
+    } finally {
+      setIsCopyingShareUrl(false);
     }
-  }, [route.params?.postId]);
+  }, [isCopyingShareUrl, route.params?.postId, showToast]);
 
   const handlePressDelete = React.useCallback(() => {
     Alert.alert('게시글 삭제', '이 게시글을 삭제하시겠습니까?', [

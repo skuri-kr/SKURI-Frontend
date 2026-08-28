@@ -12,9 +12,21 @@ export interface ContentDetailBadgeViewData {
   tone: ContentDetailBadgeTone;
 }
 
+export type ContentDetailTextSegmentViewData =
+  | {
+      text: string;
+      type: 'text';
+    }
+  | {
+      text: string;
+      type: 'link';
+      url: string;
+    };
+
 export type ContentDetailBodyBlockViewData =
   | {
       id: string;
+      segments?: ContentDetailTextSegmentViewData[];
       text: string;
       type: 'paragraph';
     }
@@ -23,9 +35,11 @@ export type ContentDetailBodyBlockViewData =
       aspectRatio?: number;
       id: string;
       imageUrl: string;
+      linkUrl?: string;
       type: 'image';
     }
   | {
+      baseUrl?: string;
       html: string;
       id: string;
       type: 'table';

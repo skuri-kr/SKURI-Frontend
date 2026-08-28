@@ -1,21 +1,95 @@
-import type {ContentDetailBodyBlockViewData} from '@/shared/types/contentDetailViewData';
+import {DomUtils, parseDocument} from 'htmlparser2';
+
+import {normalizeExternalWebUrl} from '@/shared/lib/url/contentLinks';
+import type {
+  ContentDetailBodyBlockViewData,
+  ContentDetailTextSegmentViewData,
+} from '@/shared/types/contentDetailViewData';
 
 import {normalizeNoticeHtml} from './selectors';
 import type {Notice} from './types';
 
-const TABLE_TOKEN_PATTERN = /\[\[TABLE:(\d+)\]\]/;
-const IMAGE_TOKEN_PATTERN = /\[\[IMG:(\d+)\]\]/;
+const NOTICE_CONTENT_BASE_URL = 'https://www.sungkyul.ac.kr';
+const BLOCK_TAGS = new Set([
+  'article',
+  'blockquote',
+  'div',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'ol',
+  'p',
+  'section',
+  'ul',
+]);
+const IGNORED_TAGS = new Set(['script', 'style', 'iframe', 'object', 'embed']);
+const TABLE_IGNORED_TAGS = new Set([
+  'base',
+  'embed',
+  'form',
+  'iframe',
+  'link',
+  'meta',
+  'object',
+  'script',
+  'style',
+]);
 
-const decodeHtmlEntities = (value: string) =>
-  value
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"');
+type HtmlNode = ReturnType<typeof parseDocument>['children'][number];
+
+const mergeParagraphSegments = (
+  segments: ContentDetailTextSegmentViewData[],
+): ContentDetailTextSegmentViewData[] => {
+  const mergedSegments: ContentDetailTextSegmentViewData[] = [];
+
+  segments.forEach(segment => {
+    const previousSegment = mergedSegments[mergedSegments.length - 1];
+    const hasSameTarget =
+      previousSegment?.type === segment.type &&
+      (segment.type === 'text' ||
+        (previousSegment.type === 'link' &&
+          previousSegment.url === segment.url));
+
+    if (previousSegment && hasSameTarget) {
+      previousSegment.text += segment.text;
+      return;
+    }
+
+    mergedSegments.push({...segment});
+  });
+
+  return mergedSegments;
+};
+
+const sanitizeTableNode = (node: HtmlNode) => {
+  if (DomUtils.isTag(node)) {
+    if (TABLE_IGNORED_TAGS.has(node.name.toLowerCase())) {
+      DomUtils.removeElement(node);
+      return;
+    }
+
+    Object.keys(node.attribs).forEach(attributeName => {
+      const normalizedAttributeName = attributeName.toLowerCase();
+
+      if (
+        normalizedAttributeName.startsWith('on') ||
+        normalizedAttributeName === 'srcdoc'
+      ) {
+        delete node.attribs[attributeName];
+      }
+    });
+  }
+
+  if (DomUtils.hasChildren(node)) {
+    [...node.children].forEach(sanitizeTableNode);
+  }
+};
 
 export const buildNoticeBodyBlocks = (
-  notice: Pick<Notice, 'content' | 'contentDetail' | 'id' | 'title'>,
+  notice: Pick<Notice, 'content' | 'contentDetail' | 'id' | 'link' | 'title'>,
 ): ContentDetailBodyBlockViewData[] => {
   const html = normalizeNoticeHtml(
     notice.contentDetail || notice.content || '',
@@ -31,76 +105,247 @@ export const buildNoticeBodyBlocks = (
     ];
   }
 
-  const tables: string[] = [];
-  const images: string[] = [];
+  const blocks: ContentDetailBodyBlockViewData[] = [];
+  const contentBaseUrl =
+    normalizeExternalWebUrl(notice.link) ?? NOTICE_CONTENT_BASE_URL;
+  let paragraphSegments: ContentDetailTextSegmentViewData[] = [];
+  let preserveParagraphWhitespace = false;
+  let blockSequence = 0;
 
-  const tokenized = html
-    .replace(/<table[\s\S]*?<\/table>/gi, match => {
-      const tableIndex = tables.push(match) - 1;
-      return `\n[[TABLE:${tableIndex}]]\n`;
-    })
-    .replace(
-      /<img[^>]*src=["']([^"']+)["'][^>]*>/gi,
-      (_match, imageUrl) => {
-        const imageIndex = images.push(imageUrl) - 1;
-        return `\n[[IMG:${imageIndex}]]\n`;
-      },
-    )
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|section|article|h[1-6])>/gi, '\n\n')
-    .replace(/<li[^>]*>/gi, '- ')
-    .replace(/<\/li>/gi, '\n')
-    .replace(/<[^>]+>/g, '');
+  const nextBlockId = (type: string) => {
+    blockSequence += 1;
+    return `${notice.id}-${type}-${blockSequence}`;
+  };
 
-  const blocks = tokenized
-    .split(/(\[\[TABLE:\d+\]\]|\[\[IMG:\d+\]\])/g)
-    .reduce<ContentDetailBodyBlockViewData[]>((accumulator, segment, index) => {
-      const tableMatch = segment.match(TABLE_TOKEN_PATTERN);
+  const appendText = (
+    rawText: string,
+    linkUrl?: string,
+    preserveWhitespace = false,
+  ) => {
+    let normalizedText = preserveWhitespace
+      ? rawText
+      : rawText.replace(/\s+/g, ' ');
 
-      if (tableMatch) {
-        const tableHtml = tables[Number(tableMatch[1])];
+    if (!normalizedText) {
+      return;
+    }
 
-        if (tableHtml) {
-          accumulator.push({
-            html: tableHtml,
-            id: `${notice.id}-table-${index + 1}`,
-            type: 'table',
-          });
-        }
+    if (preserveWhitespace) {
+      preserveParagraphWhitespace = true;
+    }
 
-        return accumulator;
+    const previousSegment = paragraphSegments[paragraphSegments.length - 1];
+    if (!preserveWhitespace && !previousSegment) {
+      normalizedText = normalizedText.trimStart();
+    } else if (
+      !preserveWhitespace &&
+      (previousSegment.text.endsWith(' ') ||
+        previousSegment.text.endsWith('\n')) &&
+      normalizedText.startsWith(' ')
+    ) {
+      normalizedText = normalizedText.trimStart();
+    }
+
+    if (!normalizedText) {
+      return;
+    }
+
+    paragraphSegments.push(
+      linkUrl
+        ? {text: normalizedText, type: 'link', url: linkUrl}
+        : {text: normalizedText, type: 'text'},
+    );
+    paragraphSegments = mergeParagraphSegments(paragraphSegments);
+  };
+
+  const appendListItemLineBreak = () => {
+    const previousSegment = paragraphSegments[paragraphSegments.length - 1];
+
+    if (previousSegment?.text.endsWith('\n')) {
+      return;
+    }
+
+    paragraphSegments.push({text: '\n', type: 'text'});
+    paragraphSegments = mergeParagraphSegments(paragraphSegments);
+  };
+
+  const flushParagraph = () => {
+    const nextSegments = mergeParagraphSegments(paragraphSegments);
+    paragraphSegments = [];
+    const shouldPreserveWhitespace = preserveParagraphWhitespace;
+    preserveParagraphWhitespace = false;
+
+    if (nextSegments.length === 0) {
+      return;
+    }
+
+    if (!shouldPreserveWhitespace) {
+      nextSegments[0].text = nextSegments[0].text.trimStart();
+      nextSegments[nextSegments.length - 1].text =
+        nextSegments[nextSegments.length - 1].text.trimEnd();
+    }
+
+    const nonEmptySegments = nextSegments.filter(segment => segment.text);
+    const text = nonEmptySegments.map(segment => segment.text).join('');
+
+    if (!text) {
+      return;
+    }
+
+    blocks.push({
+      id: nextBlockId('paragraph'),
+      segments: nonEmptySegments.some(segment => segment.type === 'link')
+        ? nonEmptySegments
+        : undefined,
+      text,
+      type: 'paragraph',
+    });
+  };
+
+  const walk = (
+    node: HtmlNode,
+    activeLinkUrl?: string,
+    listDepth = 0,
+    preserveWhitespace = false,
+  ) => {
+    if (DomUtils.isText(node)) {
+      appendText(node.data, activeLinkUrl, preserveWhitespace);
+      return;
+    }
+
+    if (!DomUtils.isTag(node)) {
+      if (DomUtils.hasChildren(node)) {
+        node.children.forEach(child =>
+          walk(child, activeLinkUrl, listDepth, preserveWhitespace),
+        );
+      }
+      return;
+    }
+
+    const tagName = node.name.toLowerCase();
+    const isList = tagName === 'ol' || tagName === 'ul';
+    const isPreformatted = preserveWhitespace || tagName === 'pre';
+
+    if (IGNORED_TAGS.has(tagName)) {
+      return;
+    }
+
+    if (tagName === 'table') {
+      flushParagraph();
+      sanitizeTableNode(node);
+      blocks.push({
+        baseUrl: contentBaseUrl,
+        html: DomUtils.getOuterHTML(node),
+        id: nextBlockId('table'),
+        type: 'table',
+      });
+      return;
+    }
+
+    if (tagName === 'img') {
+      const rawImageUrl = (node.attribs.src?.trim() ?? '').replace(
+        /^http:\/\//i,
+        'https://',
+      );
+      const validatedImageUrl = normalizeExternalWebUrl(
+        rawImageUrl,
+        contentBaseUrl,
+      );
+      const imageUrl =
+        validatedImageUrl && /^https?:\/\//i.test(rawImageUrl)
+          ? rawImageUrl
+          : validatedImageUrl;
+
+      if (!imageUrl) {
+        return;
       }
 
-      const imageMatch = segment.match(IMAGE_TOKEN_PATTERN);
+      flushParagraph();
+      const alt = node.attribs.alt?.trim();
+      blocks.push({
+        alt: alt || undefined,
+        id: nextBlockId('image'),
+        imageUrl,
+        ...(activeLinkUrl ? {linkUrl: activeLinkUrl} : {}),
+        type: 'image',
+      });
+      return;
+    }
 
-      if (imageMatch) {
-        const imageUrl = images[Number(imageMatch[1])];
-
-        if (imageUrl) {
-          accumulator.push({
-            id: `${notice.id}-image-${index + 1}`,
-            imageUrl,
-            type: 'image',
-          });
-        }
-
-        return accumulator;
+    if (tagName === 'br') {
+      if (isPreformatted) {
+        appendText('\n', activeLinkUrl, true);
+        return;
       }
 
-      decodeHtmlEntities(segment)
-        .split(/\n{2,}/)
-        .map(paragraph => paragraph.trim())
-        .filter(Boolean)
-        .forEach((paragraph, paragraphIndex) => {
-          accumulator.push({
-            id: `${notice.id}-paragraph-${index + 1}-${paragraphIndex + 1}`,
-            text: paragraph,
-            type: 'paragraph',
-          });
-        });
+      const previousSegment = paragraphSegments[paragraphSegments.length - 1];
 
-      return accumulator;
-    }, []);
+      if (previousSegment?.text.endsWith('\n')) {
+        flushParagraph();
+      } else {
+        paragraphSegments.push(
+          activeLinkUrl
+            ? {text: '\n', type: 'link', url: activeLinkUrl}
+            : {text: '\n', type: 'text'},
+        );
+        paragraphSegments = mergeParagraphSegments(paragraphSegments);
+      }
+      return;
+    }
+
+    const nextLinkUrl =
+      tagName === 'a'
+        ? normalizeExternalWebUrl(node.attribs.href ?? '', contentBaseUrl) ??
+          activeLinkUrl
+        : activeLinkUrl;
+
+    if (tagName === 'li') {
+      appendText('- ', nextLinkUrl);
+    }
+
+    if (tagName === 'pre' && !preserveWhitespace) {
+      if (listDepth > 0) {
+        appendListItemLineBreak();
+      } else {
+        flushParagraph();
+      }
+    }
+
+    node.children.forEach(child =>
+      walk(
+        child,
+        nextLinkUrl,
+        isList ? listDepth + 1 : listDepth,
+        isPreformatted,
+      ),
+    );
+
+    if (tagName === 'li') {
+      appendListItemLineBreak();
+      return;
+    }
+
+    if (tagName === 'pre') {
+      if (listDepth > 0) {
+        appendListItemLineBreak();
+      } else {
+        flushParagraph();
+      }
+      return;
+    }
+
+    if (BLOCK_TAGS.has(tagName)) {
+      if (listDepth > 0) {
+        appendListItemLineBreak();
+      } else {
+        flushParagraph();
+      }
+    }
+  };
+
+  const document = parseDocument(html, {decodeEntities: true});
+  document.children.forEach(child => walk(child));
+  flushParagraph();
 
   return blocks.length > 0
     ? blocks
