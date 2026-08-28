@@ -203,6 +203,10 @@ describe('상세 본문 외부 링크', () => {
     expect(webView.props.source.html).toContain(
       "currentElement.tagName === 'A'",
     );
+    expect(webView.props.source.html).toContain('event.isTrusted');
+    expect(webView.props.source.html).toContain(
+      "type: 'external-link'",
+    );
     expect(webView.props.source.html).toContain(terminalPunctuationUrl);
     expect(webView.props.source.html).toContain('[a-z0-9.-]+');
     expect(webView.props.source.html).toContain("(?:'[^\\s<>\"']+)*)?");
@@ -221,6 +225,27 @@ describe('상세 본문 외부 링크', () => {
         url: explicitUrl,
       }),
     ).toBe(false);
+    expect(webView.props.onOpenWindow).toBeUndefined();
+    expect(mockOpenUrl).not.toHaveBeenCalled();
+
+    webView.props.onMessage({
+      nativeEvent: {
+        data: JSON.stringify({
+          type: 'external-link',
+          url: 'skuri://notice/1',
+        }),
+      },
+    });
+    expect(mockOpenUrl).not.toHaveBeenCalled();
+
+    webView.props.onMessage({
+      nativeEvent: {
+        data: JSON.stringify({
+          type: 'external-link',
+          url: explicitUrl,
+        }),
+      },
+    });
 
     await waitFor(() => {
       expect(mockOpenUrl).toHaveBeenCalledWith(explicitUrl);
