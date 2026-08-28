@@ -1897,6 +1897,7 @@ Authorization:Bearer <firebase_id_token>
         "authorId": "user_uuid",
         "authorName": "홍길동",
         "authorProfileImage": "https://...",
+        "isAuthorAdmin": true,
         "isAnonymous": false,
         "category": "GENERAL",
         "viewCount": 100,
@@ -1926,6 +1927,7 @@ Authorization:Bearer <firebase_id_token>
 - `isLiked`, `isBookmarked`, `isCommentedByMe`는 모두 현재 인증 사용자 기준 개인화 상태입니다.
 - `isCommentedByMe`는 현재 사용자가 삭제되지 않은 댓글 또는 대댓글을 1개 이상 작성한 경우에만 `true`입니다.
 - `authorProfileImage`는 비익명 활성 회원의 **조회 시점** `photoUrl`이다. 익명·삭제·탈퇴·프로필 사진이 없는 작성자는 `null`을 반환한다.
+- `isAuthorAdmin`은 비익명 활성 회원의 **조회 시점** `is_admin=1` 여부다. 익명·삭제·탈퇴·비활성 회원은 항상 `false`를 반환한다.
 - `thumbnailUrl`은 첫 번째 게시글 이미지의 목록용 URL이며, `thumbUrl`이 있으면 이를 우선 사용하고 없으면 원본 `url`로 fallback 합니다.
 - 게시글에 이미지가 없으면 `thumbnailUrl`은 `null`입니다.
 
@@ -2025,6 +2027,7 @@ Authorization:Bearer <firebase_id_token>
 - `likeCount`는 전체 댓글 좋아요 수다.
 - `isLiked`는 현재 로그인 사용자 기준 댓글 좋아요 여부다.
 - `authorProfileImage`는 비익명 활성 회원의 **조회 시점** `photoUrl`이다. 익명·삭제·탈퇴·프로필 사진이 없는 작성자는 `null`을 반환한다.
+- `isAuthorAdmin`은 비익명 활성 회원의 **조회 시점** `is_admin=1` 여부다. 익명·삭제·탈퇴·비활성 회원은 항상 `false`를 반환한다.
 - 서버는 thread 순서를 보장한 flat list를 반환하고, 클라이언트가 트리 UI를 조립한다.
 
 #### POST /v1/posts/{postId}/comments
@@ -2079,6 +2082,7 @@ Authorization:Bearer <firebase_id_token>
     "authorId": null,
     "authorName": "익명1",
     "authorProfileImage": null,
+    "isAuthorAdmin": false,
     "isAnonymous": true,
     "anonymousOrder": 1,
     "isAuthor": true,
@@ -2542,6 +2546,7 @@ Authorization:Bearer <firebase_id_token>
       "authorId": "user_uuid",
       "authorName": "홍길동",
       "authorProfileImage": "https://cdn.skuri.app/profiles/user-current.png",
+      "isAuthorAdmin": true,
       "isAnonymous": false,
       "anonymousOrder": null,
       "isAuthor": true,
@@ -2559,6 +2564,7 @@ Authorization:Bearer <firebase_id_token>
       "authorId": null,
       "authorName": "익명2",
       "authorProfileImage": null,
+      "isAuthorAdmin": false,
       "isAnonymous": true,
       "anonymousOrder": 2,
       "isAuthor": false,
@@ -2596,6 +2602,7 @@ Authorization:Bearer <firebase_id_token>
     "authorId": "user_uuid",
     "authorName": "홍길동",
     "authorProfileImage": "https://cdn.skuri.app/profiles/user-current.png",
+    "isAuthorAdmin": true,
     "isAnonymous": false,
     "anonymousOrder": null,
     "isAuthor": true,
@@ -2621,6 +2628,7 @@ Authorization:Bearer <firebase_id_token>
 - `likeCount`는 전체 댓글 좋아요 수다.
 - `isLiked`는 현재 로그인 사용자 기준 댓글 좋아요 여부다.
 - `authorProfileImage`는 비익명 활성 회원의 **조회 시점** `photoUrl`이다. 익명·삭제·탈퇴·프로필 사진이 없는 작성자는 `null`을 반환한다.
+- `isAuthorAdmin`은 비익명 활성 회원의 **조회 시점** `is_admin=1` 여부다. 익명·삭제·탈퇴·비활성 회원은 항상 `false`를 반환한다.
 - 서버는 thread 순서를 보장한 flat list를 반환하고, 클라이언트가 트리 UI를 조립한다.
 
 #### PATCH /v1/notice-comments/{commentId}
@@ -2646,6 +2654,7 @@ Authorization:Bearer <firebase_id_token>
     "authorId": null,
     "authorName": "익명1",
     "authorProfileImage": null,
+    "isAuthorAdmin": false,
     "isAnonymous": true,
     "anonymousOrder": 1,
     "isAuthor": true,
