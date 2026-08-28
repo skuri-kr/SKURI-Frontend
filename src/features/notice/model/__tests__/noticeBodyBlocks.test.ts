@@ -113,6 +113,32 @@ describe('buildNoticeBodyBlocks', () => {
     ]);
   });
 
+  it('한 목록 항목 안의 형제 블록은 줄바꿈으로 구분한다', () => {
+    const blocks = buildNoticeBodyBlocks(
+      notice('<ul><li><p>첫 줄</p><p>둘째 줄</p></li></ul>'),
+    );
+
+    expect(blocks).toEqual([
+      expect.objectContaining({
+        text: '- 첫 줄\n둘째 줄',
+        type: 'paragraph',
+      }),
+    ]);
+  });
+
+  it('pre 안의 줄바꿈과 들여쓰기를 보존한다', () => {
+    const blocks = buildNoticeBodyBlocks(
+      notice('<pre>  첫 줄\n    둘째 줄\n      셋째 줄</pre>'),
+    );
+
+    expect(blocks).toEqual([
+      expect.objectContaining({
+        text: '  첫 줄\n    둘째 줄\n      셋째 줄',
+        type: 'paragraph',
+      }),
+    ]);
+  });
+
   it('HTML 텍스트 링크의 문구와 URL을 보존한다', () => {
     const blocks = buildNoticeBodyBlocks(
       notice(

@@ -53,6 +53,20 @@ describe('본문 URL 구간 분리', () => {
     ]);
   });
 
+  it('ASCII 호스트 뒤에 공백 없이 붙은 유니코드 경로는 URL 일부로 유지한다', () => {
+    expect(
+      linkifyContentText('신청: https://example.com/apply에서 안내를 확인하세요.'),
+    ).toEqual([
+      {text: '신청: ', type: 'text'},
+      {
+        text: 'https://example.com/apply에서',
+        type: 'link',
+        url: 'https://example.com/apply%EC%97%90%EC%84%9C',
+      },
+      {text: ' 안내를 확인하세요.', type: 'text'},
+    ]);
+  });
+
   it.each([
     'https://en.wikipedia.org/wiki/Yahoo!',
     'https://example.com/path.',

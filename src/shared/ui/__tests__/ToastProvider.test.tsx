@@ -1,5 +1,10 @@
 import React from 'react';
-import {AccessibilityInfo, Text, TouchableOpacity} from 'react-native';
+import {
+  AccessibilityInfo,
+  Platform,
+  Text,
+  TouchableOpacity,
+} from 'react-native';
 import {fireEvent, render} from '@testing-library/react-native';
 
 import {ToastProvider, useToast} from '../ToastProvider';
@@ -17,11 +22,21 @@ const ToastTrigger = () => {
   );
 };
 
+const mockPlatformOS = (os: 'android' | 'ios') => {
+  const originalOS = Platform.OS;
+  Platform.OS = os;
+
+  return () => {
+    Platform.OS = originalOS;
+  };
+};
+
 describe('ToastProvider', () => {
-  it('요청한 메시지를 화면과 접근성 안내에 표시한다', () => {
+  it('iOS에서는 요청한 메시지를 화면과 접근성 안내에 표시한다', () => {
     const announceForAccessibility = jest
       .spyOn(AccessibilityInfo, 'announceForAccessibility')
       .mockImplementation(() => undefined);
+    const restorePlatformOS = mockPlatformOS('ios');
     const view = render(
       <ToastProvider>
         <ToastTrigger />
@@ -36,5 +51,31 @@ describe('ToastProvider', () => {
     );
 
     announceForAccessibility.mockRestore();
+    restorePlatformOS();
+  });
+
+  it('Android에서는 live region만으로 접근성 안내를 제공한다', () => {
+    const announceForAccessibility = jest
+      .spyOn(AccessibilityInfo, 'announceForAccessibility')
+      .mockImplementation(() => undefined);
+    const restorePlatformOS = mockPlatformOS('android');
+    const view = render(
+      <ToastProvider>
+        <ToastTrigger />
+      </ToastProvider>,
+    );
+
+    fireEvent.press(view.getByText('토스트 표시'));
+
+    expect(
+      view.getByText('URL이 클립보드에 복사되었어요!'),
+    ).toBeTruthy();
+    expect(announceForAccessibility).not.toHaveBeenCalled();
+    expect(
+      view.UNSAFE_getByProps({accessibilityLiveRegion: 'polite'}),
+    ).toBeTruthy();
+
+    announceForAccessibility.mockRestore();
+    restorePlatformOS();
   });
 });
