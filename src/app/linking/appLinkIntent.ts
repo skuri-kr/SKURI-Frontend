@@ -1,8 +1,13 @@
 const LINK_HOSTS = new Set(['link.skuri.kr', 'open.skuri.kr']);
 const APP_SCHEME_PATTERN = /^skuri:\/\/open\/?(?:\?([^#]*))?(?:#.*)?$/i;
-const SAFE_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+const SHARE_CODE_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{8}$/;
 
 export type AppLinkIntent =
+  | {kind: 'notice'; code: string}
+  | {kind: 'cafeteria'}
+  | {kind: 'board'; code: string};
+
+export type ResolvedAppLinkIntent =
   | {kind: 'notice'; noticeId: string}
   | {kind: 'cafeteria'}
   | {kind: 'board'; postId: string};
@@ -14,16 +19,11 @@ const parseSafeId = (value: string | undefined): string | null => {
 
   try {
     const decoded = decodeURIComponent(value);
-    return decoded.length <= 160 && SAFE_ID_PATTERN.test(decoded)
-      ? decoded
-      : null;
+    return SHARE_CODE_PATTERN.test(decoded) ? decoded : null;
   } catch {
     return null;
   }
 };
-
-const restoreNoticeId = (shareId: string): string =>
-  shareId.replace(/-/g, '+').replace(/_/g, '/');
 
 const parseHttpsIntent = (url: URL): AppLinkIntent | null => {
   if (
@@ -43,17 +43,17 @@ const parseHttpsIntent = (url: URL): AppLinkIntent | null => {
     return null;
   }
 
-  const id = parseSafeId(segments[1]);
-  if (!id) {
+  const code = parseSafeId(segments[1]);
+  if (!code) {
     return null;
   }
 
   if (segments[0] === 'notice') {
-    return {kind: 'notice', noticeId: restoreNoticeId(id)};
+    return {kind: 'notice', code};
   }
 
   if (segments[0] === 'board') {
-    return {kind: 'board', postId: id};
+    return {kind: 'board', code};
   }
 
   return null;
@@ -71,17 +71,17 @@ const parseCustomSchemeIntent = (rawUrl: string): AppLinkIntent | null => {
     return {kind: 'cafeteria'};
   }
 
-  const id = parseSafeId(searchParams.get('id') ?? undefined);
-  if (!id) {
+  const code = parseSafeId(searchParams.get('id') ?? undefined);
+  if (!code) {
     return null;
   }
 
   if (target === 'notice') {
-    return {kind: 'notice', noticeId: restoreNoticeId(id)};
+    return {kind: 'notice', code};
   }
 
   if (target === 'board') {
-    return {kind: 'board', postId: id};
+    return {kind: 'board', code};
   }
 
   return null;
