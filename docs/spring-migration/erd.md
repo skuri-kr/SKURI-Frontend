@@ -399,6 +399,10 @@ erDiagram
         enum priority "HIGH,NORMAL,LOW"
         json image_urls "string[]"
         varchar(500) action_url
+        varchar(30) action_label
+        int view_count "NOT NULL DEFAULT 0"
+        int like_count "NOT NULL DEFAULT 0"
+        int comment_count "NOT NULL DEFAULT 0"
         datetime published_at
         datetime created_at
         datetime updated_at
@@ -408,6 +412,27 @@ erDiagram
         varchar(36) user_id PK
         varchar(36) app_notice_id PK,FK
         datetime read_at "NOT NULL"
+    }
+
+    app_notice_likes {
+        varchar(36) user_id PK
+        varchar(36) app_notice_id PK,FK
+    }
+
+    app_notice_comments {
+        varchar(36) id PK
+        varchar(36) app_notice_id FK
+        varchar(36) user_id
+        text content
+        varchar(36) parent_id FK
+        boolean is_anonymous
+        boolean is_deleted
+        int like_count
+    }
+
+    app_notice_comment_likes {
+        varchar(36) user_id PK
+        varchar(36) comment_id PK,FK
     }
 
     campus_banners {
@@ -436,6 +461,9 @@ erDiagram
     notices ||--o{ notice_likes : "has"
     notices ||--o{ notice_bookmarks : "has"
     app_notices ||--o{ app_notice_read_status : "has"
+    app_notices ||--o{ app_notice_likes : "liked"
+    app_notices ||--o{ app_notice_comments : "has"
+    app_notice_comments ||--o{ app_notice_comment_likes : "liked"
     notice_comments ||--o{ notice_comments : "parent-child"
 ```
 

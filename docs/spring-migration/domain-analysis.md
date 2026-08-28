@@ -578,7 +578,8 @@ Hooks:
     - id, title, content
     - category (UPDATE, MAINTENANCE, EVENT, GENERAL)
     - priority (HIGH, NORMAL, LOW)
-    - imageUrls[], actionUrl, publishedAt
+    - imageUrls[], actionUrl(HTTPS only), actionLabel, publishedAt
+    - viewCount, likeCount, commentCount 및 앱 공지 댓글/답글/좋아요
 
 조회/응답 정책:
   - 내 북마크 공지: GET /v1/members/me/notice-bookmarks
