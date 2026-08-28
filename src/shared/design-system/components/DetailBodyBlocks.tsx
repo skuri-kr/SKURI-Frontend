@@ -23,6 +23,28 @@ const IMAGE_ASPECT_RATIO_FALLBACK = 16 / 9;
 const imageAspectRatioCache = new Map<string, number>();
 const prefetchedImageUrlCache = new Set<string>();
 
+const parseTableLinkMessage = (value: string): string | null => {
+  try {
+    const parsedValue: unknown = JSON.parse(value);
+
+    if (
+      typeof parsedValue !== 'object' ||
+      parsedValue === null
+    ) {
+      return null;
+    }
+
+    const parsedMessage = parsedValue as {type?: unknown; url?: unknown};
+
+    return parsedMessage.type === 'external-link' &&
+      typeof parsedMessage.url === 'string'
+      ? parsedMessage.url
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 const DETAIL_TABLE_HTML = (tableHtml: string, baseUrl?: string) => `
 <!doctype html>
 <html lang="ko">
@@ -232,6 +254,32 @@ const DETAIL_TABLE_HTML = (tableHtml: string, baseUrl?: string) => `
           });
         };
 
+        const handleLinkClick = event => {
+          const target = event.target;
+          const anchor =
+            target && typeof target.closest === 'function'
+              ? target.closest('a[href]')
+              : null;
+
+          if (
+            !event.isTrusted ||
+            !anchor ||
+            !content ||
+            !content.contains(anchor)
+          ) {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopImmediatePropagation();
+
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(
+              JSON.stringify({type: 'external-link', url: anchor.href}),
+            );
+          }
+        };
+
         const applyFit = () => {
           const table = content && content.querySelector('table');
 
@@ -284,6 +332,8 @@ const DETAIL_TABLE_HTML = (tableHtml: string, baseUrl?: string) => `
           setTimeout(refreshLayout, 320);
         });
 
+        document.addEventListener('click', handleLinkClick, true);
+
         window.addEventListener('resize', refreshLayout);
 
         if (window.ResizeObserver) {
@@ -311,14 +361,26 @@ const DetailTableBlock = ({
   const [height, setHeight] = React.useState(0);
 
   const handleMessage = React.useCallback((event: WebViewMessageEvent) => {
-    const nextHeight = Number(event.nativeEvent.data);
+    const message = event.nativeEvent.data;
+    const linkUrl = parseTableLinkMessage(message);
+
+    if (linkUrl) {
+      const targetUrl = normalizeExternalWebUrl(linkUrl);
+
+      if (targetUrl) {
+        onOpenUrl(targetUrl);
+      }
+      return;
+    }
+
+    const nextHeight = Number(message);
 
     if (Number.isFinite(nextHeight) && nextHeight > 0) {
       setHeight(previousHeight =>
         Math.abs(previousHeight - nextHeight) > 1 ? nextHeight : previousHeight,
       );
     }
-  }, []);
+  }, [onOpenUrl]);
 
   const handleShouldStartLoad = React.useCallback(
     (request: WebViewNavigation) => {
@@ -326,15 +388,9 @@ const DetailTableBlock = ({
         return true;
       }
 
-      const targetUrl = normalizeExternalWebUrl(request.url);
-
-      if (targetUrl) {
-        onOpenUrl(targetUrl);
-      }
-
       return false;
     },
-    [onOpenUrl],
+    [],
   );
 
   return (
@@ -343,15 +399,6 @@ const DetailTableBlock = ({
         automaticallyAdjustContentInsets={false}
         originWhitelist={['*']}
         onMessage={handleMessage}
-        onOpenWindow={event => {
-          const targetUrl = normalizeExternalWebUrl(
-            event.nativeEvent.targetUrl,
-          );
-
-          if (targetUrl) {
-            onOpenUrl(targetUrl);
-          }
-        }}
         onShouldStartLoadWithRequest={handleShouldStartLoad}
         scrollEnabled
         setSupportMultipleWindows={false}
