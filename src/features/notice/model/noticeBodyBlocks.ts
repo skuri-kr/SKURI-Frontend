@@ -183,7 +183,6 @@ export const buildNoticeBodyBlocks = (
     }
 
     if (tagName === 'img') {
-      flushParagraph();
       const rawImageUrl = (node.attribs.src?.trim() ?? '').replace(
         /^http:\/\//i,
         'https://',
@@ -197,16 +196,19 @@ export const buildNoticeBodyBlocks = (
           ? rawImageUrl
           : validatedImageUrl;
 
-      if (imageUrl) {
-        const alt = node.attribs.alt?.trim();
-        blocks.push({
-          alt: alt || undefined,
-          id: nextBlockId('image'),
-          imageUrl,
-          ...(activeLinkUrl ? {linkUrl: activeLinkUrl} : {}),
-          type: 'image',
-        });
+      if (!imageUrl) {
+        return;
       }
+
+      flushParagraph();
+      const alt = node.attribs.alt?.trim();
+      blocks.push({
+        alt: alt || undefined,
+        id: nextBlockId('image'),
+        imageUrl,
+        ...(activeLinkUrl ? {linkUrl: activeLinkUrl} : {}),
+        type: 'image',
+      });
       return;
     }
 
