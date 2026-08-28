@@ -45,16 +45,11 @@ describe('본문 URL 구간 분리', () => {
     ]);
   });
 
-  it('국제화 도메인 URL을 링크로 감지하고 정규화한다', () => {
-    const sourceUrl = 'https://성결대학교.kr/공지';
+  it('유니코드 호스트명은 자동 링크로 감지하지 않는다', () => {
+    const sourceText = '안내: https://성결대학교.kr/공지';
 
-    expect(linkifyContentText('안내: ' + sourceUrl)).toEqual([
-      {text: '안내: ', type: 'text'},
-      {
-        text: sourceUrl,
-        type: 'link',
-        url: 'https://xn--p89axl14lf5qhyx.kr/%EA%B3%B5%EC%A7%80',
-      },
+    expect(linkifyContentText(sourceText)).toEqual([
+      {text: sourceText, type: 'text'},
     ]);
   });
 
