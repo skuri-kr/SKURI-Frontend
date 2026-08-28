@@ -118,9 +118,6 @@ const DETAIL_TABLE_HTML = (tableHtml: string, baseUrl?: string) => `
         const wrap = document.querySelector('.table-wrap');
         const shell = document.querySelector('.table-fit-shell');
         const content = document.querySelector('.table-fit-content');
-        const trailingTextPunctuation = new Set([
-          '.', ',', '!', '?', ';', ':', '>', "'", '"', '’', '”',
-        ]);
         const trailingDelimiterPairs = [
           { closing: ')', opening: '(' },
           { closing: ']', opening: '[' },
@@ -131,20 +128,7 @@ const DETAIL_TABLE_HTML = (tableHtml: string, baseUrl?: string) => `
           value.split(character).length - 1;
 
         const stripTrailingUrlPunctuation = value => {
-          const stripTrailingTextPunctuation = candidate => {
-            let endIndex = candidate.length;
-
-            while (
-              endIndex > 0 &&
-              trailingTextPunctuation.has(candidate[endIndex - 1])
-            ) {
-              endIndex -= 1;
-            }
-
-            return candidate.slice(0, endIndex);
-          };
-
-          let result = stripTrailingTextPunctuation(value);
+          let result = value;
 
           while (result) {
             const trailingPair = trailingDelimiterPairs.find(pair =>
@@ -162,12 +146,28 @@ const DETAIL_TABLE_HTML = (tableHtml: string, baseUrl?: string) => `
               return result;
             }
 
-            result = stripTrailingTextPunctuation(
-              result.slice(0, -trailingPair.closing.length),
-            );
+            result = result.slice(0, -trailingPair.closing.length);
           }
 
           return result;
+        };
+
+        const hasExcludedAncestor = element => {
+          let currentElement = element;
+
+          while (currentElement) {
+            if (
+              currentElement.tagName === 'A' ||
+              currentElement.tagName === 'SCRIPT' ||
+              currentElement.tagName === 'STYLE'
+            ) {
+              return true;
+            }
+
+            currentElement = currentElement.parentElement;
+          }
+
+          return false;
         };
 
         const linkifyTextNodes = () => {
@@ -183,9 +183,8 @@ const DETAIL_TABLE_HTML = (tableHtml: string, baseUrl?: string) => `
 
           while (walker.nextNode()) {
             const textNode = walker.currentNode;
-            const parentTag = textNode.parentElement && textNode.parentElement.tagName;
 
-            if (parentTag !== 'A' && parentTag !== 'SCRIPT' && parentTag !== 'STYLE') {
+            if (!hasExcludedAncestor(textNode.parentElement)) {
               textNodes.push(textNode);
             }
           }
