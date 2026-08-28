@@ -2749,6 +2749,9 @@ Authorization:Bearer <firebase_id_token>
 #### GET /v1/app-notices
 앱 공지 목록 **(Public API — 인증 불필요)**
 
+- 앱 시작 점검 화면은 이 공개 목록의 최신 공지 1건에서 `content` 본문만 표시한다.
+- 점검 화면에서는 조회수·좋아요·댓글 등 상호작용 정보와 UI를 표시하지 않는다.
+
 **Response:**
 ```json
 {
@@ -5324,8 +5327,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
   "actionType": "IN_APP",
   "actionTarget": "TAXI_MAIN",
   "actionParams": null,
-  "actionUrl": "https://status.skuri.app",
-  "actionLabel": "점검 현황 보기",
+  "actionUrl": null,
   "isActive": true,
   "displayStartAt": "2026-03-25T00:00:00",
   "displayEndAt": null

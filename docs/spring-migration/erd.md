@@ -420,14 +420,19 @@ erDiagram
     }
 
     app_notice_comments {
-        varchar(36) id PK
+        varchar(36) id PK "UUID"
         varchar(36) app_notice_id FK
         varchar(36) user_id
+        varchar(50) user_display_name
         text content
-        varchar(36) parent_id FK
         boolean is_anonymous
+        varchar(100) anon_id
+        int anonymous_order
+        varchar(36) parent_id FK
         boolean is_deleted
         int like_count
+        datetime created_at
+        datetime updated_at
     }
 
     app_notice_comment_likes {
@@ -566,7 +571,7 @@ erDiagram
 
     reports {
         varchar(36) id PK "UUID"
-        enum target_type "POST,COMMENT,NOTICE_COMMENT,MEMBER,CHAT_MESSAGE,CHAT_ROOM,TAXI_PARTY"
+        enum target_type "POST,COMMENT,NOTICE_COMMENT,APP_NOTICE_COMMENT,MEMBER,CHAT_MESSAGE,CHAT_ROOM,TAXI_PARTY"
         varchar(100) target_id "NOT NULL"
         varchar(36) target_author_id
         varchar(50) category
