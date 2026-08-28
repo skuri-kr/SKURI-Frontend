@@ -16,6 +16,11 @@ interface ToastContextValue {
   showToast: (message: string) => void;
 }
 
+interface ToastState {
+  id: number;
+  message: string;
+}
+
 const ToastContext = React.createContext<ToastContextValue | null>(null);
 
 const TOAST_VISIBLE_DURATION = 2000;
@@ -24,8 +29,9 @@ const TOAST_ANIMATION_DURATION = 180;
 export const ToastProvider = ({children}: PropsWithChildren) => {
   const insets = useSafeAreaInsets();
   const {height: keyboardHeight} = useKeyboardInset();
-  const [message, setMessage] = React.useState<string | null>(null);
+  const [toast, setToast] = React.useState<ToastState | null>(null);
   const animation = React.useRef(new Animated.Value(0)).current;
+  const toastIdRef = React.useRef(0);
   const dismissTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -56,7 +62,8 @@ export const ToastProvider = ({children}: PropsWithChildren) => {
       clearDismissTimeout();
       animation.stopAnimation();
       animation.setValue(0);
-      setMessage(normalizedMessage);
+      toastIdRef.current += 1;
+      setToast({id: toastIdRef.current, message: normalizedMessage});
 
       if (Platform.OS === 'ios') {
         AccessibilityInfo.announceForAccessibility(normalizedMessage);
@@ -75,7 +82,7 @@ export const ToastProvider = ({children}: PropsWithChildren) => {
           useNativeDriver: true,
         }).start(({finished}) => {
           if (finished) {
-            setMessage(null);
+            setToast(null);
           }
         });
       }, TOAST_VISIBLE_DURATION);
@@ -93,12 +100,15 @@ export const ToastProvider = ({children}: PropsWithChildren) => {
     <ToastContext.Provider value={contextValue}>
       <View style={styles.root}>
         {children}
-        {message ? (
+        {toast ? (
           <View
             pointerEvents="none"
             style={[styles.overlay, {bottom: bottomOffset}]}>
             <Animated.View
-              accessibilityLiveRegion="polite"
+              accessibilityLiveRegion={
+                Platform.OS === 'android' ? 'polite' : undefined
+              }
+              key={toast.id}
               style={[
                 styles.toast,
                 {
@@ -113,7 +123,7 @@ export const ToastProvider = ({children}: PropsWithChildren) => {
                   ],
                 },
               ]}>
-              <Text style={styles.message}>{message}</Text>
+              <Text style={styles.message}>{toast.message}</Text>
             </Animated.View>
           </View>
         ) : null}
