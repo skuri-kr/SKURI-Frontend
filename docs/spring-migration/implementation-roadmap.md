@@ -662,7 +662,7 @@ SSE 운영 제약:
 | `CafeteriaMenu` | `cafeteria_menus` | 학식 메뉴 |
 
 `Report` 기준 enum:
-- `targetType`: `POST`, `COMMENT`, `NOTICE_COMMENT`, `MEMBER`, `CHAT_MESSAGE`, `CHAT_ROOM`, `TAXI_PARTY`
+- `targetType`: `POST`, `COMMENT`, `NOTICE_COMMENT`, `APP_NOTICE_COMMENT`, `MEMBER`, `CHAT_MESSAGE`, `CHAT_ROOM`, `TAXI_PARTY`
 - `status`: `PENDING`, `REVIEWING`, `ACTIONED`, `REJECTED`
 - duplicate policy: `reporterId + targetType + targetId` 전 상태 기준 재신고 금지
 - `NOTICE_COMMENT.targetAuthorId = noticeComment.userId`, 삭제 댓글은 `NOTICE_COMMENT_NOT_FOUND`

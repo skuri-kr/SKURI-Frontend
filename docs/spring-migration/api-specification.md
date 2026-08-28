@@ -53,8 +53,8 @@ Authorization: Bearer <firebase_id_token>
 | API | 이유 |
 |-----|------|
 | `GET /v1/app-versions/{platform}` | 앱 실행 초기(로그인 전) 강제 업데이트 여부 확인 |
-| `GET /v1/app-notices` | 로그인 전 점검 공지 / 긴급 공지 표시 필요 |
-| `GET /v1/app-notices/{appNoticeId}` | 로그인 전 개별 점검/업데이트 공지 상세 표시 필요 |
+| `GET /v1/app-notices` | 로그인 전 점검 공지 / 긴급 공지 표시 필요. Authorization 헤더를 처리하지 않는 완전 공개 조회 |
+| `GET /v1/app-notices/{appNoticeId}` | 로그인 전 조회 가능. 유효한 토큰이 있으면 좋아요 상태를 개인화하는 선택 인증 조회 |
 | `GET /v1/legal-documents/{documentKey}` | 설정 화면의 이용약관 / 개인정보 처리방침 표시 |
 | `GET /v1/campus-banners` | 로그인 전 캠퍼스 홈 배너 노출 필요 |
 | `GET /v3/api-docs/**` | OpenAPI 스펙(JSON) 조회 |
@@ -2749,6 +2749,7 @@ Authorization:Bearer <firebase_id_token>
 #### GET /v1/app-notices
 앱 공지 목록 **(Public API — 인증 불필요)**
 
+- Authorization 헤더 유무와 관계없이 인증을 처리하지 않는 완전 공개 API다.
 - 앱 시작 점검 화면은 이 공개 목록의 최신 공지 1건에서 `content` 본문만 표시한다.
 - 점검 화면에서는 조회수·좋아요·댓글 등 상호작용 정보와 UI를 표시하지 않는다.
 
@@ -2784,7 +2785,10 @@ Authorization:Bearer <firebase_id_token>
 **정책:**
 - `GET /v1/app-notices`
 - `GET /v1/app-notices/{appNoticeId}`
-위 두 API는 모두 Public API이며 인증이 필요 없다.
+위 두 API는 모두 익명 호출이 가능한 Public API다.
+- 목록은 Authorization 헤더를 처리하지 않는다.
+- 상세는 선택 인증을 지원한다. 유효한 Firebase ID Token을 보내면 `isLiked`를 현재 사용자 기준으로 합성한다.
+- 상세에 잘못된 토큰을 보내면 `401 UNAUTHORIZED`, 허용 이메일 도메인이 아니면 `403 EMAIL_DOMAIN_RESTRICTED`, 탈퇴 회원이면 `403 MEMBER_WITHDRAWN`을 반환한다.
 - Public 조회는 `publishedAt <= now()`인 앱 공지만 노출한다.
 - 상세 조회는 호출할 때마다 `viewCount`를 1 증가시키며, 인증 사용자는 `isLiked`가 개인화된다.
 - 앱 공지 unread count와 읽음 처리는 일반 알림(`GET /v1/notifications/unread-count`)과 별도 source of truth를 사용한다.
@@ -3265,14 +3269,15 @@ Authorization:Bearer <firebase_id_token>
 #### POST /v1/reports
 신고 등록
 
-**targetType:** `POST` | `COMMENT` | `NOTICE_COMMENT` | `MEMBER` | `CHAT_MESSAGE` | `CHAT_ROOM` | `TAXI_PARTY`
+**targetType:** `POST` | `COMMENT` | `NOTICE_COMMENT` | `APP_NOTICE_COMMENT` | `MEMBER` | `CHAT_MESSAGE` | `CHAT_ROOM` | `TAXI_PARTY`
 
 - `NOTICE_COMMENT`: `targetId = noticeCommentId`, 삭제되지 않은 공지 댓글만 신고할 수 있으며 `targetAuthorId = noticeComment.userId`
+- `APP_NOTICE_COMMENT`: `targetId = appNoticeCommentId`, 삭제되지 않은 앱 공지 댓글만 신고할 수 있으며 `targetAuthorId = appNoticeComment.userId`
 - `CHAT_MESSAGE`: `targetId = messageId`, `targetAuthorId = message.senderId`
 - `CHAT_ROOM`: `targetId = chatRoomId`, 파티 채팅방(`type=PARTY`)은 대상에서 제외하며 일반 채팅방만 허용
 - `CHAT_ROOM`의 seed/public 방처럼 `createdBy`가 없으면 신고는 허용하고 `targetAuthorId = null`로 저장
 - `TAXI_PARTY`: `targetId = partyId`, `targetAuthorId = party.leaderId`
-- `404` 대상 없음은 `POST_NOT_FOUND`, `COMMENT_NOT_FOUND`, `NOTICE_COMMENT_NOT_FOUND`, `MEMBER_NOT_FOUND`, `CHAT_MESSAGE_NOT_FOUND`, `CHAT_ROOM_NOT_FOUND`, `PARTY_NOT_FOUND` 중 하나를 반환합니다.
+- `404` 대상 없음은 `POST_NOT_FOUND`, `COMMENT_NOT_FOUND`, `NOTICE_COMMENT_NOT_FOUND`, `APP_NOTICE_COMMENT_NOT_FOUND`, `MEMBER_NOT_FOUND`, `CHAT_MESSAGE_NOT_FOUND`, `CHAT_ROOM_NOT_FOUND`, `PARTY_NOT_FOUND` 중 하나를 반환합니다.
 
 **Request Example - NOTICE_COMMENT:**
 ```json
@@ -3281,6 +3286,16 @@ Authorization:Bearer <firebase_id_token>
   "targetId": "notice_comment_uuid",
   "category": "ABUSE",
   "reason": "공지 댓글에 부적절한 표현이 있습니다."
+}
+```
+
+**Request Example - APP_NOTICE_COMMENT:**
+```json
+{
+  "targetType": "APP_NOTICE_COMMENT",
+  "targetId": "app_notice_comment_uuid",
+  "category": "ABUSE",
+  "reason": "앱 공지 댓글에 부적절한 표현이 있습니다."
 }
 ```
 
@@ -6377,7 +6392,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 | 파라미터 | 타입 | 설명 |
 |---------|------|------|
 | `status` | string | 신고 상태 필터 (`PENDING`, `REVIEWING`, `ACTIONED`, `REJECTED`) |
-| `targetType` | string | 신고 대상 필터 (`POST`, `COMMENT`, `NOTICE_COMMENT`, `MEMBER`, `CHAT_MESSAGE`, `CHAT_ROOM`, `TAXI_PARTY`) |
+| `targetType` | string | 신고 대상 필터 (`POST`, `COMMENT`, `NOTICE_COMMENT`, `APP_NOTICE_COMMENT`, `MEMBER`, `CHAT_MESSAGE`, `CHAT_ROOM`, `TAXI_PARTY`) |
 | `page` | int | 페이지 번호 (기본 0, 0 이상) |
 | `size` | int | 페이지 크기 (기본 20, 1~100) |
 

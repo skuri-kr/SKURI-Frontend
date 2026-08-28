@@ -725,7 +725,7 @@ Hooks:
     - 요청에서 attachments 생략/null은 허용하고 서버에서 빈 배열로 정규화
     - 응답은 항상 `attachments: []` 형태를 유지하며 null을 반환하지 않음
   - Report
-    - id, targetType (POST, COMMENT, NOTICE_COMMENT, MEMBER, CHAT_MESSAGE, CHAT_ROOM, TAXI_PARTY)
+    - id, targetType (POST, COMMENT, NOTICE_COMMENT, APP_NOTICE_COMMENT, MEMBER, CHAT_MESSAGE, CHAT_ROOM, TAXI_PARTY)
     - targetId, targetAuthorId, category, reason
     - `NOTICE_COMMENT.targetAuthorId = noticeComment.userId`, 삭제 댓글은 신고 대상에서 제외
     - `CHAT_MESSAGE.targetAuthorId = message.senderId`
@@ -1641,7 +1641,7 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
   - [x] Member 도메인 구현
     - [x] Firebase ID Token 검증 필터/인증 컨텍스트 구성 (서버 토큰 발급 없음)
     - [x] `members.isAdmin` 기반 `ROLE_ADMIN` authority 부여 + `@PreAuthorize("hasRole('ADMIN')")` 적용
-    - [x] 공개 API(`GET /v1/app-versions/**`, `GET /v1/app-notices/**`, `GET /v1/legal-documents/**`, `GET /v3/api-docs/**`, `GET /swagger-ui/**`, `GET /scalar/**`) permitAll
+    - [x] 공개 API(`GET /v1/app-versions/**`, `GET /v1/app-notices`, `GET /v1/app-notices/{appNoticeId}`, `GET /v1/legal-documents/**`, `GET /v3/api-docs/**`, `GET /swagger-ui/**`, `GET /scalar/**`) permitAll
     - [x] 보호 API 미인증 요청 401, 이메일 도메인 불일치 403, 관리자 API 비권한 요청 `403 ADMIN_REQUIRED`
 
 - [ ] **Phase 2: 핵심 비즈니스**
