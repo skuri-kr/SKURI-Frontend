@@ -2,13 +2,13 @@ import type {Notice} from '../types';
 
 import {buildNoticeBodyBlocks} from '../noticeBodyBlocks';
 
-const notice = (contentDetail: string): Pick<
-  Notice,
-  'content' | 'contentDetail' | 'id' | 'title'
-> => ({
+const notice = (
+  contentDetail: string,
+): Pick<Notice, 'content' | 'contentDetail' | 'id' | 'link' | 'title'> => ({
   content: '',
   contentDetail,
   id: 'notice-id',
+  link: 'https://www.sungkyul.ac.kr/bbs/skukr/87/123/artclView.do',
   title: '공지 제목',
 });
 
@@ -30,9 +30,9 @@ describe('buildNoticeBodyBlocks', () => {
     );
 
     expect(
-      blocks.filter(block => block.type === 'image').map(block =>
-        block.type === 'image' ? block.imageUrl : '',
-      ),
+      blocks
+        .filter(block => block.type === 'image')
+        .map(block => (block.type === 'image' ? block.imageUrl : '')),
     ).toEqual([firstImageUrl, secondImageUrl]);
     expect(
       blocks.some(
@@ -50,7 +50,9 @@ describe('buildNoticeBodyBlocks', () => {
 
   it('기존 문단과 표 블록의 순서를 유지한다', () => {
     const blocks = buildNoticeBodyBlocks(
-      notice('<p>표 안내</p><table><tr><td>내용</td></tr></table><img src="https://example.com/image.png">'),
+      notice(
+        '<p>표 안내</p><table><tr><td>내용</td></tr></table><img src="https://example.com/image.png">',
+      ),
     );
 
     expect(blocks.map(block => block.type)).toEqual([
@@ -58,5 +60,77 @@ describe('buildNoticeBodyBlocks', () => {
       'table',
       'image',
     ]);
+  });
+
+  it('한 번의 줄바꿈은 문단 안에 유지하고 연속 줄바꿈은 문단을 나눈다', () => {
+    const blocks = buildNoticeBodyBlocks(
+      notice('<p>첫 줄<br>둘째 줄<br><br>새 문단</p>'),
+    );
+
+    expect(
+      blocks
+        .filter(block => block.type === 'paragraph')
+        .map(block => (block.type === 'paragraph' ? block.text : '')),
+    ).toEqual(['첫 줄\n둘째 줄', '새 문단']);
+  });
+
+  it('HTML 텍스트 링크의 문구와 URL을 보존한다', () => {
+    const blocks = buildNoticeBodyBlocks(
+      notice(
+        '<p>신청은 <a href="https://success.sungkyul.ac.kr/apply">여기에서 참여</a>하세요.</p>',
+      ),
+    );
+    const paragraph = blocks.find(block => block.type === 'paragraph');
+
+    expect(paragraph).toEqual(
+      expect.objectContaining({
+        segments: [
+          {text: '신청은 ', type: 'text'},
+          {
+            text: '여기에서 참여',
+            type: 'link',
+            url: 'https://success.sungkyul.ac.kr/apply',
+          },
+          {text: '하세요.', type: 'text'},
+        ],
+        text: '신청은 여기에서 참여하세요.',
+        type: 'paragraph',
+      }),
+    );
+  });
+
+  it('링크가 감싼 이미지에는 이동 URL을 보존한다', () => {
+    const blocks = buildNoticeBodyBlocks(
+      notice(
+        '<p><a href="https://success.sungkyul.ac.kr/Career/Roadmap/HCP.aspx"><img src="/CrossEditor/poster.png" alt="핵심역량 진단 포스터"></a></p>',
+      ),
+    );
+    const image = blocks.find(block => block.type === 'image');
+
+    expect(image).toEqual(
+      expect.objectContaining({
+        alt: '핵심역량 진단 포스터',
+        imageUrl: 'https://www.sungkyul.ac.kr/CrossEditor/poster.png',
+        linkUrl: 'https://success.sungkyul.ac.kr/Career/Roadmap/HCP.aspx',
+        type: 'image',
+      }),
+    );
+  });
+
+  it('지원하지 않는 이미지 링크 스킴은 제거하고 일반 이미지로 유지한다', () => {
+    const blocks = buildNoticeBodyBlocks(
+      notice(
+        '<a href="javascript:alert(1)"><img src="https://example.com/poster.png"></a>',
+      ),
+    );
+    const image = blocks.find(block => block.type === 'image');
+
+    expect(image).toEqual(
+      expect.objectContaining({
+        imageUrl: 'https://example.com/poster.png',
+        type: 'image',
+      }),
+    );
+    expect(image).not.toHaveProperty('linkUrl');
   });
 });
