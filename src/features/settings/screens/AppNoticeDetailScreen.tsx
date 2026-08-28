@@ -63,13 +63,17 @@ export const AppNoticeDetailScreen = () => {
   const commentOffsetsRef = React.useRef(new Map<string, number>());
   const bodyCardOffsetRef = React.useRef(0);
   const commentSectionOffsetRef = React.useRef(0);
+  const bodyCardMeasuredRef = React.useRef(false);
+  const commentSectionMeasuredRef = React.useRef(false);
   const appliedInitialCommentRef = React.useRef<string | null>(null);
+  const pendingInitialCommentRef = React.useRef<string | null>(null);
   const {
     cancelCommentEdit,
     cancelCommentReply,
     commentAnonymousDisabled,
     commentAnonymousValue,
     commentDraft,
+    commentError,
     commentItems,
     commentLikePendingIds,
     data,
@@ -81,6 +85,7 @@ export const AppNoticeDetailScreen = () => {
     loading,
     notice,
     reload,
+    retryComments,
     replyTargetLabel,
     setCommentDraft,
     startEditingComment,
@@ -133,6 +138,39 @@ export const AppNoticeDetailScreen = () => {
     setTimeout(() => composerRef.current?.focus(), Platform.OS === 'ios' ? 180 : 80);
   }, []);
 
+  const scrollToPendingInitialComment = React.useCallback(() => {
+    const commentId = pendingInitialCommentRef.current;
+    if (
+      !commentId ||
+      !bodyCardMeasuredRef.current ||
+      !commentSectionMeasuredRef.current
+    ) return;
+
+    const offset = commentOffsetsRef.current.get(commentId);
+    if (offset == null) return;
+
+    scrollRef.current?.scrollTo({
+      animated: true,
+      y: Math.max(
+        0,
+        bodyCardOffsetRef.current +
+          commentSectionOffsetRef.current +
+          offset -
+          SPACING.lg,
+      ),
+    });
+    appliedInitialCommentRef.current = commentId;
+    pendingInitialCommentRef.current = null;
+  }, []);
+
+  React.useEffect(() => {
+    commentOffsetsRef.current.clear();
+    bodyCardMeasuredRef.current = false;
+    commentSectionMeasuredRef.current = false;
+    appliedInitialCommentRef.current = null;
+    pendingInitialCommentRef.current = null;
+  }, [route.params?.noticeId]);
+
   React.useEffect(() => {
     const initialCommentId = route.params?.initialCommentId;
     if (
@@ -140,22 +178,10 @@ export const AppNoticeDetailScreen = () => {
       appliedInitialCommentRef.current === initialCommentId ||
       commentItems.length === 0
     ) return;
-    appliedInitialCommentRef.current = initialCommentId;
-    setTimeout(() => {
-      const offset = commentOffsetsRef.current.get(initialCommentId);
-      if (offset == null) return;
-      scrollRef.current?.scrollTo({
-        animated: true,
-        y: Math.max(
-          0,
-          bodyCardOffsetRef.current +
-            commentSectionOffsetRef.current +
-            offset -
-            SPACING.lg,
-        ),
-      });
-    }, 160);
-  }, [commentItems.length, route.params?.initialCommentId]);
+    pendingInitialCommentRef.current = initialCommentId;
+    const timeoutId = setTimeout(scrollToPendingInitialComment, 160);
+    return () => clearTimeout(timeoutId);
+  }, [commentItems.length, route.params?.initialCommentId, scrollToPendingInitialComment]);
 
   const closeReport = () => {
     if (reportSubmitting) return;
@@ -231,8 +257,11 @@ export const AppNoticeDetailScreen = () => {
             <View
               onLayout={event => {
                 bodyCardOffsetRef.current = event.nativeEvent.layout.y;
+                bodyCardMeasuredRef.current = true;
+                scrollToPendingInitialComment();
               }}
-              style={styles.bodyCard}>
+              style={styles.bodyCard}
+              testID="app-notice-body-card">
               <View style={styles.badgeRow}>
                 {data.badges.map(badge => <AppNoticeBadge key={badge.id} badge={badge} />)}
               </View>
@@ -288,20 +317,35 @@ export const AppNoticeDetailScreen = () => {
 
               <View style={styles.divider} />
               <Text style={styles.commentsTitle}>댓글 {notice?.commentCount ?? 0}</Text>
-              {commentItems.length === 0 ? (
+              {commentError ? (
+                <View style={styles.commentsError}>
+                  <Text style={styles.commentsErrorText}>{commentError}</Text>
+                  <TouchableOpacity onPress={() => retryComments().catch(() => undefined)}>
+                    <Text style={styles.commentsErrorAction}>댓글 다시 불러오기</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+              {!commentError && commentItems.length === 0 ? (
                 <Text style={styles.emptyComments}>첫 댓글을 남겨보세요!</Text>
-              ) : (
+              ) : commentItems.length > 0 ? (
                 <View
                   onLayout={event => {
                     commentSectionOffsetRef.current = event.nativeEvent.layout.y;
+                    commentSectionMeasuredRef.current = true;
+                    scrollToPendingInitialComment();
                   }}
-                  style={styles.commentsList}>
+                  style={styles.commentsList}
+                  testID="app-notice-comments-list">
                   {commentItems.map(comment => (
                     <View
                       key={comment.id}
-                      onLayout={(event: LayoutChangeEvent) =>
-                        commentOffsetsRef.current.set(comment.id, event.nativeEvent.layout.y)
-                      }>
+                      onLayout={(event: LayoutChangeEvent) => {
+                        commentOffsetsRef.current.set(comment.id, event.nativeEvent.layout.y);
+                        if (pendingInitialCommentRef.current === comment.id) {
+                          scrollToPendingInitialComment();
+                        }
+                      }}
+                      testID={`app-notice-comment-${comment.id}`}>
                       <DetailCommentCard
                         comment={comment}
                         likeDisabled={commentLikePendingIds.includes(comment.id)}
@@ -322,7 +366,7 @@ export const AppNoticeDetailScreen = () => {
                     </View>
                   ))}
                 </View>
-              )}
+              ) : null}
             </View>
           </ScrollView>
 
@@ -381,6 +425,9 @@ const styles = StyleSheet.create({
   bodyCard: {backgroundColor: COLORS.background.surface, margin: SPACING.lg, padding: SPACING.xl, borderRadius: RADIUS.lg, ...SHADOWS.card},
   bodyText: {color: COLORS.text.strong, fontSize: 14, lineHeight: 28},
   commentsList: {gap: SPACING.sm, marginTop: SPACING.md},
+  commentsError: {gap: SPACING.sm, paddingVertical: SPACING.lg},
+  commentsErrorAction: {color: COLORS.brand.primaryStrong, fontSize: 13, fontWeight: '700'},
+  commentsErrorText: {color: COLORS.status.danger, fontSize: 13},
   commentsTitle: {color: COLORS.text.primary, fontSize: 17, fontWeight: '700'},
   composerBanner: {alignItems: 'center', backgroundColor: COLORS.background.surface, borderTopColor: COLORS.border.subtle, borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm},
   composerBannerAction: {color: COLORS.brand.primaryStrong, fontWeight: '700'},
