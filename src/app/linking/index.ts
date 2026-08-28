@@ -1,10 +1,10 @@
 export {AppLinkRuntime} from './AppLinkRuntime';
 export {
   buildBoardShareMessage,
-  buildBoardShareUrl,
   buildCafeteriaShareMessage,
   buildCafeteriaShareUrl,
   buildNoticeShareMessage,
-  buildNoticeShareUrl,
   getMatchingNoticeShareTitle,
 } from './appLinkShare';
+export {createContentShareUrl, resolveAppLinkIntent} from './shareLinkClient';
+export type {ShareResourceType} from './shareLinkClient';

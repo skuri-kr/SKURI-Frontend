@@ -6,13 +6,13 @@ describe('createAppLinkCoordinator', () => {
     const navigate = jest.fn();
 
     expect(
-      coordinator.receiveUrl('https://link.skuri.kr/board/post-1', 1000),
+      coordinator.receiveUrl('https://link.skuri.kr/board/5Rm2Qn8B', 1000),
     ).toBe(true);
     expect(coordinator.flushIfReady(false, navigate)).toBe(false);
     expect(navigate).not.toHaveBeenCalled();
 
     expect(coordinator.flushIfReady(true, navigate)).toBe(true);
-    expect(navigate).toHaveBeenCalledWith({kind: 'board', postId: 'post-1'});
+    expect(navigate).toHaveBeenCalledWith({kind: 'board', code: '5Rm2Qn8B'});
     expect(coordinator.flushIfReady(true, navigate)).toBe(false);
   });
 
@@ -31,11 +31,11 @@ describe('createAppLinkCoordinator', () => {
     const coordinator = createAppLinkCoordinator();
     const navigate = jest.fn();
 
-    coordinator.receiveUrl('https://link.skuri.kr/notice/notice-1', 1000);
-    coordinator.receiveUrl('https://link.skuri.kr/board/post-1', 2000);
+    coordinator.receiveUrl('https://link.skuri.kr/notice/7Kp3mQxA', 1000);
+    coordinator.receiveUrl('https://link.skuri.kr/board/5Rm2Qn8B', 2000);
     coordinator.flushIfReady(true, navigate);
 
-    expect(navigate).toHaveBeenCalledWith({kind: 'board', postId: 'post-1'});
+    expect(navigate).toHaveBeenCalledWith({kind: 'board', code: '5Rm2Qn8B'});
   });
 
   it('지원하지 않는 URL은 대기열에 넣지 않는다', () => {

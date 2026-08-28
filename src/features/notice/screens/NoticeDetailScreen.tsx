@@ -24,6 +24,7 @@ import Animated from 'react-native-reanimated';
 
 import {
   buildNoticeShareMessage,
+  createContentShareUrl,
   getMatchingNoticeShareTitle,
 } from '@/app/linking';
 import {useReportRepository} from '@/di';
@@ -147,9 +148,10 @@ export const NoticeDetailScreen = () => {
     }
 
     try {
+      const shareUrl = await createContentShareUrl('NOTICE', noticeId);
       await Share.share({
         message: buildNoticeShareMessage(
-          noticeId,
+          shareUrl,
           getMatchingNoticeShareTitle(noticeId, notice),
         ),
       });

@@ -1,6 +1,6 @@
 # RN Spring 연동 진행 현황
 
-> 최종 수정일: 2026-04-01
+> 최종 수정일: 2026-08-28
 > 관련 문서: [RN Spring 연동 아키텍처 가이드](./frontend-architecture-guideline.md) | [RN Spring 연동 로드맵](./frontend-integration-roadmap.md) | [Spring API 커버리지와 로깅 가이드](./frontend-api-coverage.md) | [API 명세](./api-specification.md)
 
 ---
@@ -43,6 +43,7 @@
 - Community board 탭은 중앙 DI `boardRepository`의 Spring 응답을 기준으로 목록/featured post를 조합한다.
 - Board public contract는 관리자 moderation을 반영해 `HIDDEN` 게시글을 목록/상세에서 제외하고, `HIDDEN` 댓글은 placeholder로 마스킹한다.
 - Phase H follow-up까지 반영되어 Board / Notice / Campus 본체 이전과 남아 있던 backend contract gap 3개 정리가 완료됐다.
+- 공지·게시물 공유는 Share API에서 8자리 코드를 발급하고, 앱 링크 수신 시 인증 후 원본 ID를 resolve하는 Spring 계약으로 연결됐다. 기존 긴 링크와 deferred deep link는 지원하지 않는다.
 - 공개 일반 채팅방은 joined/not joined를 함께 표시하고, 미참여 room detail preview + 참여하기 CTA + leave 후 not joined 복귀 정책까지 프론트에 반영됐다.
 - 전역 DI와 feature-local entrypoint의 혼재는 줄었고, Taxi Home screen chain의 mock singleton도 제거됨
 - 공식 작업 전략은 `migrate-as-you-centralize`

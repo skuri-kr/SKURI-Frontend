@@ -21,7 +21,10 @@ import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Animated from 'react-native-reanimated';
 
-import {buildBoardShareMessage} from '@/app/linking';
+import {
+  buildBoardShareMessage,
+  createContentShareUrl,
+} from '@/app/linking';
 import {useReportRepository} from '@/di';
 import type {ReportCategory} from '@/features/report';
 import {
@@ -246,7 +249,8 @@ export const BoardDetailScreen = () => {
     }
 
     try {
-      await Share.share({message: buildBoardShareMessage(postId)});
+      const shareUrl = await createContentShareUrl('BOARD', postId);
+      await Share.share({message: buildBoardShareMessage(shareUrl)});
     } catch {
       Alert.alert('공유 오류', '게시글 링크를 공유하지 못했습니다.');
     }

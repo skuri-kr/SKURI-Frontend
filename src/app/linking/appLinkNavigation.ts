@@ -4,9 +4,9 @@ import {
   navigateToNoticeDetail,
 } from '@/app/navigation/services/appRouteNavigation';
 
-import type {AppLinkIntent} from './appLinkIntent';
+import type {ResolvedAppLinkIntent} from './appLinkIntent';
 
-export const navigateToAppLinkIntent = (intent: AppLinkIntent): void => {
+export const navigateToAppLinkIntent = (intent: ResolvedAppLinkIntent): void => {
   switch (intent.kind) {
     case 'notice':
       navigateToNoticeDetail(intent.noticeId);
