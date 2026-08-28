@@ -70,7 +70,7 @@ export interface IAppNoticeRepository {
     commentId: string,
     content: string,
     isAnonymous?: boolean,
-  ): Promise<void>;
+  ): Promise<NoticeComment>;
   deleteComment(noticeId: string, commentId: string): Promise<void>;
   toggleLike(noticeId: string): Promise<{isLiked: boolean; likeCount: number}>;
   toggleCommentLike(

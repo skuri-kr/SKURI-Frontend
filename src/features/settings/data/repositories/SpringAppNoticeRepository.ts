@@ -87,12 +87,20 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
     commentId: string,
     content: string,
     isAnonymous?: boolean,
-  ): Promise<void> {
-    await appNoticeApiClient.updateComment(commentId, {
+  ): Promise<NoticeComment> {
+    const response = await appNoticeApiClient.updateComment(commentId, {
       content: content.trim(),
       ...(isAnonymous === undefined ? {} : {isAnonymous}),
     });
-    await this.getComments(noticeId);
+    const updatedComment = mapNoticeCommentDto(noticeId, response.data);
+    const comments = this.commentCache.get(noticeId);
+    if (comments) {
+      const next = flattenComments(comments).map(comment =>
+        comment.id === commentId ? updatedComment : comment,
+      );
+      this.commentCache.set(noticeId, buildCommentTree(next));
+    }
+    return updatedComment;
   }
 
   async deleteComment(noticeId: string, commentId: string): Promise<void> {

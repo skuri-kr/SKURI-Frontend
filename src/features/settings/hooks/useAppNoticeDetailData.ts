@@ -71,7 +71,9 @@ const getAuthorLabel = (comment: NoticeCommentTreeNode) =>
     : comment.userDisplayName;
 
 const getReplyTargetLabel = (comment: NoticeCommentTreeNode) =>
-  `${getAuthorLabel(comment)} 님에게 답글`;
+  comment.isDeleted
+    ? '삭제된 댓글/답글에 답글'
+    : `${getAuthorLabel(comment)} 님에게 답글`;
 
 const toCommentItems = (
   entries: FlattenedCommentTreeEntry<NoticeCommentTreeNode>[],
@@ -122,6 +124,8 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   const [commentError, setCommentError] = React.useState<string | null>(null);
   const requestIdRef = React.useRef(0);
   const activeNoticeIdRef = React.useRef<string | null>(null);
+  const latestNoticeIdRef = React.useRef(noticeId);
+  latestNoticeIdRef.current = noticeId;
 
   const flattenedEntries = React.useMemo(
     () => flattenVisibleCommentTree(comments),
@@ -218,12 +222,16 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     setReplyTargetCommentId(null);
     setCommentAnonymousDraft(null);
     setCommentError(null);
+    setCommentLikePendingIds([]);
+    setSubmittingComment(false);
+    setTogglingLike(false);
   }, [noticeId]);
 
   const toggleLike = React.useCallback(async () => {
     if (!noticeId || !user?.uid || !notice || notice.id !== noticeId || togglingLike) {
       throw new Error('로그인이 필요합니다.');
     }
+    const mutationNoticeId = noticeId;
     const previous = {isLiked: notice.isLiked, likeCount: notice.likeCount};
     const optimistic = {
       isLiked: !previous.isLiked,
@@ -232,13 +240,21 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     setNotice(current => (current ? {...current, ...optimistic} : current));
     setTogglingLike(true);
     try {
-      const state = await repository.toggleLike(noticeId);
-      setNotice(current => (current ? {...current, ...state} : current));
+      const state = await repository.toggleLike(mutationNoticeId);
+      if (latestNoticeIdRef.current !== mutationNoticeId) return;
+      setNotice(current =>
+        current?.id === mutationNoticeId ? {...current, ...state} : current,
+      );
     } catch (toggleError) {
-      setNotice(current => (current ? {...current, ...previous} : current));
+      if (latestNoticeIdRef.current !== mutationNoticeId) return;
+      setNotice(current =>
+        current?.id === mutationNoticeId ? {...current, ...previous} : current,
+      );
       throw toggleError;
     } finally {
-      setTogglingLike(false);
+      if (latestNoticeIdRef.current === mutationNoticeId) {
+        setTogglingLike(false);
+      }
     }
   }, [notice, noticeId, repository, togglingLike, user?.uid]);
 
@@ -248,6 +264,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     }
     const target = flattenedEntries.find(entry => entry.comment.id === commentId)?.comment;
     if (!target) throw new Error('댓글을 찾을 수 없습니다.');
+    const mutationNoticeId = noticeId;
     const previous = {isLiked: Boolean(target.isLiked), likeCount: target.likeCount ?? 0};
     const optimistic = {
       isLiked: !previous.isLiked,
@@ -256,55 +273,95 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     setComments(current => updateCommentTree(current, commentId, comment => ({...comment, ...optimistic})));
     setCommentLikePendingIds(current => [...current, commentId]);
     try {
-      const state = await repository.toggleCommentLike(noticeId, commentId);
+      const state = await repository.toggleCommentLike(mutationNoticeId, commentId);
+      if (latestNoticeIdRef.current !== mutationNoticeId) return;
       setComments(current => updateCommentTree(current, commentId, comment => ({...comment, ...state})));
     } catch (toggleError) {
+      if (latestNoticeIdRef.current !== mutationNoticeId) return;
       setComments(current => updateCommentTree(current, commentId, comment => ({...comment, ...previous})));
       throw toggleError;
     } finally {
-      setCommentLikePendingIds(current => current.filter(id => id !== commentId));
+      if (latestNoticeIdRef.current === mutationNoticeId) {
+        setCommentLikePendingIds(current => current.filter(id => id !== commentId));
+      }
     }
   }, [commentLikePendingIds, flattenedEntries, noticeId, repository, user?.uid]);
 
   const submitComment = React.useCallback(async () => {
-    if (!noticeId || !user?.uid || !notice) throw new Error('로그인이 필요합니다.');
+    if (!noticeId || !user?.uid || !notice || notice.id !== noticeId) {
+      throw new Error('로그인이 필요합니다.');
+    }
+    const mutationNoticeId = noticeId;
     const content = commentDraft.trim();
     if (!content) throw new Error('댓글 내용을 입력해주세요.');
     setSubmittingComment(true);
     try {
       let commentId = editingCommentId;
       if (editingCommentId) {
-        await repository.updateComment(noticeId, editingCommentId, content, commentAnonymousValue);
+        const updatedComment = await repository.updateComment(
+          mutationNoticeId,
+          editingCommentId,
+          content,
+          commentAnonymousValue,
+        );
+        if (latestNoticeIdRef.current !== mutationNoticeId) {
+          return {commentId: undefined};
+        }
+        setComments(current => updateCommentTree(
+          current,
+          editingCommentId,
+          currentComment => ({...updatedComment, replies: currentComment.replies}),
+        ));
       } else {
-        const createdComment = await repository.createComment(noticeId, {
+        const createdComment = await repository.createComment(mutationNoticeId, {
           content,
           isAnonymous: storedAnonymous,
           parentId: replyTargetCommentId,
           userDisplayName: user.displayName ?? '익명',
           userId: user.uid,
         });
+        if (latestNoticeIdRef.current !== mutationNoticeId) {
+          return {commentId: undefined};
+        }
         commentId = createdComment.id;
         setComments(current => appendCommentToTree(current, createdComment));
-        setNotice(current => current ? {...current, commentCount: current.commentCount + 1} : current);
-      }
-      if (editingCommentId) {
-        await refreshComments();
+        setNotice(current =>
+          current?.id === mutationNoticeId
+            ? {...current, commentCount: current.commentCount + 1}
+            : current,
+        );
       }
       setCommentDraft('');
       setEditingCommentId(null);
       setReplyTargetCommentId(null);
       setCommentAnonymousDraft(null);
       return {commentId};
+    } catch (submitError) {
+      if (latestNoticeIdRef.current === mutationNoticeId) {
+        throw submitError;
+      }
+      return {commentId: undefined};
     } finally {
-      setSubmittingComment(false);
+      if (latestNoticeIdRef.current === mutationNoticeId) {
+        setSubmittingComment(false);
+      }
     }
-  }, [commentAnonymousValue, commentDraft, editingCommentId, notice, noticeId, refreshComments, replyTargetCommentId, repository, storedAnonymous, user]);
+  }, [commentAnonymousValue, commentDraft, editingCommentId, notice, noticeId, replyTargetCommentId, repository, storedAnonymous, user]);
 
   const deleteComment = React.useCallback(async (commentId: string) => {
     if (!noticeId || !user?.uid || notice?.id !== noticeId) {
       throw new Error('앱 공지사항을 다시 불러와주세요.');
     }
-    await repository.deleteComment(noticeId, commentId);
+    const mutationNoticeId = noticeId;
+    try {
+      await repository.deleteComment(mutationNoticeId, commentId);
+    } catch (deleteError) {
+      if (latestNoticeIdRef.current === mutationNoticeId) {
+        throw deleteError;
+      }
+      return;
+    }
+    if (latestNoticeIdRef.current !== mutationNoticeId) return;
     setComments(current => updateCommentTree(current, commentId, comment => ({
       ...comment,
       anonymousOrder: undefined,
@@ -318,7 +375,11 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       userDisplayName: '',
       userId: '',
     })));
-    setNotice(current => current ? {...current, commentCount: Math.max(0, current.commentCount - 1)} : current);
+    setNotice(current =>
+      current?.id === mutationNoticeId
+        ? {...current, commentCount: Math.max(0, current.commentCount - 1)}
+        : current,
+    );
     if (editingCommentId === commentId) {
       setEditingCommentId(null);
       setCommentDraft('');
