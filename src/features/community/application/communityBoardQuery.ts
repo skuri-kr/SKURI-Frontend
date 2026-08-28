@@ -27,6 +27,7 @@ const toCommunityBoardSourceItem = (
   post: BoardPost,
 ): CommunityBoardSourceItem => ({
   authorName: post.authorName,
+  authorProfileImage: post.authorProfileImage,
   bookmarkCount: post.bookmarkCount,
   category: post.category,
   commentCount: post.commentCount,

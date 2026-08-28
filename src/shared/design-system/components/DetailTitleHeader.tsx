@@ -4,11 +4,12 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import type {ContentDetailBadgeViewData} from '@/shared/types/contentDetailViewData';
 import {COLORS, SPACING} from '@/shared/design-system/tokens';
 
-import {DefaultProfileAvatar} from './DefaultProfileAvatar';
+import {ProfileAvatar} from './ProfileAvatar';
 import {ToneBadge} from './ToneBadge';
 
 interface DetailTitleHeaderProps {
   authorLabel?: string;
+  authorProfileImage?: string | null;
   badges?: ContentDetailBadgeViewData[];
   dateLabel?: string;
   title: string;
@@ -17,6 +18,7 @@ interface DetailTitleHeaderProps {
 
 export const DetailTitleHeader = ({
   authorLabel,
+  authorProfileImage,
   badges = [],
   dateLabel,
   title,
@@ -45,7 +47,7 @@ export const DetailTitleHeader = ({
           <View style={styles.authorMetaGroup}>
             {authorLabel ? (
               <>
-                <DefaultProfileAvatar />
+                <ProfileAvatar photoUrl={authorProfileImage} />
                 <Text style={styles.authorLabel}>{authorLabel}</Text>
               </>
             ) : null}

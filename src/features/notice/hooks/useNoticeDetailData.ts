@@ -85,6 +85,10 @@ const toCommentItems = (
 ): NoticeDetailCommentItem[] =>
   comments.map(({comment, parent}) => ({
     authorLabel: getCommentAuthorLabel(comment),
+    authorProfileImage:
+      comment.isAnonymous || comment.isDeleted
+        ? null
+        : comment.authorProfileImage,
     body: comment.content,
     dateLabel: formatKoreanCompactDateTime(comment.createdAt),
     id: comment.id,

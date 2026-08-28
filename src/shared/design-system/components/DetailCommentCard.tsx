@@ -16,6 +16,7 @@ import {
   SPACING,
 } from '../tokens';
 import {LinkifiedText} from './LinkifiedText';
+import {ProfileAvatar} from './ProfileAvatar';
 
 interface DetailCommentCardProps {
   comment: ContentDetailCommentViewData;
@@ -49,9 +50,11 @@ export const DetailCommentCard = ({
     <View style={[styles.card, comment.isReply ? styles.replyCard : null]}>
       <View style={styles.headerRow}>
         <View style={styles.authorRow}>
-          <View style={styles.avatarCircle}>
-            <Icon color={COLORS.text.muted} name="person-outline" size={12} />
-          </View>
+          <ProfileAvatar
+            fallbackBackgroundColor={COLORS.background.subtle}
+            photoUrl={comment.authorProfileImage}
+            size={24}
+          />
           <Text style={styles.authorLabel}>{comment.authorLabel}</Text>
           {comment.isPostAuthor ? (
             <View style={[styles.metaBadge, styles.postAuthorBadge]}>
@@ -186,14 +189,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: SPACING.sm,
-  },
-  avatarCircle: {
-    alignItems: 'center',
-    backgroundColor: COLORS.background.subtle,
-    borderRadius: RADIUS.pill,
-    height: 24,
-    justifyContent: 'center',
-    width: 24,
   },
   authorLabel: {
     color: COLORS.text.strong,

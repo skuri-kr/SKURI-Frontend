@@ -53,6 +53,7 @@ export interface ContentDetailReactionViewData {
 
 export interface ContentDetailCommentViewData {
   authorLabel: string;
+  authorProfileImage?: string | null;
   body: string;
   dateLabel: string;
   id: string;
@@ -74,6 +75,7 @@ export interface ContentDetailAttachmentViewData {
 export interface ContentDetailViewData {
   attachments?: ContentDetailAttachmentViewData[];
   authorLabel?: string;
+  authorProfileImage?: string | null;
   bodyBlocks: ContentDetailBodyBlockViewData[];
   commentInputPlaceholder: string;
   comments: ContentDetailCommentViewData[];
