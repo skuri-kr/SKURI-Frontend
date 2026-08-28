@@ -2,7 +2,6 @@ import type {ContentDetailTextSegmentViewData} from '@/shared/types/contentDetai
 
 const URL_CANDIDATE_PATTERN =
   /(?:https?:\/\/|www\.)[a-z0-9.-]+(?::\d+)?(?:[/?#][^\s<>"']*)?/giu;
-const TRAILING_TEXT_PUNCTUATION_PATTERN = /[.,!?;:>'"\u2019\u201d]+$/u;
 const TRAILING_DELIMITER_PAIRS = [
   {closing: ')', opening: '('},
   {closing: ']', opening: '['},
@@ -13,7 +12,7 @@ const countCharacter = (value: string, character: string): number =>
   value.split(character).length - 1;
 
 export const stripTrailingUrlPunctuation = (value: string): string => {
-  let result = value.replace(TRAILING_TEXT_PUNCTUATION_PATTERN, '');
+  let result = value;
 
   while (result) {
     const trailingPair = TRAILING_DELIMITER_PAIRS.find(({closing}) =>
@@ -31,9 +30,7 @@ export const stripTrailingUrlPunctuation = (value: string): string => {
       return result;
     }
 
-    result = result
-      .slice(0, -trailingPair.closing.length)
-      .replace(TRAILING_TEXT_PUNCTUATION_PATTERN, '');
+    result = result.slice(0, -trailingPair.closing.length);
   }
 
   return result;
