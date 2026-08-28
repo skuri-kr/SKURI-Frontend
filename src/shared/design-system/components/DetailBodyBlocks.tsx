@@ -191,7 +191,7 @@ const DETAIL_TABLE_HTML = (tableHtml: string, baseUrl?: string) => `
 
           textNodes.forEach(textNode => {
             const sourceText = textNode.nodeValue || '';
-            const urlPattern = /(?:https?:\\/\\/|www\\.)[a-z0-9.-]+(?::\\d+)?(?:[/?#][^\\s<>"']*)?/gi;
+            const urlPattern = /(?:https?:\\/\\/|www\\.)(?:[a-z0-9-]+(?:\\.[a-z0-9-]+)*|(?:[\\p{L}\\p{M}\\p{N}-]+\\.)+[a-z0-9-]+)(?::\\d+)?(?:[/?#][^\\s<>"']*)?/giu;
             const fragment = document.createDocumentFragment();
             let cursor = 0;
             let match;
@@ -322,10 +322,7 @@ const DetailTableBlock = ({
 
   const handleShouldStartLoad = React.useCallback(
     (request: WebViewNavigation) => {
-      if (
-        request.url === 'about:blank' ||
-        request.url.startsWith('data:text/html')
-      ) {
+      if (request.url === 'about:blank') {
         return true;
       }
 
