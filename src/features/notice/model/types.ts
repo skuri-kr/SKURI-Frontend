@@ -39,6 +39,7 @@ export interface NoticeComment {
   noticeId: string;
   userId: string;
   userDisplayName: string;
+  authorProfileImage?: string | null;
   content: string;
   createdAt: Date;
   updatedAt?: Date;

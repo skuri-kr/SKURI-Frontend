@@ -61,6 +61,7 @@ export interface NoticeCommentDto {
   content: string;
   authorId?: string | null;
   authorName?: string | null;
+  authorProfileImage?: string | null;
   isAnonymous: boolean;
   anonymousOrder?: number | null;
   isAuthor: boolean;
