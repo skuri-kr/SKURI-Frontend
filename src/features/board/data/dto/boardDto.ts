@@ -30,6 +30,7 @@ export interface BoardPostSummaryDto {
   authorId?: string | null;
   authorName?: string | null;
   authorProfileImage?: string | null;
+  isAuthorAdmin?: boolean;
   isAnonymous: boolean;
   category: BoardPostCategoryDto;
   viewCount: number;
@@ -52,6 +53,7 @@ export interface BoardPostDetailDto {
   authorId?: string | null;
   authorName?: string | null;
   authorProfileImage?: string | null;
+  isAuthorAdmin?: boolean;
   isAnonymous: boolean;
   category: BoardPostCategoryDto;
   viewCount: number;
@@ -74,6 +76,7 @@ export interface BoardCommentDto {
   authorId?: string | null;
   authorName?: string | null;
   authorProfileImage?: string | null;
+  isAuthorAdmin?: boolean;
   isAnonymous: boolean;
   anonymousOrder?: number | null;
   isAuthor: boolean;

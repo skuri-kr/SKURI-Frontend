@@ -61,6 +61,7 @@ const mapBoardPostBase = (
     | 'authorId'
     | 'authorName'
     | 'authorProfileImage'
+    | 'isAuthorAdmin'
     | 'category'
     | 'commentCount'
     | 'content'
@@ -75,6 +76,7 @@ const mapBoardPostBase = (
   authorId: dto.authorId ?? '',
   authorName: dto.authorName ?? '익명',
   authorProfileImage: dto.authorProfileImage ?? null,
+  isAuthorAdmin: Boolean(dto.isAuthorAdmin),
   category: BOARD_CATEGORY_FROM_DTO[dto.category],
   commentCount: dto.commentCount,
   content: dto.content,
@@ -124,6 +126,7 @@ export const mapBoardCommentDto = (
   authorId: dto.authorId ?? '',
   authorName: dto.authorName ?? '익명',
   authorProfileImage: dto.authorProfileImage ?? null,
+  isAuthorAdmin: Boolean(dto.isAuthorAdmin),
   content: dto.content,
   createdAt: toDate(dto.createdAt),
   id: dto.id,

@@ -75,6 +75,7 @@ export const mapNoticeCommentDto = (
     : undefined,
   anonymousOrder: dto.anonymousOrder ?? undefined,
   authorProfileImage: dto.authorProfileImage ?? null,
+  isAuthorAdmin: Boolean(dto.isAuthorAdmin),
   content: dto.content,
   createdAt: toDate(dto.createdAt),
   id: dto.id,
