@@ -10,6 +10,7 @@ export {DetailTitleHeader} from './DetailTitleHeader';
 export {FilterChips} from './FilterChips';
 export type {FilterChipItem} from './FilterChips';
 export {FormField} from './FormField';
+export {ProfileAvatar} from './ProfileAvatar';
 export {InfoBanner} from './InfoBanner';
 export {ImageLightboxModal} from './ImageLightboxModal';
 export type {ImageLightboxItem} from './ImageLightboxModal';
