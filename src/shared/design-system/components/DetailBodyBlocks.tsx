@@ -118,6 +118,57 @@ const DETAIL_TABLE_HTML = (tableHtml: string, baseUrl?: string) => `
         const wrap = document.querySelector('.table-wrap');
         const shell = document.querySelector('.table-fit-shell');
         const content = document.querySelector('.table-fit-content');
+        const trailingTextPunctuation = new Set([
+          '.', ',', '!', '?', ';', ':', '>', "'", '"', '’', '”',
+        ]);
+        const trailingDelimiterPairs = [
+          { closing: ')', opening: '(' },
+          { closing: ']', opening: '[' },
+          { closing: '}', opening: '{' },
+        ];
+
+        const countCharacter = (value, character) =>
+          value.split(character).length - 1;
+
+        const stripTrailingUrlPunctuation = value => {
+          const stripTrailingTextPunctuation = candidate => {
+            let endIndex = candidate.length;
+
+            while (
+              endIndex > 0 &&
+              trailingTextPunctuation.has(candidate[endIndex - 1])
+            ) {
+              endIndex -= 1;
+            }
+
+            return candidate.slice(0, endIndex);
+          };
+
+          let result = stripTrailingTextPunctuation(value);
+
+          while (result) {
+            const trailingPair = trailingDelimiterPairs.find(pair =>
+              result.endsWith(pair.closing),
+            );
+
+            if (!trailingPair) {
+              return result;
+            }
+
+            const openingCount = countCharacter(result, trailingPair.opening);
+            const closingCount = countCharacter(result, trailingPair.closing);
+
+            if (closingCount <= openingCount) {
+              return result;
+            }
+
+            result = stripTrailingTextPunctuation(
+              result.slice(0, -trailingPair.closing.length),
+            );
+          }
+
+          return result;
+        };
 
         const linkifyTextNodes = () => {
           if (!content || !document.createTreeWalker) {
@@ -148,7 +199,7 @@ const DETAIL_TABLE_HTML = (tableHtml: string, baseUrl?: string) => `
 
             while ((match = urlPattern.exec(sourceText)) !== null) {
               const matchedText = match[0];
-              const linkText = matchedText.replace(/[.,!?;:)\\]}>'"’”]+$/u, '');
+              const linkText = stripTrailingUrlPunctuation(matchedText);
 
               if (!linkText) {
                 continue;
