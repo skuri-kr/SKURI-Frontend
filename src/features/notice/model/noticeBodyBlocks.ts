@@ -20,7 +20,6 @@ const BLOCK_TAGS = new Set([
   'h4',
   'h5',
   'h6',
-  'li',
   'ol',
   'p',
   'section',
@@ -112,6 +111,17 @@ export const buildNoticeBodyBlocks = (
     paragraphSegments = mergeParagraphSegments(paragraphSegments);
   };
 
+  const appendListItemLineBreak = () => {
+    const previousSegment = paragraphSegments[paragraphSegments.length - 1];
+
+    if (previousSegment?.text.endsWith('\n')) {
+      return;
+    }
+
+    paragraphSegments.push({text: '\n', type: 'text'});
+    paragraphSegments = mergeParagraphSegments(paragraphSegments);
+  };
+
   const flushParagraph = () => {
     const nextSegments = mergeParagraphSegments(paragraphSegments);
     paragraphSegments = [];
@@ -141,7 +151,7 @@ export const buildNoticeBodyBlocks = (
     });
   };
 
-  const walk = (node: HtmlNode, activeLinkUrl?: string) => {
+  const walk = (node: HtmlNode, activeLinkUrl?: string, listDepth = 0) => {
     if (DomUtils.isText(node)) {
       appendText(node.data, activeLinkUrl);
       return;
@@ -149,12 +159,13 @@ export const buildNoticeBodyBlocks = (
 
     if (!DomUtils.isTag(node)) {
       if (DomUtils.hasChildren(node)) {
-        node.children.forEach(child => walk(child, activeLinkUrl));
+        node.children.forEach(child => walk(child, activeLinkUrl, listDepth));
       }
       return;
     }
 
     const tagName = node.name.toLowerCase();
+    const isList = tagName === 'ol' || tagName === 'ul';
 
     if (IGNORED_TAGS.has(tagName)) {
       return;
@@ -225,9 +236,16 @@ export const buildNoticeBodyBlocks = (
       appendText('- ', nextLinkUrl);
     }
 
-    node.children.forEach(child => walk(child, nextLinkUrl));
+    node.children.forEach(child =>
+      walk(child, nextLinkUrl, isList ? listDepth + 1 : listDepth),
+    );
 
-    if (BLOCK_TAGS.has(tagName)) {
+    if (tagName === 'li') {
+      appendListItemLineBreak();
+      return;
+    }
+
+    if (BLOCK_TAGS.has(tagName) && listDepth === 0) {
       flushParagraph();
     }
   };
