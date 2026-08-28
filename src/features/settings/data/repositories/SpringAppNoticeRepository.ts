@@ -97,7 +97,10 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
 
   async deleteComment(noticeId: string, commentId: string): Promise<void> {
     await appNoticeApiClient.deleteComment(commentId);
-    await this.getComments(noticeId);
+    const comments = this.commentCache.get(noticeId);
+    if (comments) {
+      this.commentCache.set(noticeId, markCommentDeleted(comments, commentId));
+    }
   }
 
   async toggleLike(noticeId: string) {
@@ -172,6 +175,29 @@ const cloneComment = (comment: NoticeComment): NoticeCommentTreeNode => ({
 const cloneCommentTree = (
   comments: NoticeCommentTreeNode[],
 ): NoticeCommentTreeNode[] => comments.map(cloneComment);
+
+const markCommentDeleted = (
+  comments: NoticeCommentTreeNode[],
+  commentId: string,
+): NoticeCommentTreeNode[] =>
+  comments.map(comment => ({
+    ...comment,
+    ...(comment.id === commentId
+      ? {
+          anonymousOrder: undefined,
+          authorProfileImage: null,
+          content: '삭제된 댓글입니다',
+          isAnonymous: false,
+          isAuthor: false,
+          isAuthorAdmin: false,
+          isDeleted: true,
+          isLiked: false,
+          userDisplayName: '',
+          userId: '',
+        }
+      : {}),
+    replies: markCommentDeleted(comment.replies, commentId),
+  }));
 
 const flattenComments = (comments: NoticeCommentTreeNode[]): NoticeComment[] =>
   comments.flatMap(comment => [comment, ...flattenComments(comment.replies)]);

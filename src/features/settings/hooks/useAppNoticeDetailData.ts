@@ -119,7 +119,9 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   const [togglingLike, setTogglingLike] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [commentError, setCommentError] = React.useState<string | null>(null);
   const requestIdRef = React.useRef(0);
+  const activeNoticeIdRef = React.useRef<string | null>(null);
 
   const flattenedEntries = React.useMemo(
     () => flattenVisibleCommentTree(comments),
@@ -140,15 +142,28 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   const refreshComments = React.useCallback(async () => {
     if (!noticeId || !user?.uid) {
       setComments([]);
+      setCommentError(null);
       return;
     }
-    setComments(await repository.getComments(noticeId));
+    try {
+      setComments(await repository.getComments(noticeId));
+      setCommentError(null);
+    } catch (refreshError) {
+      setCommentError(getErrorMessage(refreshError));
+      throw refreshError;
+    }
   }, [noticeId, repository, user?.uid]);
 
   const load = React.useCallback(async () => {
     const requestId = ++requestIdRef.current;
+    const routeChanged = activeNoticeIdRef.current !== noticeId;
     setLoading(true);
     setError(null);
+    if (routeChanged) {
+      setNotice(null);
+      setComments([]);
+      setCommentError(null);
+    }
     try {
       if (!noticeId) {
         setNotice(null);
@@ -156,11 +171,15 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         setError('앱 공지사항 ID가 없습니다.');
         return;
       }
-      const [nextNotice, nextComments] = await Promise.all([
+      const [noticeResult, commentsResult] = await Promise.allSettled([
         repository.getAppNotice(noticeId),
         user?.uid ? repository.getComments(noticeId) : Promise.resolve([]),
       ]);
       if (requestId !== requestIdRef.current) return;
+      if (noticeResult.status === 'rejected') {
+        throw noticeResult.reason;
+      }
+      const nextNotice = noticeResult.value;
       if (!nextNotice) {
         setNotice(null);
         setComments([]);
@@ -168,7 +187,13 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         return;
       }
       setNotice(nextNotice);
-      setComments(nextComments);
+      activeNoticeIdRef.current = noticeId;
+      if (commentsResult.status === 'fulfilled') {
+        setComments(commentsResult.value);
+        setCommentError(null);
+      } else {
+        setCommentError(getErrorMessage(commentsResult.reason));
+      }
       if (user?.uid) {
         repository.markAsRead(noticeId).catch(markError => {
           console.error('앱 공지 읽음 처리에 실패했습니다.', markError);
@@ -192,10 +217,11 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     setEditingCommentId(null);
     setReplyTargetCommentId(null);
     setCommentAnonymousDraft(null);
+    setCommentError(null);
   }, [noticeId]);
 
   const toggleLike = React.useCallback(async () => {
-    if (!noticeId || !user?.uid || !notice || togglingLike) {
+    if (!noticeId || !user?.uid || !notice || notice.id !== noticeId || togglingLike) {
       throw new Error('로그인이 필요합니다.');
     }
     const previous = {isLiked: notice.isLiked, likeCount: notice.likeCount};
@@ -275,9 +301,23 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   }, [commentAnonymousValue, commentDraft, editingCommentId, notice, noticeId, refreshComments, replyTargetCommentId, repository, storedAnonymous, user]);
 
   const deleteComment = React.useCallback(async (commentId: string) => {
-    if (!noticeId || !user?.uid) throw new Error('로그인이 필요합니다.');
+    if (!noticeId || !user?.uid || notice?.id !== noticeId) {
+      throw new Error('앱 공지사항을 다시 불러와주세요.');
+    }
     await repository.deleteComment(noticeId, commentId);
-    await refreshComments();
+    setComments(current => updateCommentTree(current, commentId, comment => ({
+      ...comment,
+      anonymousOrder: undefined,
+      authorProfileImage: null,
+      content: '삭제된 댓글입니다',
+      isAnonymous: false,
+      isAuthor: false,
+      isAuthorAdmin: false,
+      isDeleted: true,
+      isLiked: false,
+      userDisplayName: '',
+      userId: '',
+    })));
     setNotice(current => current ? {...current, commentCount: Math.max(0, current.commentCount - 1)} : current);
     if (editingCommentId === commentId) {
       setEditingCommentId(null);
@@ -289,7 +329,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       setCommentDraft('');
       setCommentAnonymousDraft(null);
     }
-  }, [editingCommentId, noticeId, refreshComments, replyTargetCommentId, repository, user?.uid]);
+  }, [editingCommentId, notice, noticeId, replyTargetCommentId, repository, user?.uid]);
 
   const startEditingComment = React.useCallback((commentId: string) => {
     const target = flattenedEntries.find(entry => entry.comment.id === commentId)?.comment;
@@ -318,10 +358,10 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   }, [editingComment?.isAnonymous, editingCommentId, toggleStoredAnonymous]);
 
   const viewData = React.useMemo(() => {
-    if (!notice) return null;
+    if (!notice || notice.id !== noticeId) return null;
     const data = assembleAppNoticeDetailViewData(notice);
     return {...data, badges: buildBadges(notice.priority === 'urgent', data.categoryLabel)};
-  }, [notice]);
+  }, [notice, noticeId]);
 
   return {
     cancelCommentEdit: () => { setEditingCommentId(null); setCommentDraft(''); setCommentAnonymousDraft(null); },
@@ -329,6 +369,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     commentAnonymousDisabled: submittingComment,
     commentAnonymousValue,
     commentDraft,
+    commentError,
     commentItems,
     commentLikePendingIds,
     data: viewData,
@@ -340,6 +381,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     loading,
     notice,
     reload: load,
+    retryComments: refreshComments,
     replyTargetLabel: replyTargetComment ? getReplyTargetLabel(replyTargetComment) : null,
     setCommentDraft,
     startEditingComment,
