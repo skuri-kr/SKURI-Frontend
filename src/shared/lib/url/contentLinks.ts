@@ -1,7 +1,7 @@
 import type {ContentDetailTextSegmentViewData} from '@/shared/types/contentDetailViewData';
 
 const URL_CANDIDATE_PATTERN =
-  /(?:https?:\/\/|www\.)(?:[a-z0-9-]+(?:\.[a-z0-9-]+)*|(?:[\p{L}\p{M}\p{N}-]+\.)+[a-z0-9-]+)(?::\d+)?(?:[/?#][^\s<>"']*)?/giu;
+  /(?:https?:\/\/|www\.)[a-z0-9.-]+(?::\d+)?(?:[/?#][^\s<>"']*)?/giu;
 const TRAILING_DELIMITER_PAIRS = [
   {closing: ')', opening: '('},
   {closing: ']', opening: '['},
