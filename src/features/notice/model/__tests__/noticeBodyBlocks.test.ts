@@ -48,6 +48,22 @@ describe('buildNoticeBodyBlocks', () => {
     expect(imageUrls(`<img src="${imageUrl}">`)).toEqual([imageUrl]);
   });
 
+  it('유효하지 않은 이미지는 앞뒤 문단을 분리하지 않는다', () => {
+    const blocks = buildNoticeBodyBlocks(
+      notice(
+        '<p>앞 문장 <img data-src="https://example.com/lazy-image.png"> 뒤 문장</p>',
+      ),
+    );
+
+    expect(blocks).toEqual([
+      expect.objectContaining({
+        text: '앞 문장 뒤 문장',
+        type: 'paragraph',
+      }),
+    ]);
+    expect(blocks.some(block => block.type === 'image')).toBe(false);
+  });
+
   it('기존 문단과 표 블록의 순서를 유지한다', () => {
     const blocks = buildNoticeBodyBlocks(
       notice(

@@ -204,9 +204,18 @@ describe('상세 본문 외부 링크', () => {
       "currentElement.tagName === 'A'",
     );
     expect(webView.props.source.html).toContain(terminalPunctuationUrl);
+    expect(webView.props.source.html).toContain(
+      '[\\p{L}\\p{M}\\p{N}-]+',
+    );
     expect(
       webView.props.onShouldStartLoadWithRequest({url: 'about:blank'}),
     ).toBe(true);
+    expect(
+      webView.props.onShouldStartLoadWithRequest({
+        url: 'data:text/html,<h1>blocked</h1>',
+      }),
+    ).toBe(false);
+    expect(mockOpenUrl).not.toHaveBeenCalled();
     expect(
       webView.props.onShouldStartLoadWithRequest({
         url: explicitUrl,
