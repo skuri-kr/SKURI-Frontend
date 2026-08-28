@@ -191,7 +191,7 @@ const DETAIL_TABLE_HTML = (tableHtml: string, baseUrl?: string) => `
 
           textNodes.forEach(textNode => {
             const sourceText = textNode.nodeValue || '';
-            const urlPattern = /(?:https?:\\/\\/|www\\.)[a-z0-9.-]+(?::\\d+)?(?:[/?#][^\\s<>"']*)?/gi;
+            const urlPattern = /(?:https?:\\/\\/|www\\.)[a-z0-9.-]+(?::\\d+)?(?:[/?#][^\\s<>"']*(?:'[^\\s<>"']+)*)?/gi;
             const fragment = document.createDocumentFragment();
             let cursor = 0;
             let match;
