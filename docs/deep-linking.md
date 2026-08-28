@@ -18,6 +18,13 @@ SKURI는 공지, 이번 주 학식, 커뮤니티 게시글을 iOS Universal Link
 
 `code`는 백엔드 `POST /v1/share-links`가 발급하는 혼동 문자를 제외한 Base58 8자리다. 같은 원본은 같은 비만료 코드를 재사용한다. 기존 Base64/원본 ID 기반 긴 링크는 지원하지 않는다.
 
+## 앱 내 링크 공유 UX
+
+- 공지, 게시글, 학식 화면의 링크 버튼은 OS 공유 시트를 열지 않고 공개 URL만 클립보드에 복사한다.
+- 공지와 게시글은 Share API가 발급한 짧은 URL을 복사하고, 학식은 날짜가 없는 `https://link.skuri.kr/cafeteria`를 복사한다.
+- 복사가 끝나면 `URL이 클립보드에 복사되었어요!` 토스트로 결과를 안내한다.
+- 새로운 공유 화면도 제목이나 본문을 클립보드에 섞지 않고 공개 URL만 복사하는 정책을 따른다.
+
 ## 플랫폼 검증
 
 - iOS 앱 entitlements에는 `applinks:link.skuri.kr`, `applinks:open.skuri.kr`을 모두 선언한다.
@@ -50,6 +57,7 @@ React Native 내장 `URL` 구현은 custom scheme의 hostname 처리가 제한�
 
 ## 실기기 QA
 
+- 앱의 공지·게시글·학식 링크 버튼을 누르면 공유 시트 없이 URL만 복사되고 성공 토스트가 표시된다.
 - 메모 앱에서 `link.skuri.kr` 링크를 눌렀을 때 앱과 대상 화면이 직접 열린다.
 - Safari 주소창으로 `link.skuri.kr`을 연 뒤 웹 버튼을 누르면 `open.skuri.kr`을 통해 대상 화면이 열린다.
 - 앱이 종료된 상태와 백그라운드 상태를 각각 확인한다.
