@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
-  Share,
   StyleSheet,
   View,
 } from 'react-native';
@@ -12,7 +11,10 @@ import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {buildCafeteriaShareMessage} from '@/app/linking';
+import {
+  buildCafeteriaShareUrl,
+  copyShareUrlToClipboard,
+} from '@/app/linking';
 import type {CampusStackParamList} from '@/app/navigation/types';
 import {StateCard} from '@/shared/design-system/components';
 import {
@@ -20,6 +22,7 @@ import {
   SPACING,
 } from '@/shared/design-system/tokens';
 import {useScreenView} from '@/shared/hooks/useScreenView';
+import {useToast} from '@/shared/ui/ToastProvider';
 
 import {CafeteriaCategoryCard} from '../components/CafeteriaCategoryCard';
 import {CafeteriaDetailHeader} from '../components/CafeteriaDetailHeader';
@@ -36,6 +39,7 @@ export const CafeteriaDetailScreen = () => {
   useScreenView();
 
   const navigation = useNavigation<CafeteriaDetailNavigationProp>();
+  const {showToast} = useToast();
   const route = useRoute<CafeteriaDetailRouteProp>();
   const insets = useSafeAreaInsets();
   const scrollViewRef = React.useRef<ScrollView>(null);
@@ -95,11 +99,11 @@ export const CafeteriaDetailScreen = () => {
 
   const handlePressShare = React.useCallback(async () => {
     try {
-      await Share.share({message: buildCafeteriaShareMessage()});
+      copyShareUrlToClipboard(buildCafeteriaShareUrl(), showToast);
     } catch {
-      Alert.alert('공유 오류', '학식 링크를 공유하지 못했습니다.');
+      Alert.alert('복사 오류', '학식 링크를 복사하지 못했습니다.');
     }
-  }, []);
+  }, [showToast]);
 
   return (
     <SafeAreaView edges={['left', 'right']} style={styles.safeArea}>

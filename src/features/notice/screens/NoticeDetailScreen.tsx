@@ -8,7 +8,6 @@ import {
   Platform,
   RefreshControl,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -23,9 +22,8 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import Animated from 'react-native-reanimated';
 
 import {
-  buildNoticeShareMessage,
+  copyShareUrlToClipboard,
   createContentShareUrl,
-  getMatchingNoticeShareTitle,
 } from '@/app/linking';
 import {useReportRepository} from '@/di';
 import type {ReportCategory} from '@/features/report';
@@ -42,6 +40,7 @@ import {
 } from '@/shared/design-system/components';
 import {COLORS, SPACING} from '@/shared/design-system/tokens';
 import {ReportReasonModal} from '@/shared/ui/ReportReasonModal';
+import {useToast} from '@/shared/ui/ToastProvider';
 import {
   useKeyboardInset,
   useScreenEnterAnimation,
@@ -70,12 +69,14 @@ export const NoticeDetailScreen = () => {
       NativeStackScreenProps<NoticeStackParamList, 'NoticeDetail'>['route']
     >();
   const reportRepository = useReportRepository();
+  const {showToast} = useToast();
   const insets = useSafeAreaInsets();
   const initialCommentId = route.params?.initialCommentId;
   const {height: keyboardHeight, isVisible: isKeyboardVisible} =
     useKeyboardInset();
   const screenAnimatedStyle = useScreenEnterAnimation();
   const [refreshing, setRefreshing] = React.useState(false);
+  const [isCopyingShareUrl, setIsCopyingShareUrl] = React.useState(false);
   const [isReportSubmitting, setIsReportSubmitting] = React.useState(false);
   const [isReportVisible, setIsReportVisible] = React.useState(false);
   const [reportReason, setReportReason] = React.useState('');
@@ -143,22 +144,20 @@ export const NoticeDetailScreen = () => {
 
   const handlePressShare = React.useCallback(async () => {
     const noticeId = route.params?.noticeId;
-    if (!noticeId) {
+    if (!noticeId || isCopyingShareUrl) {
       return;
     }
 
+    setIsCopyingShareUrl(true);
     try {
       const shareUrl = await createContentShareUrl('NOTICE', noticeId);
-      await Share.share({
-        message: buildNoticeShareMessage(
-          shareUrl,
-          getMatchingNoticeShareTitle(noticeId, notice),
-        ),
-      });
+      copyShareUrlToClipboard(shareUrl, showToast);
     } catch {
-      Alert.alert('공유 오류', '공지 링크를 공유하지 못했습니다.');
+      Alert.alert('복사 오류', '공지 링크를 복사하지 못했습니다.');
+    } finally {
+      setIsCopyingShareUrl(false);
     }
-  }, [notice, route.params?.noticeId]);
+  }, [isCopyingShareUrl, route.params?.noticeId, showToast]);
 
   const handleCloseReportModal = React.useCallback(() => {
     if (isReportSubmitting) {
@@ -735,14 +734,16 @@ export const NoticeDetailScreen = () => {
           rightAccessory={
             notice ? (
               <TouchableOpacity
-                accessibilityLabel="공지 공유"
+                accessibilityLabel="공지 링크 복사"
                 accessibilityRole="button"
+                accessibilityState={{disabled: isCopyingShareUrl}}
                 activeOpacity={0.82}
+                disabled={isCopyingShareUrl}
                 onPress={handlePressShare}
                 style={styles.shareButton}>
                 <Icon
                   color={COLORS.text.secondary}
-                  name="share-outline"
+                  name="link-outline"
                   size={20}
                 />
               </TouchableOpacity>
@@ -875,7 +876,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: 36,
     justifyContent: 'center',
-    marginRight: -6,
     width: 36,
   },
 });

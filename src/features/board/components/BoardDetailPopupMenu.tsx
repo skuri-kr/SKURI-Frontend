@@ -27,9 +27,9 @@ export const BoardDetailPopupMenu = ({
 }: BoardDetailPopupMenuProps) => {
   const items = [
     {
-      iconName: 'share-outline',
+      iconName: 'link-outline',
       id: 'share',
-      label: '공유',
+      label: '링크 복사',
       onPress: onPressShare,
       type: 'action' as const,
     },

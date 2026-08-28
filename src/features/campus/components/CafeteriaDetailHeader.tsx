@@ -43,14 +43,14 @@ export const CafeteriaDetailHeader = ({
           </View>
 
           <TouchableOpacity
-            accessibilityLabel="학식 공유"
+            accessibilityLabel="학식 링크 복사"
             accessibilityRole="button"
             activeOpacity={0.82}
             onPress={onPressShare}
             style={styles.shareButton}>
             <Icon
               color={COLORS.text.secondary}
-              name="share-outline"
+              name="link-outline"
               size={20}
             />
           </TouchableOpacity>

@@ -1,20 +1,20 @@
+import Clipboard from '@react-native-clipboard/clipboard';
+
 export const buildCafeteriaShareUrl = (): string =>
   'https://link.skuri.kr/cafeteria';
 
-export const getMatchingNoticeShareTitle = (
-  noticeId: string,
-  notice?: {id: string; title: string} | null,
-): string | undefined =>
-  notice?.id === noticeId ? notice.title : undefined;
+export const SHARE_URL_COPY_MESSAGE = 'URL이 클립보드에 복사되었어요!';
 
-export const buildNoticeShareMessage = (
+export const copyShareUrlToClipboard = (
   shareUrl: string,
-  title?: string,
-): string =>
-  [title?.trim() || '성결대학교 학교 공지', shareUrl].join('\n');
+  showToast: (message: string) => void,
+): void => {
+  const normalizedShareUrl = shareUrl.trim();
 
-export const buildCafeteriaShareMessage = (): string =>
-  `이번 주 성결대학교 학식 메뉴를 확인해 보세요.\n${buildCafeteriaShareUrl()}`;
+  if (!normalizedShareUrl) {
+    throw new Error('복사할 공유 URL이 없습니다.');
+  }
 
-export const buildBoardShareMessage = (shareUrl: string): string =>
-  `스쿠리 커뮤니티 게시글을 확인해 보세요.\n${shareUrl}`;
+  Clipboard.setString(normalizedShareUrl);
+  showToast(SHARE_URL_COPY_MESSAGE);
+};
