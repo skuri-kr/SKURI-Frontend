@@ -74,6 +74,29 @@ describe('buildNoticeBodyBlocks', () => {
     ).toEqual(['첫 줄\n둘째 줄', '새 문단']);
   });
 
+  it('형제 목록 항목은 한 본문 블록의 줄바꿈으로 유지한다', () => {
+    const blocks = buildNoticeBodyBlocks(
+      notice(
+        '<ul><li><p>첫 번째 항목</p></li><li><p><a href="https://example.com/apply">두 번째 항목</a></p></li></ul>',
+      ),
+    );
+
+    expect(blocks).toEqual([
+      expect.objectContaining({
+        segments: [
+          {text: '- 첫 번째 항목\n- ', type: 'text'},
+          {
+            text: '두 번째 항목',
+            type: 'link',
+            url: 'https://example.com/apply',
+          },
+        ],
+        text: '- 첫 번째 항목\n- 두 번째 항목',
+        type: 'paragraph',
+      }),
+    ]);
+  });
+
   it('HTML 텍스트 링크의 문구와 URL을 보존한다', () => {
     const blocks = buildNoticeBodyBlocks(
       notice(

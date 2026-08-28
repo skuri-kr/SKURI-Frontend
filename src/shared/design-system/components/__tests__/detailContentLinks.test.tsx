@@ -179,11 +179,13 @@ describe('상세 본문 외부 링크', () => {
   });
 
   it('표의 명시 링크와 평문 URL을 외부 브라우저로 전달한다', async () => {
+    const balancedUrl =
+      'https://en.wikipedia.org/wiki/Function_(mathematics)';
     const view = render(
       <DetailBodyBlocks
         blocks={[
           {
-            html: '<table><tr><td>https://example.com/table</td></tr></table>',
+            html: `<table><tr><td>${balancedUrl}</td></tr></table>`,
             id: 'table-1',
             type: 'table',
           },
@@ -193,17 +195,21 @@ describe('상세 본문 외부 링크', () => {
     const webView = view.getByTestId('detail-table-webview');
 
     expect(webView.props.source.html).toContain('linkifyTextNodes');
+    expect(webView.props.source.html).toContain(
+      'stripTrailingUrlPunctuation',
+    );
+    expect(webView.props.source.html).toContain('closingCount <= openingCount');
     expect(
       webView.props.onShouldStartLoadWithRequest({url: 'about:blank'}),
     ).toBe(true);
     expect(
       webView.props.onShouldStartLoadWithRequest({
-        url: 'https://example.com/table',
+        url: balancedUrl,
       }),
     ).toBe(false);
 
     await waitFor(() => {
-      expect(mockOpenUrl).toHaveBeenCalledWith('https://example.com/table');
+      expect(mockOpenUrl).toHaveBeenCalledWith(balancedUrl);
     });
   });
 });
