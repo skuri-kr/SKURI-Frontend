@@ -588,6 +588,49 @@ describe('useAppNoticeDetailData', () => {
     await waitFor(() => expect(result.current.commentItems).toHaveLength(1));
   });
 
+  it('같은 공지로 재진입한 뒤에는 이전 좋아요 요청의 실패 결과를 반영하지 않는다', async () => {
+    const repository = createRepository();
+    const firstLike = createDeferred<{isLiked: boolean; likeCount: number}>();
+    repository.getAppNotice.mockImplementation(async (noticeId: string) => ({
+      ...notice,
+      id: noticeId,
+    }));
+    repository.toggleLike
+      .mockReturnValueOnce(firstLike.promise)
+      .mockResolvedValueOnce({isLiked: true, likeCount: 1});
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+
+    const {result, rerender} = renderHook(
+      ({currentNoticeId}: {currentNoticeId: string}) =>
+        useAppNoticeDetailData(currentNoticeId),
+      {initialProps: {currentNoticeId: 'app-notice-1'}},
+    );
+    await waitFor(() => expect(result.current.data?.id).toBe('app-notice-1'));
+
+    let firstLikePromise!: ReturnType<typeof result.current.toggleLike>;
+    act(() => {
+      firstLikePromise = result.current.toggleLike();
+    });
+    rerender({currentNoticeId: 'app-notice-2'});
+    await waitFor(() => expect(result.current.data?.id).toBe('app-notice-2'));
+    rerender({currentNoticeId: 'app-notice-1'});
+    await waitFor(() => expect(result.current.data?.id).toBe('app-notice-1'));
+
+    await act(async () => {
+      await result.current.toggleLike();
+    });
+    expect(result.current.notice).toMatchObject({isLiked: true, likeCount: 1});
+
+    await act(async () => {
+      firstLike.reject(new Error('이전 좋아요 요청 실패'));
+      await firstLikePromise;
+    });
+
+    expect(result.current.notice).toMatchObject({isLiked: true, likeCount: 1});
+  });
+
   it('삭제 중인 댓글의 좋아요 요청을 전송하지 않는다', async () => {
     const repository = createRepository();
     const deferredDelete = createDeferred<void>();

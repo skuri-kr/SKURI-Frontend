@@ -153,4 +153,32 @@ describe('StartupModalHost', () => {
     expect(retryVersionCheck).toHaveBeenCalledTimes(1);
     expect(reload).toHaveBeenCalledTimes(1);
   });
+
+  it('점검 재시도의 공지 조회가 실패하면 업데이트 모드 전환 후 다시 조회한다', async () => {
+    const reload = jest.fn()
+      .mockRejectedValueOnce(new Error('공지 조회 실패'))
+      .mockResolvedValueOnce(undefined);
+    let bootstrapState: ReturnType<typeof useAppBootstrap> = {
+      checkingVersion: false,
+      dismissStartupModal: jest.fn(),
+      retryVersionCheck: jest.fn(),
+      startupModalMode: 'maintenance',
+    };
+    mockedUseAppBootstrap.mockImplementation(() => bootstrapState);
+    mockedUseAppNoticeFeedData.mockReturnValue({
+      data: null,
+      error: '앱 공지사항을 불러오지 못했습니다.',
+      loading: false,
+      reload,
+    });
+
+    const screen = render(<StartupModalHost />);
+    mockedForceUpdateModal.mock.calls[0]?.[0].onPressRetry?.();
+    await Promise.resolve();
+
+    bootstrapState = {...bootstrapState, startupModalMode: 'soft-update'};
+    screen.rerender(<StartupModalHost />);
+
+    expect(reload).toHaveBeenCalledTimes(2);
+  });
 });

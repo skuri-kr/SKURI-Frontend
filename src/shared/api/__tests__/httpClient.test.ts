@@ -40,10 +40,20 @@ describe('HttpClient', () => {
     clearAuthTokenResolver();
   });
 
-  it('선택 인증 요청은 토큰 조회에 실패해도 Authorization 없이 전송한다', async () => {
+  it('선택 인증 요청도 토큰 조회 오류를 그대로 반환한다', async () => {
     registerAuthTokenResolver(async () => {
       throw new Error('토큰 조회 실패');
     });
+    const client = new HttpClient();
+
+    await expect(
+      client.get('/v1/app-notices/app-notice-1', {optionalAuth: true}),
+    ).rejects.toThrow('토큰 조회 실패');
+
+    expect(mockedAxiosRequest).not.toHaveBeenCalled();
+  });
+
+  it('선택 인증 요청은 토큰이 없으면 Authorization 없이 전송한다', async () => {
     mockedAxiosRequest.mockResolvedValue({
       data: {success: true},
       status: 200,
