@@ -6,6 +6,7 @@ export type ReportTargetTypeDto =
   | 'CHAT_ROOM'
   | 'COMMENT'
   | 'NOTICE_COMMENT'
+  | 'APP_NOTICE_COMMENT'
   | 'MEMBER'
   | 'POST'
   | 'TAXI_PARTY';

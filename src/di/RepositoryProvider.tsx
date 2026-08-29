@@ -53,6 +53,7 @@ export function RepositoryProvider({
   // 이는 Context re-render 문제를 방지
   const repositories = useMemo<RepositoryContainer>(() => {
     const memberRepository = new SpringMemberRepository();
+    const authRepository = new FirebaseAuthRepository();
     const defaultRepositories: RepositoryContainer = {
       partyRepository: new SpringPartyRepository(),
       chatRepository: new SpringChatRepository(),
@@ -61,11 +62,13 @@ export function RepositoryProvider({
       noticeRepository: new SpringNoticeRepository(),
       reportRepository: new SpringReportRepository(),
       notificationRepository: new SpringNotificationRepository(),
-      appNoticeRepository: new SpringAppNoticeRepository(),
+      appNoticeRepository: new SpringAppNoticeRepository(
+        () => authRepository.getCurrentUser()?.uid ?? null,
+      ),
       cafeteriaRepository: new SpringCafeteriaRepository(),
       academicRepository: new SpringAcademicRepository(),
       campusBannerRepository: new SpringCampusBannerRepository(),
-      authRepository: new FirebaseAuthRepository(),
+      authRepository,
       memberRepository,
       memberDirectoryRepository: new SpringMemberDirectoryRepository(),
       myPageRepository: new SpringMyPageRepository(),

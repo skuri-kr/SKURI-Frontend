@@ -162,7 +162,8 @@ Spring 백엔드는 Access Token / Refresh Token을 직접 발급하거나 관�
 - 도메인별 권한 검증을 Spring의 비즈니스 로직에서 수행한다.
 - 기본 정책은 “모든 API 인증 필요”이며, 아래 공개 API만 예외로 `permitAll` 처리한다.
   - `GET /v1/app-versions/**`
-  - `GET /v1/app-notices/**`
+  - `GET /v1/app-notices`
+  - `GET /v1/app-notices/{appNoticeId}`
   - `GET /v1/legal-documents/**`
   - `GET /v1/campus-banners/**`
   - `GET /uploads/**` (`MEDIA_STORAGE_PROVIDER=LOCAL`일 때 `media.storage.url-prefix` 기준 공개 업로드 파일 조회)
@@ -349,15 +350,24 @@ Spring 백엔드는 Access Token / Refresh Token을 직접 발급하거나 관�
     - `GET /v1/app-notices`
     - `GET /v1/app-notices/{appNoticeId}`
   - 인증 사용자 전용:
+    - `POST /v1/app-notices/{appNoticeId}/like`
+    - `DELETE /v1/app-notices/{appNoticeId}/like`
+    - `GET /v1/app-notices/{appNoticeId}/comments`
+    - `POST /v1/app-notices/{appNoticeId}/comments`
+    - `POST /v1/app-notice-comments/{commentId}/like`
+    - `DELETE /v1/app-notice-comments/{commentId}/like`
     - `GET /v1/members/me/app-notices/unread-count`
     - `POST /v1/members/me/app-notices/{appNoticeId}/read`
     - `GET /v1/members/me/notice-bookmarks`
     - `POST /v1/notices/{noticeId}/bookmark`
     - `DELETE /v1/notices/{noticeId}/bookmark`
   - 공지 댓글 작성자 전용:
+    - `PATCH /v1/app-notice-comments/{commentId}`
+    - `DELETE /v1/app-notice-comments/{commentId}`
     - `PATCH /v1/notice-comments/{commentId}`
     - `DELETE /v1/notice-comments/{commentId}`
-    - 위반 시 `403 NOT_NOTICE_COMMENT_AUTHOR`
+    - 앱 공지 댓글 위반 시 `403 NOT_APP_NOTICE_COMMENT_AUTHOR`
+    - 학교 공지 댓글 위반 시 `403 NOT_NOTICE_COMMENT_AUTHOR`
   - 관리자 전용:
     - `POST /v1/admin/notices/sync`
     - `POST /v1/admin/app-notices`

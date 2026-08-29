@@ -173,7 +173,11 @@ const parseCanonicalNotification = ({
         return {type, noticeId, commentId};
       }
 
-      warnInvalidNotification(source, type, 'postId 또는 noticeId가 없습니다.');
+      if (appNoticeId) {
+        return {type, appNoticeId, commentId};
+      }
+
+      warnInvalidNotification(source, type, 'postId, noticeId 또는 appNoticeId가 없습니다.');
       return null;
     case 'NOTICE':
       if (!noticeId) {

@@ -9,6 +9,7 @@ export type ReportTargetType =
   | 'POST'
   | 'COMMENT'
   | 'NOTICE_COMMENT'
+  | 'APP_NOTICE_COMMENT'
   | 'MEMBER'
   | 'CHAT_MESSAGE'
   | 'CHAT_ROOM'

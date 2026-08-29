@@ -138,4 +138,46 @@ describe('pushNotificationRuntime', () => {
       title: '친구 요청이 도착했어요',
     });
   });
+
+  it('foreground 앱 공지 댓글은 앱 공지용 기본 문구와 intent를 전달한다', async () => {
+    let listener:
+      | ((remoteMessage: {
+          data?: Record<string, unknown>;
+          notification?: {body?: string; title?: string};
+        }) => Promise<void>)
+      | undefined;
+    mockSubscribeForegroundMessages.mockImplementation(
+      (
+        nextListener: (remoteMessage: {
+          data?: Record<string, unknown>;
+          notification?: {body?: string; title?: string};
+        }) => Promise<void>,
+      ) => {
+        listener = nextListener;
+        return jest.fn();
+      },
+    );
+
+    const onForegroundNotification = jest.fn();
+    initForegroundMessageHandler({onForegroundNotification});
+
+    await listener?.({
+      data: {
+        appNoticeId: 'app-notice-1',
+        commentId: 'app-comment-1',
+        contractVersion: '1',
+        type: 'COMMENT_CREATED',
+      },
+    });
+
+    expect(onForegroundNotification).toHaveBeenCalledWith({
+      body: '새 댓글이 달렸어요.',
+      intent: {
+        initialCommentId: 'app-comment-1',
+        kind: 'appNoticeDetail',
+        noticeId: 'app-notice-1',
+      },
+      title: '앱 공지 댓글',
+    });
+  });
 });

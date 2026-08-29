@@ -164,12 +164,20 @@ const buildForegroundDescriptor = (
         intent,
       };
     case 'POST_LIKED':
-    case 'COMMENT_CREATED':
       return {
         ...getNotificationText(
           remoteMessage,
           '커뮤니티 알림',
           '새 알림이 도착했어요.',
+        ),
+        intent,
+      };
+    case 'COMMENT_CREATED':
+      return {
+        ...getNotificationText(
+          remoteMessage,
+          'appNoticeId' in payload ? '앱 공지 댓글' : '커뮤니티 알림',
+          'appNoticeId' in payload ? '새 댓글이 달렸어요.' : '새 알림이 도착했어요.',
         ),
         intent,
       };

@@ -3,7 +3,10 @@ import {
   openNotificationNavigationIntent,
 } from '../notificationRouter';
 import {mapNotificationResponseDto} from '@/features/user/data/mappers/notificationMapper';
-import {navigateToCampusScreen} from '@/app/navigation/services/appRouteNavigation';
+import {
+  navigateToAppNoticeDetail,
+  navigateToCampusScreen,
+} from '@/app/navigation/services/appRouteNavigation';
 
 jest.mock('@/features/campus/services/academicNavigationService', () => ({
   navigateToAcademicCalendarDetail: jest.fn(),
@@ -20,6 +23,7 @@ jest.mock('@/app/navigation/services/appRouteNavigation', () => ({
 }));
 
 const mockedNavigateToCampusScreen = jest.mocked(navigateToCampusScreen);
+const mockedNavigateToAppNoticeDetail = jest.mocked(navigateToAppNoticeDetail);
 
 describe('notificationRouter', () => {
   beforeEach(() => {
@@ -138,5 +142,31 @@ describe('notificationRouter', () => {
     expect(mockedNavigateToCampusScreen).toHaveBeenCalledWith('FriendHub', {
       initialTab: 'requests',
     });
+  });
+
+  it('앱 공지 댓글 알림은 댓글 포커스를 포함해 상세로 이동한다', () => {
+    const notification = mapNotificationResponseDto({
+      createdAt: '2026-08-29T09:00:00.000Z',
+      data: {appNoticeId: 'app-notice-1', commentId: 'app-comment-1'},
+      id: 'notification-app-comment',
+      isRead: false,
+      message: '새 댓글이 달렸어요.',
+      title: '앱 공지 댓글',
+      type: 'COMMENT_CREATED',
+    });
+    const intent = getStoredNotificationNavigationIntent(notification);
+
+    expect(intent).toEqual({
+      kind: 'appNoticeDetail',
+      noticeId: 'app-notice-1',
+      initialCommentId: 'app-comment-1',
+    });
+
+    openNotificationNavigationIntent(intent);
+
+    expect(mockedNavigateToAppNoticeDetail).toHaveBeenCalledWith(
+      'app-notice-1',
+      {initialCommentId: 'app-comment-1'},
+    );
   });
 });

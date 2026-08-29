@@ -69,6 +69,21 @@ describe('notificationPayloadParser', () => {
     });
   });
 
+  it('앱 공지 댓글 알림의 공지와 댓글 식별자를 보존한다', () => {
+    expect(
+      parsePushNotificationPayload({
+        appNoticeId: 'app-notice-1',
+        commentId: 'app-comment-1',
+        contractVersion: '1',
+        type: 'COMMENT_CREATED',
+      }),
+    ).toEqual({
+      appNoticeId: 'app-notice-1',
+      commentId: 'app-comment-1',
+      type: 'COMMENT_CREATED',
+    });
+  });
+
   it('친구 수락과 초대 payload의 이동 식별자를 보존한다', () => {
     expect(
       parseStoredNotificationPayload({

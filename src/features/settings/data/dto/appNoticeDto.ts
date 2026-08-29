@@ -7,12 +7,17 @@ export type AppNoticeCategoryDto =
 export type AppNoticePriorityDto = 'HIGH' | 'NORMAL' | 'LOW';
 
 export interface AppNoticeResponseDto {
+  actionLabel?: string | null;
   actionUrl?: string | null;
   category: AppNoticeCategoryDto;
   content: string;
   createdAt: string;
   id: string;
   imageUrls?: string[] | null;
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  isLiked: boolean;
   priority: AppNoticePriorityDto;
   publishedAt: string;
   title: string;

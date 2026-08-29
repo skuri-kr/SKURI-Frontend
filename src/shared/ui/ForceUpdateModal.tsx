@@ -88,7 +88,7 @@ export const ForceUpdateModal: React.FC<ForceUpdateModalProps> = ({
       : config?.buttonText ||
         (Platform.OS === 'ios' ? 'App Store에서 업데이트' : 'Play Store에서 업데이트');
   const showCloseButton = mode === 'soft-update';
-  const showAppNotices = mode !== 'maintenance';
+  const showAppNotices = noticeLoading || noticeItems.length > 0;
 
   return (
     <Modal
@@ -150,9 +150,13 @@ export const ForceUpdateModal: React.FC<ForceUpdateModalProps> = ({
             {showAppNotices ? (
               <View style={styles.noticeSection}>
                 <View style={styles.noticeHeader}>
-                  <Text style={styles.noticeTitle}>최근 앱 공지</Text>
+                  <Text style={styles.noticeTitle}>
+                    {mode === 'maintenance' ? '점검 안내' : '최근 앱 공지'}
+                  </Text>
                   <Text style={styles.noticeSubtitle}>
-                    최신 안내와 업데이트 소식을 확인하세요
+                    {mode === 'maintenance'
+                      ? '운영팀에서 등록한 점검 공지입니다'
+                      : '최신 안내와 업데이트 소식을 확인하세요'}
                   </Text>
                 </View>
 
@@ -165,30 +169,34 @@ export const ForceUpdateModal: React.FC<ForceUpdateModalProps> = ({
                   </View>
                 ) : null}
 
-                {!noticeLoading && noticeItems.length > 0 ? (
+                {noticeItems.length > 0 ? (
                   <View style={styles.noticeList}>
-                    {noticeItems.map(item => (
-                      <View key={item.id} style={styles.noticeCard}>
-                        <View style={styles.noticeTitleRow}>
-                          <Text numberOfLines={2} style={styles.noticeCardTitle}>{item.title}</Text>
-                          <View style={styles.noticeTitleBadgeRow}>
-                            {item.isImportant ? (
-                              <View style={styles.importantBadge}>
-                                <Text style={styles.importantBadgeText}>중요</Text>
-                              </View>
-                            ) : (
-                              null
-                            )}
-                            <Text style={styles.noticePublishedLabel}>
-                              {item.publishedLabel}
-                            </Text>
-                          </View>
+                    {noticeItems.map(item =>
+                      mode === 'maintenance' ? (
+                        <View key={item.id} style={styles.noticeCard}>
+                          <Text style={styles.maintenanceNoticeBody}>{item.body}</Text>
                         </View>
-                        <Text numberOfLines={2} style={styles.noticeSummary}>
-                          {item.summary}
-                        </Text>
-                      </View>
-                    ))}
+                      ) : (
+                        <View key={item.id} style={styles.noticeCard}>
+                          <View style={styles.noticeTitleRow}>
+                            <Text numberOfLines={2} style={styles.noticeCardTitle}>{item.title}</Text>
+                            <View style={styles.noticeTitleBadgeRow}>
+                              {item.isImportant ? (
+                                <View style={styles.importantBadge}>
+                                  <Text style={styles.importantBadgeText}>중요</Text>
+                                </View>
+                              ) : null}
+                              <Text style={styles.noticePublishedLabel}>
+                                {item.publishedLabel}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text numberOfLines={2} style={styles.noticeSummary}>
+                            {item.summary}
+                          </Text>
+                        </View>
+                      ),
+                    )}
                   </View>
                 ) : null}
               </View>
@@ -351,5 +359,10 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
     fontSize: 12,
     lineHeight: 18,
+  },
+  maintenanceNoticeBody: {
+    ...TYPOGRAPHY.body2,
+    color: COLORS.text.secondary,
+    lineHeight: 22,
   },
 });

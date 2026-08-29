@@ -53,8 +53,8 @@ Authorization: Bearer <firebase_id_token>
 | API | 이유 |
 |-----|------|
 | `GET /v1/app-versions/{platform}` | 앱 실행 초기(로그인 전) 강제 업데이트 여부 확인 |
-| `GET /v1/app-notices` | 로그인 전 점검 공지 / 긴급 공지 표시 필요 |
-| `GET /v1/app-notices/{appNoticeId}` | 로그인 전 개별 점검/업데이트 공지 상세 표시 필요 |
+| `GET /v1/app-notices` | 로그인 전 점검 공지 / 긴급 공지 표시 필요. Authorization 헤더를 처리하지 않는 완전 공개 조회 |
+| `GET /v1/app-notices/{appNoticeId}` | 로그인 전 조회 가능. 유효한 토큰이 있으면 좋아요 상태를 개인화하는 선택 인증 조회 |
 | `GET /v1/legal-documents/{documentKey}` | 설정 화면의 이용약관 / 개인정보 처리방침 표시 |
 | `GET /v1/campus-banners` | 로그인 전 캠퍼스 홈 배너 노출 필요 |
 | `GET /v3/api-docs/**` | OpenAPI 스펙(JSON) 조회 |
@@ -597,6 +597,7 @@ FCM 토큰 삭제
 | `POST_LIKED` | `postId` | 게시글 상세 |
 | `COMMENT_CREATED` (게시글) | `postId`, `commentId` | 게시글 상세 + 댓글 포커스 |
 | `COMMENT_CREATED` (공지) | `noticeId`, `commentId` | 공지 상세 + 댓글 포커스 |
+| `COMMENT_CREATED` (앱 공지) | `appNoticeId`, `commentId` | 앱 공지 상세 + 댓글 포커스 |
 | `NOTICE` | `noticeId` | 학교 공지 상세 |
 | `APP_NOTICE` | `appNoticeId` | 앱 공지 상세 |
 | `ACADEMIC_SCHEDULE` | `academicScheduleId` | 학사 일정 상세 |
@@ -2749,6 +2750,10 @@ Authorization:Bearer <firebase_id_token>
 #### GET /v1/app-notices
 앱 공지 목록 **(Public API — 인증 불필요)**
 
+- Authorization 헤더 유무와 관계없이 인증을 처리하지 않는 완전 공개 API다.
+- 앱 시작 점검 화면은 이 공개 목록의 최신 공지 1건에서 `content` 본문만 표시한다.
+- 점검 화면에서는 조회수·좋아요·댓글 등 상호작용 정보와 UI를 표시하지 않는다.
+
 **Response:**
 ```json
 {
@@ -2762,6 +2767,11 @@ Authorization:Bearer <firebase_id_token>
       "priority": "NORMAL",
       "imageUrls": ["https://..."],
       "actionUrl": "https://...",
+      "actionLabel": "업데이트 안내 보기",
+      "viewCount": 42,
+      "likeCount": 7,
+      "commentCount": 3,
+      "isLiked": false,
       "publishedAt": "2026-02-01T00:00:00Z",
       "createdAt": "2026-01-31T18:00:00Z",
       "updatedAt": "2026-01-31T18:00:00Z"
@@ -2776,8 +2786,12 @@ Authorization:Bearer <firebase_id_token>
 **정책:**
 - `GET /v1/app-notices`
 - `GET /v1/app-notices/{appNoticeId}`
-위 두 API는 모두 Public API이며 인증이 필요 없다.
+위 두 API는 모두 익명 호출이 가능한 Public API다.
+- 목록은 Authorization 헤더를 처리하지 않는다.
+- 상세는 선택 인증을 지원한다. 유효한 Firebase ID Token을 보내면 `isLiked`를 현재 사용자 기준으로 합성한다.
+- 상세에 잘못된 토큰을 보내면 `401 UNAUTHORIZED`, 허용 이메일 도메인이 아니면 `403 EMAIL_DOMAIN_RESTRICTED`, 탈퇴 회원이면 `403 MEMBER_WITHDRAWN`을 반환한다.
 - Public 조회는 `publishedAt <= now()`인 앱 공지만 노출한다.
+- 상세 조회는 호출할 때마다 `viewCount`를 1 증가시키며, 인증 사용자는 `isLiked`가 개인화된다.
 - 앱 공지 unread count와 읽음 처리는 일반 알림(`GET /v1/notifications/unread-count`)과 별도 source of truth를 사용한다.
 
 **Response:**
@@ -2792,12 +2806,33 @@ Authorization:Bearer <firebase_id_token>
     "priority": "HIGH",
     "imageUrls": [],
     "actionUrl": null,
+    "actionLabel": null,
+    "viewCount": 101,
+    "likeCount": 12,
+    "commentCount": 4,
+    "isLiked": true,
     "publishedAt": "2026-02-20T00:00:00Z",
     "createdAt": "2026-02-19T12:00:00Z",
     "updatedAt": "2026-02-19T12:00:00Z"
   }
 }
 ```
+
+#### 앱 공지 좋아요·댓글 API
+
+아래 API는 인증이 필요하고 학교 공지와 동일한 익명 댓글·답글·수정·삭제·좋아요 정책을 사용한다.
+
+| Method | Path | 설명 |
+|---|---|---|
+| `POST/DELETE` | `/v1/app-notices/{appNoticeId}/like` | 앱 공지 좋아요 등록/취소 |
+| `GET/POST` | `/v1/app-notices/{appNoticeId}/comments` | 댓글 목록/작성 |
+| `PATCH/DELETE` | `/v1/app-notice-comments/{commentId}` | 댓글 수정/삭제 |
+| `POST/DELETE` | `/v1/app-notice-comments/{commentId}/like` | 댓글 좋아요 등록/취소 |
+
+- 위 상호작용 API는 `publishedAt <= now()`인 앱 공지만 허용한다. 미래 게시 시각으로 전환된 공지의 기존 댓글 ID를 사용한 수정·삭제·좋아요도 `404 APP_NOTICE_NOT_FOUND`를 반환한다.
+- 댓글 작성자를 제외한 모든 활성 운영자에게 알림 설정과 무관하게 `COMMENT_CREATED` 인앱·푸시 알림을 전송한다.
+- 답글 부모 작성자가 운영자이기도 하면 답글 알림 하나만 보내며, data는 `appNoticeId`, `commentId`를 포함한다.
+- 신고는 `targetType=APP_NOTICE_COMMENT`를 사용한다.
 
 #### GET /v1/members/me/app-notices/unread-count
 읽지 않은 앱 공지 수
@@ -2843,6 +2878,8 @@ Authorization:Bearer <firebase_id_token>
 |----------|------|------|
 | `NOTICE_NOT_FOUND` | 404 | 존재하지 않는 학교 공지 |
 | `APP_NOTICE_NOT_FOUND` | 404 | 존재하지 않는 앱 공지 |
+| `APP_NOTICE_COMMENT_NOT_FOUND` | 404 | 존재하지 않는 앱 공지 댓글 |
+| `NOT_APP_NOTICE_COMMENT_AUTHOR` | 403 | 앱 공지 댓글 작성자가 아닌데 수정/삭제 시도 |
 | `NOTICE_COMMENT_NOT_FOUND` | 404 | 존재하지 않는 공지 댓글 |
 | `NOT_NOTICE_COMMENT_AUTHOR` | 403 | 댓글 작성자가 아닌데 수정/삭제 시도 |
 | `COMMENT_ALREADY_DELETED` | 409 | 이미 삭제된 댓글 수정/재삭제 시도 |
@@ -3234,14 +3271,15 @@ Authorization:Bearer <firebase_id_token>
 #### POST /v1/reports
 신고 등록
 
-**targetType:** `POST` | `COMMENT` | `NOTICE_COMMENT` | `MEMBER` | `CHAT_MESSAGE` | `CHAT_ROOM` | `TAXI_PARTY`
+**targetType:** `POST` | `COMMENT` | `NOTICE_COMMENT` | `APP_NOTICE_COMMENT` | `MEMBER` | `CHAT_MESSAGE` | `CHAT_ROOM` | `TAXI_PARTY`
 
 - `NOTICE_COMMENT`: `targetId = noticeCommentId`, 삭제되지 않은 공지 댓글만 신고할 수 있으며 `targetAuthorId = noticeComment.userId`
+- `APP_NOTICE_COMMENT`: `targetId = appNoticeCommentId`, 삭제되지 않은 앱 공지 댓글만 신고할 수 있으며 `targetAuthorId = appNoticeComment.userId`
 - `CHAT_MESSAGE`: `targetId = messageId`, `targetAuthorId = message.senderId`
 - `CHAT_ROOM`: `targetId = chatRoomId`, 파티 채팅방(`type=PARTY`)은 대상에서 제외하며 일반 채팅방만 허용
 - `CHAT_ROOM`의 seed/public 방처럼 `createdBy`가 없으면 신고는 허용하고 `targetAuthorId = null`로 저장
 - `TAXI_PARTY`: `targetId = partyId`, `targetAuthorId = party.leaderId`
-- `404` 대상 없음은 `POST_NOT_FOUND`, `COMMENT_NOT_FOUND`, `NOTICE_COMMENT_NOT_FOUND`, `MEMBER_NOT_FOUND`, `CHAT_MESSAGE_NOT_FOUND`, `CHAT_ROOM_NOT_FOUND`, `PARTY_NOT_FOUND` 중 하나를 반환합니다.
+- `404` 대상 없음은 `POST_NOT_FOUND`, `COMMENT_NOT_FOUND`, `NOTICE_COMMENT_NOT_FOUND`, `APP_NOTICE_COMMENT_NOT_FOUND`, `MEMBER_NOT_FOUND`, `CHAT_MESSAGE_NOT_FOUND`, `CHAT_ROOM_NOT_FOUND`, `PARTY_NOT_FOUND` 중 하나를 반환합니다.
 
 **Request Example - NOTICE_COMMENT:**
 ```json
@@ -3250,6 +3288,16 @@ Authorization:Bearer <firebase_id_token>
   "targetId": "notice_comment_uuid",
   "category": "ABUSE",
   "reason": "공지 댓글에 부적절한 표현이 있습니다."
+}
+```
+
+**Request Example - APP_NOTICE_COMMENT:**
+```json
+{
+  "targetType": "APP_NOTICE_COMMENT",
+  "targetId": "app_notice_comment_uuid",
+  "category": "ABUSE",
+  "reason": "앱 공지 댓글에 부적절한 표현이 있습니다."
 }
 ```
 
@@ -3836,6 +3884,7 @@ Authorization:Bearer <firebase_id_token>
 | `POST_LIKED` | 게시글 좋아요 | 게시글 작성자 | `allNotifications` + `boardLikeNotifications` | O |
 | `COMMENT_CREATED` (게시글) | 댓글/답글 생성 | 게시글 작성자, 부모 댓글 작성자, 게시글 북마크 사용자 | `allNotifications` + `commentNotifications` + `bookmarkedPostCommentNotifications` (중복 수신자는 1회 dedupe) | O |
 | `COMMENT_CREATED` (공지) | 공지 댓글 답글 생성 | 부모 댓글 작성자 | `allNotifications` + `commentNotifications` | O |
+| `COMMENT_CREATED` (앱 공지) | 앱 공지 댓글/답글 생성 | 작성자 제외 활성 운영자 전체, 답글의 부모 댓글 작성자 | 운영자 알림은 설정 무시, 부모 작성자는 댓글 알림 설정 반영, 중복 수신자는 답글 알림 1회 | O |
 | `NOTICE` | 새 학교 공지 | 공지 허용 사용자 | `allNotifications` + `noticeNotifications` + `noticeNotificationsDetail` | O |
 | `APP_NOTICE` | 앱 공지 생성 | 일반: 시스템 알림 허용 사용자 / `HIGH`: 전체 사용자 | 일반: `allNotifications` + `systemNotifications`, `HIGH`는 설정 무시 | O |
 | `ACADEMIC_SCHEDULE` | 학사 일정 리마인더 | 학사 일정 알림 허용 사용자 | `allNotifications` + `academicScheduleNotifications` | O |
@@ -4485,6 +4534,7 @@ data: {
 | `POST_LIKED` | `postId` | 게시글 상세 |
 | `COMMENT_CREATED` (게시글) | `postId`, `commentId` | 게시글 상세 |
 | `COMMENT_CREATED` (공지) | `noticeId`, `commentId` | 공지 상세 |
+| `COMMENT_CREATED` (앱 공지) | `appNoticeId`, `commentId` | 앱 공지 상세 + 댓글 포커스 |
 | `NOTICE` | `noticeId` | 공지 상세 |
 | `APP_NOTICE` | `appNoticeId` | 앱 공지 상세 |
 | `ACADEMIC_SCHEDULE` | `academicScheduleId` | 학사 일정 상세 |
@@ -5441,6 +5491,10 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 앱 공지 생성
 
 - `imageUrls[]`에는 `POST /v1/images`의 `APP_NOTICE_IMAGE` 업로드 결과 URL을 넣을 수 있습니다.
+- `actionUrl`은 유효한 HTTPS URL만 허용한다.
+- `actionLabel`은 최대 30자이며 `actionUrl`이 있을 때만 사용할 수 있다.
+- `actionLabel`만 전달하면 `422 VALIDATION_ERROR`와 `actionLabel은 actionUrl과 함께 사용할 수 있습니다.`를 반환한다.
+- HTTPS가 아닌 URL 또는 형식이 잘못된 URL은 `422 VALIDATION_ERROR`와 `actionUrl은 유효한 HTTPS URL이어야 합니다.`를 반환한다.
 
 **Request:**
 ```json
@@ -5476,6 +5530,10 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 - 전달한 필드만 반영한다.
 - 누락된 필드와 `null` 필드는 변경하지 않는다.
 - 모든 수정 가능 필드를 보내면 전체 수정처럼 사용할 수 있다.
+- `actionUrl`은 유효한 HTTPS URL만 허용한다. 빈 문자열을 보내면 URL과 버튼 문구를 제거한다.
+- `actionLabel`은 최대 30자이며 URL이 있을 때만 사용할 수 있다. 빈 문자열이면 앱은 `관련 페이지 보기` 기본 문구를 사용한다.
+- URL이 없는 상태에서 `actionLabel`만 전달하면 `422 VALIDATION_ERROR`와 `actionLabel은 actionUrl과 함께 사용할 수 있습니다.`를 반환한다.
+- HTTPS가 아닌 URL 또는 형식이 잘못된 URL은 `422 VALIDATION_ERROR`와 `actionUrl은 유효한 HTTPS URL이어야 합니다.`를 반환한다.
 
 **Request:**
 ```json
@@ -5498,6 +5556,11 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
     "priority": "HIGH",
     "imageUrls": [],
     "actionUrl": null,
+    "actionLabel": null,
+    "viewCount": 101,
+    "likeCount": 12,
+    "commentCount": 4,
+    "isLiked": false,
     "publishedAt": "2026-02-20T00:00:00Z",
     "createdAt": "2026-02-19T12:00:00Z",
     "updatedAt": "2026-02-19T12:30:00Z"
@@ -6340,7 +6403,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 | 파라미터 | 타입 | 설명 |
 |---------|------|------|
 | `status` | string | 신고 상태 필터 (`PENDING`, `REVIEWING`, `ACTIONED`, `REJECTED`) |
-| `targetType` | string | 신고 대상 필터 (`POST`, `COMMENT`, `NOTICE_COMMENT`, `MEMBER`, `CHAT_MESSAGE`, `CHAT_ROOM`, `TAXI_PARTY`) |
+| `targetType` | string | 신고 대상 필터 (`POST`, `COMMENT`, `NOTICE_COMMENT`, `APP_NOTICE_COMMENT`, `MEMBER`, `CHAT_MESSAGE`, `CHAT_ROOM`, `TAXI_PARTY`) |
 | `page` | int | 페이지 번호 (기본 0, 0 이상) |
 | `size` | int | 페이지 크기 (기본 20, 1~100) |
 

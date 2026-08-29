@@ -11,6 +11,7 @@ import {
 
 export interface ApiRequestConfig<D = unknown>
   extends Omit<AxiosRequestConfig<D>, 'baseURL'> {
+  optionalAuth?: boolean;
   requiresAuth?: boolean;
   forceRefreshToken?: boolean;
 }
