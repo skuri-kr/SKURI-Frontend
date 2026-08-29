@@ -48,17 +48,9 @@ const buildRequestHeaders = async (
     return headers;
   }
 
-  let authorization: string | null;
-  try {
-    authorization = await getAuthorizationHeaderValue({
-      forceRefresh: config.forceRefreshToken,
-    });
-  } catch (error) {
-    if (!config.optionalAuth) {
-      throw error;
-    }
-    return headers;
-  }
+  const authorization = await getAuthorizationHeaderValue({
+    forceRefresh: config.forceRefreshToken,
+  });
 
   if (authorization) {
     headers.Authorization = authorization;
