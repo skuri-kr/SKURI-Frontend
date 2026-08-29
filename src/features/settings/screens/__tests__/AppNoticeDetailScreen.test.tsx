@@ -304,6 +304,23 @@ describe('AppNoticeDetailScreen', () => {
     expect(screen.getByTestId('app-notice-comment-card-app-comment-2').props.accessibilityLabel).toContain('수정 비활성화');
   });
 
+  it('댓글 수정 전송 중에는 같은 댓글의 삭제 동작을 비활성화한다', () => {
+    mockDetailData = {
+      ...mockDetailData,
+      commentItems: mockDetailData.commentItems.map(comment =>
+        comment.id === 'app-comment-1' ? {...comment, isEditable: true} : comment,
+      ),
+      editingCommentId: 'app-comment-1',
+      isEditingComment: true,
+      submittingComment: true,
+    };
+    const screen = render(<AppNoticeDetailScreen />);
+
+    expect(
+      screen.getByTestId('app-notice-comment-card-app-comment-1').props.accessibilityLabel,
+    ).toContain('삭제 비활성화');
+  });
+
   it('삭제 중인 수정 또는 답글 작성창의 입력을 잠근다', () => {
     mockDetailData = {
       ...mockDetailData,

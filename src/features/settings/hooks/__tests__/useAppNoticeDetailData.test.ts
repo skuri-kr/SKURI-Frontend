@@ -175,6 +175,37 @@ describe('useAppNoticeDetailData', () => {
     });
   });
 
+  it('댓글 수정 전송 중에는 같은 댓글의 삭제 요청을 전송하지 않는다', async () => {
+    const repository = createRepository();
+    const deferredEdit = createDeferred<NoticeComment>();
+    repository.getComments.mockResolvedValueOnce([{...comment, replies: []}]);
+    repository.updateComment.mockReturnValueOnce(deferredEdit.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      result.current.startEditingComment('app-comment-1');
+      result.current.setCommentDraft('수정 중인 댓글');
+    });
+    let submitPromise!: ReturnType<typeof result.current.submitComment>;
+    act(() => {
+      submitPromise = result.current.submitComment();
+    });
+    await act(async () => {
+      await result.current.deleteComment('app-comment-1');
+    });
+
+    expect(repository.deleteComment).not.toHaveBeenCalled();
+
+    await act(async () => {
+      deferredEdit.resolve({...comment, content: '수정 중인 댓글'});
+      await submitPromise;
+    });
+  });
+
   it('다른 댓글을 삭제해도 현재 작성 중인 초안을 보존한다', async () => {
     const repository = createRepository();
     const commentTree: NoticeCommentTreeNode = {...comment, replies: []};
