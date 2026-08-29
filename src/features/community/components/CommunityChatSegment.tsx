@@ -4,11 +4,17 @@ import {
   FlatList,
   RefreshControl,
   StyleSheet,
+  type ViewToken,
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 import {BOTTOM_TAB_BAR_HEIGHT} from '@/shared/constants/layout';
+import {
+  InlineBannerAd,
+  interleaveAds,
+  type InterleavedAdItem,
+} from '@/shared/ads';
 import {StateCard} from '@/shared/design-system/components';
 import {COLORS, SPACING} from '@/shared/design-system/tokens';
 
@@ -16,6 +22,7 @@ import {CommunityChatRoomCard} from './CommunityChatRoomCard';
 import type {CommunityChatRoomViewData} from '../model/communityViewData';
 
 interface CommunityChatSegmentProps {
+  active: boolean;
   loading: boolean;
   onPressRoom: (roomId: string) => void;
   onRefresh: () => void;
@@ -24,18 +31,46 @@ interface CommunityChatSegmentProps {
 }
 
 export const CommunityChatSegment = ({
+  active,
   loading,
   onPressRoom,
   onRefresh,
   refreshing,
   rooms,
 }: CommunityChatSegmentProps) => {
+  const [visibleAdSlots, setVisibleAdSlots] = React.useState<Set<number>>(
+    () => new Set(),
+  );
+  const listItems = React.useMemo(() => interleaveAds(rooms), [rooms]);
+  const handleViewableItemsChanged = React.useRef(
+    ({viewableItems}: {viewableItems: ViewToken[]}) => {
+      const nextVisibleAdSlots = new Set(
+        viewableItems.flatMap(viewableItem => {
+          const item = viewableItem.item as InterleavedAdItem<
+            CommunityChatRoomViewData
+          >;
+          return item.kind === 'ad' ? [item.slotIndex] : [];
+        }),
+      );
+
+      setVisibleAdSlots(currentSlots =>
+        currentSlots.size === nextVisibleAdSlots.size &&
+        [...currentSlots].every(slot => nextVisibleAdSlots.has(slot))
+          ? currentSlots
+          : nextVisibleAdSlots,
+      );
+    },
+  ).current;
+
   return (
     <View style={styles.container}>
       <FlatList
         contentContainerStyle={styles.listContent}
-        data={rooms}
-        keyExtractor={item => item.id}
+        data={listItems}
+        extraData={visibleAdSlots}
+        keyExtractor={item =>
+          item.kind === 'ad' ? item.key : item.content.id
+        }
         ListEmptyComponent={
           loading ? (
             <View style={styles.stateWrap}>
@@ -68,14 +103,30 @@ export const CommunityChatSegment = ({
             tintColor={COLORS.brand.primary}
           />
         }
-        renderItem={({item}) => (
-          <CommunityChatRoomCard item={item} onPress={onPressRoom} />
-        )}
+        onViewableItemsChanged={handleViewableItemsChanged}
+        removeClippedSubviews={false}
+        renderItem={({item}) =>
+          item.kind === 'ad' ? (
+            <InlineBannerAd
+              active={active && visibleAdSlots.has(item.slotIndex)}
+              placement="communityChatList"
+              slotIndex={item.slotIndex}
+            />
+          ) : (
+            <CommunityChatRoomCard
+              item={item.content}
+              onPress={onPressRoom}
+            />
+          )
+        }
         showsVerticalScrollIndicator={false}
+        viewabilityConfig={VIEWABILITY_CONFIG}
       />
     </View>
   );
 };
+
+const VIEWABILITY_CONFIG = {itemVisiblePercentThreshold: 20};
 
 const styles = StyleSheet.create({
   container: {

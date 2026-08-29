@@ -26,6 +26,7 @@ import {
 } from '@/app/linking';
 import {useReportRepository} from '@/di';
 import type {ReportCategory} from '@/features/report';
+import {InlineBannerAd, isDetailAdEligible} from '@/shared/ads';
 import {
   DetailBackHeader,
   DetailBodyBlocks,
@@ -87,6 +88,7 @@ export const BoardDetailScreen = () => {
   >(null);
   const [refreshing, setRefreshing] = React.useState(false);
   const [isCopyingShareUrl, setIsCopyingShareUrl] = React.useState(false);
+  const [bodyContentHeight, setBodyContentHeight] = React.useState(0);
   const {
     cancelCommentEdit,
     cancelCommentReply,
@@ -121,6 +123,10 @@ export const BoardDetailScreen = () => {
     togglingBookmark,
     togglingLike,
   } = useBoardDetailData(route.params?.postId);
+
+  React.useEffect(() => {
+    setBodyContentHeight(0);
+  }, [route.params?.postId]);
 
   const headerOffset = insets.top + 56;
   const initialCommentId = route.params?.initialCommentId;
@@ -635,7 +641,16 @@ export const BoardDetailScreen = () => {
                 viewCountLabel={data.viewCountLabel}
               />
               <View style={styles.divider} />
-              <DetailBodyBlocks blocks={data.bodyBlocks} />
+              <View
+                onLayout={event =>
+                  setBodyContentHeight(event.nativeEvent.layout.height)
+                }>
+                <DetailBodyBlocks blocks={data.bodyBlocks} />
+              </View>
+
+              {isDetailAdEligible(bodyContentHeight) && !post?.isDeleted ? (
+                <InlineBannerAd placement="communityBoardDetail" />
+              ) : null}
 
               <View style={styles.reactionsRow}>
                 <DetailReactionChip

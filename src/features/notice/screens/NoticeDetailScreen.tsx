@@ -27,6 +27,7 @@ import {
 } from '@/app/linking';
 import {useReportRepository} from '@/di';
 import type {ReportCategory} from '@/features/report';
+import {InlineBannerAd, isDetailAdEligible} from '@/shared/ads';
 import {
   ArticleDetailSkeleton,
   DetailBackHeader,
@@ -85,6 +86,7 @@ export const NoticeDetailScreen = () => {
   >(null);
   const [selectedReportCategory, setSelectedReportCategory] =
     React.useState<ReportCategory | null>(null);
+  const [bodyContentHeight, setBodyContentHeight] = React.useState(0);
   const {
     cancelCommentEdit,
     cancelCommentReply,
@@ -116,6 +118,10 @@ export const NoticeDetailScreen = () => {
     togglingBookmark,
     togglingLike,
   } = useNoticeDetailData(route.params?.noticeId);
+
+  React.useEffect(() => {
+    setBodyContentHeight(0);
+  }, [route.params?.noticeId]);
 
   const headerOffset = insets.top + 56;
   const scrollBottomPadding = isKeyboardVisible
@@ -569,14 +575,23 @@ export const NoticeDetailScreen = () => {
               />
               <View style={styles.divider} />
 
-              <DetailBodyBlocks blocks={data.bodyBlocks} />
+              <View
+                onLayout={event =>
+                  setBodyContentHeight(event.nativeEvent.layout.height)
+                }>
+                <DetailBodyBlocks blocks={data.bodyBlocks} />
 
-              {notice?.contentAttachments.length ? (
-                <View style={styles.attachmentsSection}>
-                  <NoticeDetailAttachments
-                    attachments={notice.contentAttachments}
-                  />
-                </View>
+                {notice?.contentAttachments.length ? (
+                  <View style={styles.attachmentsSection}>
+                    <NoticeDetailAttachments
+                      attachments={notice.contentAttachments}
+                    />
+                  </View>
+                ) : null}
+              </View>
+
+              {isDetailAdEligible(bodyContentHeight) ? (
+                <InlineBannerAd placement="noticeDetail" />
               ) : null}
 
               <View style={styles.reactionsRow}>

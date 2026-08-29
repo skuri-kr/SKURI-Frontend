@@ -221,6 +221,7 @@ export const CommunityScreen = () => {
                 <Animated.View
                   style={[styles.page, {width: pageWidth}, boardPageStyle]}>
                   <CommunityBoardSegment
+                    active={selectedSegment === 'board'}
                     activeSearchLabel={activeSearchLabel}
                     error={boardError}
                     hasMore={hasMore}
@@ -239,6 +240,7 @@ export const CommunityScreen = () => {
                 <Animated.View
                   style={[styles.page, {width: pageWidth}, chatPageStyle]}>
                   <CommunityChatSegment
+                    active={selectedSegment === 'chat'}
                     loading={chat.loading}
                     onPressRoom={chat.handleOpenRoom}
                     onRefresh={chat.handleRefresh}

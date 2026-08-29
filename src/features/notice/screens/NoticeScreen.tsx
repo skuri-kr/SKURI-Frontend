@@ -1,26 +1,14 @@
 import React from 'react';
-import {
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import Animated from 'react-native-reanimated';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
-import {
-  useRefetchOnFocus,
-} from '@/app/data-freshness/dataInvalidation';
-import {
-  NOTICE_LIST_INVALIDATION_KEY,
-} from '@/app/data-freshness/invalidationKeys';
+import {useRefetchOnFocus} from '@/app/data-freshness/dataInvalidation';
+import {NOTICE_LIST_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {PageHeader} from '@/shared/design-system/components';
 import {useScreenEnterAnimation, useScreenView} from '@/shared/hooks';
-import {BOTTOM_TAB_BAR_HEIGHT} from '@/shared/constants/layout';
 import {COLORS, SPACING} from '@/shared/design-system/tokens';
 
 import {NoticeSettingsPanel} from '../components/NoticeSettingsPanel';
@@ -85,33 +73,22 @@ export const NoticeScreen = () => {
     setPanelVisible(true);
   }, []);
 
-  const handleListSectionScroll = React.useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (
-        loading ||
-        loadingMore ||
-        !hasMore ||
-        error ||
-        loadMoreRequestedRef.current
-      ) {
-        return;
-      }
+  const handleLoadMore = React.useCallback(() => {
+    if (
+      loading ||
+      loadingMore ||
+      !hasMore ||
+      error ||
+      loadMoreRequestedRef.current
+    ) {
+      return;
+    }
 
-      const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
-      const distanceFromBottom =
-        contentSize.height - (contentOffset.y + layoutMeasurement.height);
-
-      if (distanceFromBottom > 120) {
-        return;
-      }
-
-      loadMoreRequestedRef.current = true;
-      loadMore().catch(() => {
-        loadMoreRequestedRef.current = false;
-      });
-    },
-    [error, hasMore, loadMore, loading, loadingMore],
-  );
+    loadMoreRequestedRef.current = true;
+    loadMore().catch(() => {
+      loadMoreRequestedRef.current = false;
+    });
+  }, [error, hasMore, loadMore, loading, loadingMore]);
 
   useRefetchOnFocus({
     invalidationKey: NOTICE_LIST_INVALIDATION_KEY,
@@ -147,29 +124,18 @@ export const NoticeScreen = () => {
         </View>
 
         <View style={styles.listSection}>
-          <ScrollView
-            contentContainerStyle={styles.listScrollContent}
-            onScroll={handleListSectionScroll}
-            refreshControl={
-              <RefreshControl
-                onRefresh={handleRefresh}
-                refreshing={refreshing}
-                tintColor={COLORS.brand.primary}
-              />
-            }
-            scrollEventThrottle={16}
-            showsVerticalScrollIndicator={false}>
-            <NoticeHomeList
-              emptyState={data.emptyState}
-              error={error}
-              hasMore={hasMore}
-              items={data.items}
-              loading={loading}
-              loadingMore={loadingMore}
-              onPressNotice={handleOpenNotice}
-              onRefresh={handleRefresh}
-            />
-          </ScrollView>
+          <NoticeHomeList
+            emptyState={data.emptyState}
+            error={error}
+            hasMore={hasMore}
+            items={data.items}
+            loading={loading}
+            loadingMore={loadingMore}
+            onLoadMore={handleLoadMore}
+            onPressNotice={handleOpenNotice}
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+          />
         </View>
       </Animated.View>
 
@@ -203,9 +169,5 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.xs,
-  },
-  listScrollContent: {
-    flexGrow: 1,
-    paddingBottom: BOTTOM_TAB_BAR_HEIGHT + SPACING.xxl,
   },
 });
