@@ -1,5 +1,5 @@
 import React from 'react';
-import {act, render} from '@testing-library/react-native';
+import {act, fireEvent, render} from '@testing-library/react-native';
 import {useFocusEffect} from '@react-navigation/native';
 
 import {useAppNoticeFeedData} from '@/features/settings';
@@ -23,15 +23,31 @@ jest.mock('@/app/navigation/services/notificationNavigation', () => ({
   openNotificationNavigationIntent: jest.fn(),
 }));
 jest.mock('@/shared/hooks/useScreenView', () => ({useScreenView: jest.fn()}));
-jest.mock('@/shared/design-system/components', () => ({
-  StackHeader: () => null,
-  StateCard: () => null,
-}));
-jest.mock('@/features/settings', () => ({
-  AppNoticeFeedList: () => null,
-  useAppNoticeFeedData: jest.fn(),
-}));
-jest.mock('../../components/NotificationHubTabBar', () => ({NotificationHubTabBar: () => null}));
+jest.mock('@/shared/design-system/components', () => {
+  const {View} = require('react-native');
+  return {
+    StackHeader: () => null,
+    StateCard: ({title}: {title: string}) => <View testID={`state-card-${title}`} />,
+  };
+});
+jest.mock('@/features/settings', () => {
+  const {View} = require('react-native');
+  return {
+    AppNoticeFeedList: () => <View testID="app-notice-feed-list" />,
+    useAppNoticeFeedData: jest.fn(),
+  };
+});
+jest.mock('../../components/NotificationHubTabBar', () => {
+  const {TouchableOpacity} = require('react-native');
+  return {
+    NotificationHubTabBar: ({onSelectTab}: {onSelectTab: (tab: 'appNotice') => void}) => (
+      <TouchableOpacity
+        onPress={() => onSelectTab('appNotice')}
+        testID="notification-tab-app-notice"
+      />
+    ),
+  };
+});
 jest.mock('../../components/NotificationInboxList', () => ({NotificationInboxList: () => null}));
 jest.mock('../../hooks/useNotificationCenterData', () => ({useNotificationCenterData: jest.fn()}));
 
@@ -43,7 +59,7 @@ describe('NotificationScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockedUseNotificationCenterData.mockReturnValue({
-      data: {items: [], unreadCount: 0},
+      data: {sections: [], unreadCount: 0},
       error: null,
       loading: false,
       markAllAsRead: jest.fn(),
@@ -74,6 +90,26 @@ describe('NotificationScreen', () => {
       focusCallback();
       await Promise.resolve();
     });
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('캐시된 앱 공지 목록이 있으면 재조회 실패 후에도 목록을 유지한다', () => {
+    const reload = jest.fn().mockResolvedValue(undefined);
+    mockedUseAppNoticeFeedData.mockReturnValue({
+      data: {items: []},
+      error: '앱 공지사항을 불러오지 못했습니다.',
+      loading: false,
+      reload,
+    } as ReturnType<typeof useAppNoticeFeedData>);
+
+    const screen = render(<NotificationScreen />);
+    fireEvent.press(screen.getByTestId('notification-tab-app-notice'));
+
+    expect(screen.getByTestId('app-notice-feed-list')).toBeTruthy();
+    expect(screen.getByText('앱 공지사항을 불러오지 못했습니다.')).toBeTruthy();
+    expect(screen.queryByTestId('state-card-앱 공지사항을 불러오지 못했습니다')).toBeNull();
+
+    fireEvent.press(screen.getByText('다시 시도'));
     expect(reload).toHaveBeenCalledTimes(1);
   });
 });
