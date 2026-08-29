@@ -116,6 +116,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   const [editingCommentId, setEditingCommentId] = React.useState<string | null>(null);
   const [replyTargetCommentId, setReplyTargetCommentId] = React.useState<string | null>(null);
   const [commentAnonymousDraft, setCommentAnonymousDraft] = React.useState<boolean | null>(null);
+  const [commentDeletePendingIds, setCommentDeletePendingIds] = React.useState<string[]>([]);
   const [commentLikePendingIds, setCommentLikePendingIds] = React.useState<string[]>([]);
   const [submittingComment, setSubmittingComment] = React.useState(false);
   const [togglingLike, setTogglingLike] = React.useState(false);
@@ -123,7 +124,9 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   const [error, setError] = React.useState<string | null>(null);
   const [commentError, setCommentError] = React.useState<string | null>(null);
   const requestIdRef = React.useRef(0);
+  const commentRequestIdRef = React.useRef(0);
   const contentRevisionRef = React.useRef(0);
+  const commentDeletePendingIdsRef = React.useRef(new Set<string>());
   const activeNoticeIdRef = React.useRef<string | null>(null);
   const latestNoticeIdRef = React.useRef(noticeId);
   latestNoticeIdRef.current = noticeId;
@@ -148,11 +151,21 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     contentRevisionRef.current += 1;
   }, []);
 
+  const completeContentMutation = React.useCallback((mutationNoticeId: string) => {
+    if (latestNoticeIdRef.current === mutationNoticeId) {
+      invalidatePendingContentLoads();
+    }
+  }, [invalidatePendingContentLoads]);
+
   const refreshComments = React.useCallback(async () => {
     const requestedNoticeId = noticeId;
+    const commentRequestId = ++commentRequestIdRef.current;
     const contentRevision = contentRevisionRef.current;
     if (!requestedNoticeId || !user?.uid) {
-      if (latestNoticeIdRef.current === requestedNoticeId) {
+      if (
+        latestNoticeIdRef.current === requestedNoticeId &&
+        commentRequestId === commentRequestIdRef.current
+      ) {
         setComments([]);
         setCommentError(null);
       }
@@ -162,6 +175,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       const nextComments = await repository.getComments(requestedNoticeId);
       if (
         latestNoticeIdRef.current !== requestedNoticeId ||
+        commentRequestId !== commentRequestIdRef.current ||
         contentRevision !== contentRevisionRef.current
       ) return;
       setComments(nextComments);
@@ -169,6 +183,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     } catch (refreshError) {
       if (
         latestNoticeIdRef.current !== requestedNoticeId ||
+        commentRequestId !== commentRequestIdRef.current ||
         contentRevision !== contentRevisionRef.current
       ) return;
       setCommentError(getErrorMessage(refreshError));
@@ -178,6 +193,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
 
   const load = React.useCallback(async () => {
     const requestId = ++requestIdRef.current;
+    const commentRequestId = ++commentRequestIdRef.current;
     const contentRevision = contentRevisionRef.current;
     const routeChanged = activeNoticeIdRef.current !== noticeId;
     setLoading(true);
@@ -214,10 +230,16 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       }
       setNotice(nextNotice);
       activeNoticeIdRef.current = noticeId;
-      if (commentsResult.status === 'fulfilled') {
+      if (
+        commentsResult.status === 'fulfilled' &&
+        commentRequestId === commentRequestIdRef.current
+      ) {
         setComments(commentsResult.value);
         setCommentError(null);
-      } else {
+      } else if (
+        commentsResult.status === 'rejected' &&
+        commentRequestId === commentRequestIdRef.current
+      ) {
         setCommentError(getErrorMessage(commentsResult.reason));
       }
       if (user?.uid) {
@@ -246,6 +268,8 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     setEditingCommentId(null);
     setReplyTargetCommentId(null);
     setCommentAnonymousDraft(null);
+    commentDeletePendingIdsRef.current.clear();
+    setCommentDeletePendingIds([]);
     setCommentError(null);
     setCommentLikePendingIds([]);
     setSubmittingComment(false);
@@ -281,8 +305,9 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       if (latestNoticeIdRef.current === mutationNoticeId) {
         setTogglingLike(false);
       }
+      completeContentMutation(mutationNoticeId);
     }
-  }, [invalidatePendingContentLoads, notice, noticeId, repository, togglingLike, user?.uid]);
+  }, [completeContentMutation, invalidatePendingContentLoads, notice, noticeId, repository, togglingLike, user?.uid]);
 
   const toggleCommentLike = React.useCallback(async (commentId: string) => {
     if (!noticeId || !user?.uid || commentLikePendingIds.includes(commentId)) {
@@ -311,8 +336,9 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       if (latestNoticeIdRef.current === mutationNoticeId) {
         setCommentLikePendingIds(current => current.filter(id => id !== commentId));
       }
+      completeContentMutation(mutationNoticeId);
     }
-  }, [commentLikePendingIds, flattenedEntries, invalidatePendingContentLoads, noticeId, repository, user?.uid]);
+  }, [commentLikePendingIds, completeContentMutation, flattenedEntries, invalidatePendingContentLoads, noticeId, repository, user?.uid]);
 
   const submitComment = React.useCallback(async () => {
     if (!noticeId || !user?.uid || !notice || notice.id !== noticeId) {
@@ -373,53 +399,62 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       if (latestNoticeIdRef.current === mutationNoticeId) {
         setSubmittingComment(false);
       }
+      completeContentMutation(mutationNoticeId);
     }
-  }, [commentAnonymousValue, commentDraft, editingCommentId, invalidatePendingContentLoads, notice, noticeId, replyTargetCommentId, repository, storedAnonymous, user]);
+  }, [commentAnonymousValue, commentDraft, completeContentMutation, editingCommentId, invalidatePendingContentLoads, notice, noticeId, replyTargetCommentId, repository, storedAnonymous, user]);
 
   const deleteComment = React.useCallback(async (commentId: string) => {
     if (!noticeId || !user?.uid || notice?.id !== noticeId) {
       throw new Error('앱 공지사항을 다시 불러와주세요.');
     }
+    if (commentDeletePendingIdsRef.current.has(commentId)) return;
     const mutationNoticeId = noticeId;
+    commentDeletePendingIdsRef.current.add(commentId);
+    setCommentDeletePendingIds(current => [...current, commentId]);
     invalidatePendingContentLoads();
     try {
       await repository.deleteComment(mutationNoticeId, commentId);
+      if (latestNoticeIdRef.current !== mutationNoticeId) return;
+      setComments(current => updateCommentTree(current, commentId, comment => ({
+        ...comment,
+        anonymousOrder: undefined,
+        authorProfileImage: null,
+        content: '삭제된 댓글입니다',
+        isAnonymous: false,
+        isAuthor: false,
+        isAuthorAdmin: false,
+        isDeleted: true,
+        isLiked: false,
+        userDisplayName: '',
+        userId: '',
+      })));
+      setNotice(current =>
+        current?.id === mutationNoticeId
+          ? {...current, commentCount: Math.max(0, current.commentCount - 1)}
+          : current,
+      );
+      if (editingCommentId === commentId) {
+        setEditingCommentId(null);
+        setCommentDraft('');
+        setCommentAnonymousDraft(null);
+      }
+      if (replyTargetCommentId === commentId) {
+        setReplyTargetCommentId(null);
+        setCommentDraft('');
+        setCommentAnonymousDraft(null);
+      }
     } catch (deleteError) {
       if (latestNoticeIdRef.current === mutationNoticeId) {
         throw deleteError;
       }
-      return;
+    } finally {
+      commentDeletePendingIdsRef.current.delete(commentId);
+      if (latestNoticeIdRef.current === mutationNoticeId) {
+        setCommentDeletePendingIds(current => current.filter(id => id !== commentId));
+      }
+      completeContentMutation(mutationNoticeId);
     }
-    if (latestNoticeIdRef.current !== mutationNoticeId) return;
-    setComments(current => updateCommentTree(current, commentId, comment => ({
-      ...comment,
-      anonymousOrder: undefined,
-      authorProfileImage: null,
-      content: '삭제된 댓글입니다',
-      isAnonymous: false,
-      isAuthor: false,
-      isAuthorAdmin: false,
-      isDeleted: true,
-      isLiked: false,
-      userDisplayName: '',
-      userId: '',
-    })));
-    setNotice(current =>
-      current?.id === mutationNoticeId
-        ? {...current, commentCount: Math.max(0, current.commentCount - 1)}
-        : current,
-    );
-    if (editingCommentId === commentId) {
-      setEditingCommentId(null);
-      setCommentDraft('');
-      setCommentAnonymousDraft(null);
-    }
-    if (replyTargetCommentId === commentId) {
-      setReplyTargetCommentId(null);
-      setCommentDraft('');
-      setCommentAnonymousDraft(null);
-    }
-  }, [editingCommentId, invalidatePendingContentLoads, notice, noticeId, replyTargetCommentId, repository, user?.uid]);
+  }, [completeContentMutation, editingCommentId, invalidatePendingContentLoads, notice, noticeId, replyTargetCommentId, repository, user?.uid]);
 
   const startEditingComment = React.useCallback((commentId: string) => {
     const target = flattenedEntries.find(entry => entry.comment.id === commentId)?.comment;
@@ -460,6 +495,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     commentAnonymousValue,
     commentDraft,
     commentError,
+    commentDeletePendingIds,
     commentItems,
     commentLikePendingIds,
     data: viewData,
