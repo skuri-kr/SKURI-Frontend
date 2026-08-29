@@ -51,8 +51,10 @@ export const DetailTitleHeader = ({
             {authorLabel ? (
               <>
                 <ProfileAvatar photoUrl={authorProfileImage} />
-                <Text style={styles.authorLabel}>{authorLabel}</Text>
-                {isAuthorAdmin ? <VerifiedAuthorBadge /> : null}
+                <View style={styles.authorLabelRow}>
+                  <Text style={styles.authorLabel}>{authorLabel}</Text>
+                  {isAuthorAdmin ? <VerifiedAuthorBadge /> : null}
+                </View>
               </>
             ) : null}
           </View>
@@ -70,6 +72,11 @@ export const DetailTitleHeader = ({
 };
 
 const styles = StyleSheet.create({
+  authorLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   authorLabel: {
     color: COLORS.text.tertiary,
     fontSize: 14,

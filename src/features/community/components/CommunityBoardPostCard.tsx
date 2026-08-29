@@ -137,10 +137,9 @@ const styles = StyleSheet.create({
   },
   authorLabel: {
     color: '#6B7280',
-    flex: 1,
     fontSize: 12,
     lineHeight: 16,
-    marginRight: SPACING.sm,
+    marginLeft: 4
   },
   authorRow: {
     alignItems: 'center',

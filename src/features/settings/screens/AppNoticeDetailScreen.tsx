@@ -32,7 +32,7 @@ import {
   StackHeader,
   StateCard,
 } from '@/shared/design-system/components';
-import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
+import {COLORS, RADIUS, SPACING} from '@/shared/design-system/tokens';
 import {openExternalWebUrl} from '@/shared/lib/device/openExternalWebUrl';
 import {useScreenView} from '@/shared/hooks/useScreenView';
 import {ReportReasonModal} from '@/shared/ui/ReportReasonModal';
@@ -577,7 +577,7 @@ const styles = StyleSheet.create({
   actionButtonLabel: {color: COLORS.text.inverse, fontSize: 15, fontWeight: '700'},
   authorLabel: {color: COLORS.brand.primaryStrong, fontSize: 12, fontWeight: '700'},
   badgeRow: {flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.md},
-  bodyCard: {backgroundColor: COLORS.background.surface, margin: SPACING.lg, padding: SPACING.xl, borderRadius: RADIUS.lg, ...SHADOWS.card},
+  bodyCard: {backgroundColor: COLORS.background.surface, padding: SPACING.xl},
   bodyText: {color: COLORS.text.strong, fontSize: 14, lineHeight: 28},
   commentsList: {gap: SPACING.sm, marginTop: SPACING.md},
   commentsError: {gap: SPACING.sm, paddingVertical: SPACING.lg},

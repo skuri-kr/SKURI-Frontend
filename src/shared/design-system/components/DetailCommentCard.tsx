@@ -56,8 +56,10 @@ export const DetailCommentCard = ({
             photoUrl={comment.authorProfileImage}
             size={24}
           />
-          <Text style={styles.authorLabel}>{comment.authorLabel}</Text>
-          {comment.isAuthorAdmin ? <VerifiedAuthorBadge /> : null}
+          <View style={styles.authorLabelRow}>
+            <Text style={styles.authorLabel}>{comment.authorLabel}</Text>
+            {comment.isAuthorAdmin ? <VerifiedAuthorBadge /> : null}
+          </View>
           {comment.isPostAuthor ? (
             <View style={[styles.metaBadge, styles.postAuthorBadge]}>
               <Text style={[styles.metaBadgeLabel, styles.postAuthorBadgeLabel]}>
@@ -191,6 +193,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: SPACING.sm,
+  },
+  authorLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   authorLabel: {
     color: COLORS.text.strong,
