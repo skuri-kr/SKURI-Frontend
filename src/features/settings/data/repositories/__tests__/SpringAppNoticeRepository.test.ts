@@ -237,4 +237,34 @@ describe('SpringAppNoticeRepository', () => {
     expect(mockedApiClient.likeComment).toHaveBeenCalledTimes(1);
     expect(mockedApiClient.unlikeComment).toHaveBeenCalledWith('app-comment-1');
   });
+
+  it('계정 전환 뒤 이전 계정의 좋아요 완료를 캐시에 반영하지 않는다', async () => {
+    let currentUserId: string | null = 'member-a';
+    const deferredLike = deferred<{data: {isLiked: boolean; likeCount: number}; success: true}>();
+    mockedApiClient.getAppNotice
+      .mockResolvedValueOnce(appNoticeResponse(false, 0))
+      .mockResolvedValueOnce(appNoticeResponse(false, 0));
+    mockedApiClient.likeNotice
+      .mockReturnValueOnce(deferredLike.promise)
+      .mockResolvedValueOnce({
+        data: {isLiked: true, likeCount: 1},
+        success: true,
+      });
+    const repository = new SpringAppNoticeRepository(() => currentUserId);
+
+    await repository.getAppNotice('app-notice-1');
+    const firstLike = repository.toggleLike('app-notice-1');
+    currentUserId = 'member-b';
+    deferredLike.resolve({
+      data: {isLiked: true, likeCount: 1},
+      success: true,
+    });
+    await firstLike;
+
+    await repository.getAppNotice('app-notice-1');
+    await repository.toggleLike('app-notice-1');
+
+    expect(mockedApiClient.likeNotice).toHaveBeenCalledTimes(2);
+    expect(mockedApiClient.unlikeNotice).not.toHaveBeenCalled();
+  });
 });

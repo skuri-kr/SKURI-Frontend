@@ -103,7 +103,10 @@ jest.mock('@/shared/design-system/components', () => {
         testID: 'app-notice-comment-submit',
       }),
     ),
-    DetailReactionChip: () => null,
+    DetailReactionChip: ({onPress}: {onPress: () => void}) => ReactModule.createElement(
+      require('react-native').TouchableOpacity,
+      {onPress, testID: 'app-notice-like'},
+    ),
     LinkifiedText: () => null,
     StackHeader: () => null,
     StateCard: () => null,
@@ -339,6 +342,28 @@ describe('AppNoticeDetailScreen', () => {
     screen.unmount();
     await act(async () => {
       resolveReport();
+      await Promise.resolve();
+    });
+
+    expect(alertSpy).not.toHaveBeenCalled();
+    alertSpy.mockRestore();
+  });
+
+  it('화면 이탈 뒤 이전 좋아요 실패는 오류 알림을 표시하지 않는다', async () => {
+    let rejectLike!: (reason?: unknown) => void;
+    mockDetailData = {
+      ...mockDetailData,
+      toggleLike: jest.fn().mockReturnValue(new Promise((_, reject) => {
+        rejectLike = reject;
+      })),
+    };
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const screen = render(<AppNoticeDetailScreen />);
+
+    fireEvent.press(screen.getByTestId('app-notice-like'));
+    screen.unmount();
+    await act(async () => {
+      rejectLike(new Error('좋아요 처리 실패'));
       await Promise.resolve();
     });
 

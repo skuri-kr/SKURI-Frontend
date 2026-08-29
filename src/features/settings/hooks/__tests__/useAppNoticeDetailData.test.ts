@@ -856,6 +856,38 @@ describe('useAppNoticeDetailData', () => {
     expect(result.current.notice?.likeCount).toBe(1);
   });
 
+  it('계정 전환 뒤 이전 사용자의 좋아요 완료를 현재 공지에 반영하지 않는다', async () => {
+    const repository = createRepository();
+    const deferredLike = createDeferred<{isLiked: boolean; likeCount: number}>();
+    repository.toggleLike.mockReturnValueOnce(deferredLike.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result, rerender} = renderHook(
+      ({version: _version}: {version: number}) => useAppNoticeDetailData('app-notice-1'),
+      {initialProps: {version: 0}},
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let firstLikePromise!: ReturnType<typeof result.current.toggleLike>;
+    act(() => {
+      firstLikePromise = result.current.toggleLike();
+    });
+    mockedUseAuth.mockReturnValue({
+      user: {displayName: '다른 사용자', uid: 'member-2'},
+    } as ReturnType<typeof useAuth>);
+    rerender({version: 1});
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      deferredLike.resolve({isLiked: true, likeCount: 1});
+      await firstLikePromise;
+    });
+
+    expect(result.current.notice?.isLiked).toBe(false);
+    expect(result.current.notice?.likeCount).toBe(0);
+  });
+
   it('같은 공지의 이전 댓글 재조회 응답이 삭제 상태를 되돌리지 않는다', async () => {
     const repository = createRepository();
     const deferredComments = createDeferred<NoticeCommentTreeNode[]>();
