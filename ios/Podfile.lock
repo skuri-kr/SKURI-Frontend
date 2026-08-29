@@ -115,6 +115,8 @@ PODS:
     - GoogleUtilities/UserDefaults (~> 8.1)
     - nanopb (~> 3.30910.0)
     - PromisesSwift (~> 2.1)
+  - Google-Mobile-Ads-SDK (12.14.0):
+    - GoogleUserMessagingPlatform (>= 1.1)
   - GoogleAppMeasurement/Core (12.10.0):
     - GoogleUtilities/AppDelegateSwizzler (~> 8.1)
     - GoogleUtilities/MethodSwizzler (~> 8.1)
@@ -136,6 +138,7 @@ PODS:
     - AppCheckCore (~> 11.0)
     - GTMAppAuth (~> 5.0)
     - GTMSessionFetcher/Core (~> 3.3)
+  - GoogleUserMessagingPlatform (3.1.0)
   - GoogleUtilities/AppDelegateSwizzler (8.1.0):
     - GoogleUtilities/Environment
     - GoogleUtilities/Logger
@@ -2385,6 +2388,30 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - RNGoogleMobileAds (16.0.3):
+    - Google-Mobile-Ads-SDK (= 12.14.0)
+    - GoogleUserMessagingPlatform (= 3.1.0)
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - RNGoogleSignin (16.1.2):
     - GoogleSignIn (~> 9.0)
     - hermes-engine
@@ -2829,6 +2856,7 @@ DEPENDENCIES:
   - "RNFBCrashlytics (from `../node_modules/@react-native-firebase/crashlytics`)"
   - "RNFBMessaging (from `../node_modules/@react-native-firebase/messaging`)"
   - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
+  - RNGoogleMobileAds (from `../node_modules/react-native-google-mobile-ads`)
   - "RNGoogleSignin (from `../node_modules/@react-native-google-signin/google-signin`)"
   - RNPermissions (from `../node_modules/react-native-permissions`)
   - RNReactNativeHapticFeedback (from `../node_modules/react-native-haptic-feedback`)
@@ -2857,9 +2885,11 @@ SPEC REPOS:
     - FirebaseMessaging
     - FirebaseRemoteConfigInterop
     - FirebaseSessions
+    - Google-Mobile-Ads-SDK
     - GoogleAppMeasurement
     - GoogleDataTransport
     - GoogleSignIn
+    - GoogleUserMessagingPlatform
     - GoogleUtilities
     - GTMAppAuth
     - GTMSessionFetcher
@@ -3054,6 +3084,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/@react-native-firebase/messaging"
   RNGestureHandler:
     :path: "../node_modules/react-native-gesture-handler"
+  RNGoogleMobileAds:
+    :path: "../node_modules/react-native-google-mobile-ads"
   RNGoogleSignin:
     :path: "../node_modules/@react-native-google-signin/google-signin"
   RNPermissions:
@@ -3094,9 +3126,11 @@ SPEC CHECKSUMS:
   FirebaseMessaging: ed18fb50634e6e85b5d3e77e628c21e2c928cc53
   FirebaseRemoteConfigInterop: a169873f4093b241eb5e27a4fbad91af36d64b8d
   FirebaseSessions: dba7635960740ad77cc2f3387d90ff22a7942f82
+  Google-Mobile-Ads-SDK: 4534fd2dfcd3f705c5485a6633c5188d03d4eed2
   GoogleAppMeasurement: 57270ccc2b77472d7e85c4cbe45972564eff78bb
   GoogleDataTransport: aae35b7ea0c09004c3797d53c8c41f66f219d6a7
   GoogleSignIn: fcee2257188d5eda57a5e2b6a715550ffff9206d
+  GoogleUserMessagingPlatform: befe603da6501006420c206222acd449bba45a9c
   GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
   GTMAppAuth: 217a876b249c3c585a54fd6f73e6b58c4f5c4238
   GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
@@ -3193,6 +3227,7 @@ SPEC CHECKSUMS:
   RNFBCrashlytics: 4b15ed59e869d06f8c181e63a3297548ed790d82
   RNFBMessaging: b82ba0933288d710f5371f57d3115092abf64903
   RNGestureHandler: a97cc64efbfcb7a53969a38310a189a3d5246c65
+  RNGoogleMobileAds: 608e74fba910caa708f44b1f9948d63912c3d752
   RNGoogleSignin: 6fa1cf7f7fb24d68cc41a89bd6370f302bbe2dcc
   RNPermissions: a2aae3ec065586644b238d86005aa3cbb624c719
   RNReactNativeHapticFeedback: 9dc72312c12cb53ee240b5b7aae1e167f3d940a6
@@ -3204,6 +3239,6 @@ SPEC CHECKSUMS:
   RNWorklets: 4931990f73bc8f347586918b2e13f11dfadf3b75
   Yoga: e240fec777ff1f21ef42ccebbb44b6d262125855
 
-PODFILE CHECKSUM: 1f49368341917b12a2d5b52b56e0c9d4bf3c965a
+PODFILE CHECKSUM: 5cf1ab31e1c5951604b87187382f1a42b5d8f0b0
 
 COCOAPODS: 1.15.2

@@ -16,6 +16,7 @@ setup_permissions(['AppTrackingTransparency', 'LocationWhenInUse'])
 
 use_frameworks! :linkage => :static
 $RNFirebaseAsStaticFramework = true
+$RNGoogleMobileAdsAsStaticFramework = true
 
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
