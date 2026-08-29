@@ -40,11 +40,15 @@ export const useAppNoticeFeedData = (
   const [data, setData] = React.useState<AppNoticeFeedViewData | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const requestIdRef = React.useRef(0);
   const enabled = options.enabled ?? true;
 
   const load = React.useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     if (!enabled) {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
       return;
     }
 
@@ -55,6 +59,7 @@ export const useAppNoticeFeedData = (
       const notices = await appNoticeRepository.getAppNotices();
       const nextData = assembleAppNoticeFeedViewData(notices);
 
+      if (requestId !== requestIdRef.current) return;
       setData({
         items: nextData.items.map(item => ({
           ...item,
@@ -62,15 +67,19 @@ export const useAppNoticeFeedData = (
         })),
       });
     } catch (loadError) {
+      if (requestId !== requestIdRef.current) return;
       console.error('앱 공지사항 목록을 불러오지 못했습니다.', loadError);
       setError('앱 공지사항을 불러오지 못했습니다.');
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [appNoticeRepository, enabled]);
 
   React.useEffect(() => {
     if (!enabled) {
+      requestIdRef.current += 1;
       setData(null);
       setError(null);
       setLoading(false);
