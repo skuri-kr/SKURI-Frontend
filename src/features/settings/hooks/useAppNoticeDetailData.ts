@@ -457,7 +457,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   }, [completeContentMutation, editingCommentId, invalidatePendingContentLoads, notice, noticeId, replyTargetCommentId, repository, user?.uid]);
 
   const startEditingComment = React.useCallback((commentId: string) => {
-    if (submittingComment) return;
+    if (submittingComment || commentDeletePendingIdsRef.current.has(commentId)) return;
     const target = flattenedEntries.find(entry => entry.comment.id === commentId)?.comment;
     if (!target?.isAuthor || target.isDeleted) return;
     setEditingCommentId(commentId);
@@ -467,7 +467,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   }, [flattenedEntries, submittingComment]);
 
   const startReplyingComment = React.useCallback((commentId: string) => {
-    if (submittingComment) return;
+    if (submittingComment || commentDeletePendingIdsRef.current.has(commentId)) return;
     const target = flattenedEntries.find(entry => entry.comment.id === commentId)?.comment;
     if (!target || target.isDeleted) return;
     setEditingCommentId(null);

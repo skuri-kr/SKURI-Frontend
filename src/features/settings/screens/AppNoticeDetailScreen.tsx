@@ -397,10 +397,10 @@ export const AppNoticeDetailScreen = () => {
                             {text: '삭제', style: 'destructive', onPress: () => deleteComment(comment.id).catch(caughtError => showError(caughtError, '댓글 삭제에 실패했습니다.'))},
                           ]);
                         } : undefined}
-                        onPressEdit={comment.isEditable && !submittingComment ? () => { startEditingComment(comment.id); focusComposer(); } : undefined}
+                        onPressEdit={comment.isEditable && !submittingComment && !commentDeletePendingIds.includes(comment.id) ? () => { startEditingComment(comment.id); focusComposer(); } : undefined}
                         onPressLike={comment.isDeleted ? undefined : () => toggleCommentLike(comment.id).catch(caughtError => showError(caughtError, '댓글 좋아요 처리에 실패했습니다.'))}
-                        onPressReply={comment.isDeleted ? undefined : () => { startReplyingComment(comment.id); focusComposer(); }}
-                        replyDisabled={submittingComment}
+                        onPressReply={comment.isDeleted || commentDeletePendingIds.includes(comment.id) ? undefined : () => { startReplyingComment(comment.id); focusComposer(); }}
+                        replyDisabled={submittingComment || commentDeletePendingIds.includes(comment.id)}
                         onPressReport={comment.isDeleted || comment.isMine ? undefined : () => {
                           setReportTargetNoticeId(route.params?.noticeId);
                           setReportTargetId(comment.id);
