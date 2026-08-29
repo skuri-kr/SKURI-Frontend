@@ -259,6 +259,43 @@ describe('useAppNoticeDetailData', () => {
     await waitFor(() => expect(result.current.commentItems).toHaveLength(1));
   });
 
+  it('초기 댓글 조회 중에는 작성하지 않고 조회된 댓글을 보존한다', async () => {
+    const repository = createRepository();
+    const deferredComments = createDeferred<NoticeCommentTreeNode[]>();
+    const createdComment: NoticeComment = {...comment, id: 'app-comment-2'};
+    repository.getComments.mockReturnValueOnce(deferredComments.promise);
+    repository.createComment.mockResolvedValueOnce(createdComment);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+
+    await waitFor(() => expect(result.current.data?.title).toBe('점검 안내'));
+    await waitFor(() => expect(result.current.commentsLoading).toBe(true));
+    act(() => result.current.setCommentDraft('새 댓글'));
+    await expect(result.current.submitComment()).rejects.toThrow(
+      '댓글 목록을 불러오는 중입니다.',
+    );
+    expect(repository.createComment).not.toHaveBeenCalled();
+
+    await act(async () => {
+      deferredComments.resolve([{...comment, replies: []}]);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.commentsLoading).toBe(false));
+
+    await act(async () => {
+      await expect(result.current.submitComment()).resolves.toEqual({
+        commentId: 'app-comment-2',
+      });
+    });
+
+    expect(result.current.commentItems.map(item => item.id)).toEqual([
+      'app-comment-1',
+      'app-comment-2',
+    ]);
+  });
+
   it('공지 좋아요 중에도 진행 중인 초기 댓글 조회 결과를 반영한다', async () => {
     const repository = createRepository();
     const deferredComments = createDeferred<NoticeCommentTreeNode[]>();
@@ -309,20 +346,10 @@ describe('useAppNoticeDetailData', () => {
     });
   });
 
-  it('삭제 완료 후 늦은 댓글 좋아요 응답이 삭제 표시를 되돌리지 않는다', async () => {
+  it('댓글 좋아요 중에는 같은 댓글의 삭제 요청을 전송하지 않는다', async () => {
     const repository = createRepository();
     const deferredLike = createDeferred<{isLiked: boolean; likeCount: number}>();
-    const reply: NoticeCommentTreeNode = {
-      ...comment,
-      id: 'app-comment-2',
-      isAuthor: false,
-      parentId: 'app-comment-1',
-      replies: [],
-    };
-    repository.getComments.mockResolvedValueOnce([{
-      ...comment,
-      replies: [reply],
-    }]);
+    repository.getComments.mockResolvedValueOnce([{...comment, replies: []}]);
     repository.toggleCommentLike.mockReturnValueOnce(deferredLike.promise);
     mockedUseAppNoticeRepository.mockReturnValue(
       repository as unknown as ReturnType<typeof useAppNoticeRepository>,
@@ -337,6 +364,8 @@ describe('useAppNoticeDetailData', () => {
     await act(async () => {
       await result.current.deleteComment('app-comment-1');
     });
+    expect(repository.deleteComment).not.toHaveBeenCalled();
+
     await act(async () => {
       deferredLike.resolve({isLiked: true, likeCount: 1});
       await likePromise;
@@ -344,8 +373,8 @@ describe('useAppNoticeDetailData', () => {
 
     expect(result.current.commentItems.find(item => item.id === 'app-comment-1')).toMatchObject({
       id: 'app-comment-1',
-      isDeleted: true,
-      isLiked: false,
+      isDeleted: false,
+      isLiked: true,
     });
   });
 

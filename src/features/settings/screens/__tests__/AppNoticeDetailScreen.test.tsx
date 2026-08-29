@@ -1,5 +1,5 @@
 import React from 'react';
-import {ScrollView} from 'react-native';
+import {Keyboard, ScrollView} from 'react-native';
 import {act, fireEvent, render} from '@testing-library/react-native';
 
 import {useAppNoticeDetailData} from '../../hooks/useAppNoticeDetailData';
@@ -127,6 +127,7 @@ describe('AppNoticeDetailScreen', () => {
         likeCount: 0,
       }],
       commentLikePendingIds: [],
+      commentsLoading: false,
       data: {
         actionLabel: undefined,
         actionUrl: undefined,
@@ -273,6 +274,21 @@ describe('AppNoticeDetailScreen', () => {
     ).toContain('수정 활성화');
   });
 
+  it('좋아요 중인 댓글의 삭제 동작을 비활성화한다', () => {
+    mockDetailData = {
+      ...mockDetailData,
+      commentItems: mockDetailData.commentItems.map(comment =>
+        ({...comment, isEditable: true}),
+      ),
+      commentLikePendingIds: ['app-comment-1'],
+    };
+    const screen = render(<AppNoticeDetailScreen />);
+
+    expect(
+      screen.getByTestId('app-notice-comment-card-app-comment-1').props.accessibilityLabel,
+    ).toContain('삭제 비활성화');
+  });
+
   it('댓글 전송 중에는 입력과 댓글 모드 전환을 비활성화한다', () => {
     mockDetailData = {
       ...mockDetailData,
@@ -297,5 +313,39 @@ describe('AppNoticeDetailScreen', () => {
     const screen = render(<AppNoticeDetailScreen />);
 
     expect(screen.getByTestId('app-notice-comment-submit').props.accessibilityLabel).toBe('입력 잠금');
+  });
+
+  it('초기 댓글을 불러오는 동안 입력을 잠근다', () => {
+    mockDetailData = {
+      ...mockDetailData,
+      commentsLoading: true,
+    };
+    const screen = render(<AppNoticeDetailScreen />);
+
+    expect(screen.getByTestId('app-notice-comment-submit').props.accessibilityLabel).toBe('입력 잠금');
+  });
+
+  it('공지 전환 뒤 이전 댓글 전송 완료는 키보드를 닫지 않는다', async () => {
+    let resolveSubmission!: (value: {commentId?: string}) => void;
+    const submission = new Promise<{commentId?: string}>(resolve => {
+      resolveSubmission = resolve;
+    });
+    const dismissSpy = jest.spyOn(Keyboard, 'dismiss');
+    mockDetailData = {
+      ...mockDetailData,
+      submitComment: jest.fn().mockReturnValue(submission),
+    };
+    const screen = render(<AppNoticeDetailScreen />);
+
+    fireEvent.press(screen.getByTestId('app-notice-comment-submit'));
+    mockRouteParams = {initialCommentId: 'app-comment-2', noticeId: 'app-notice-2'};
+    screen.rerender(<AppNoticeDetailScreen />);
+    await act(async () => {
+      resolveSubmission({commentId: 'app-comment-2'});
+      await Promise.resolve();
+    });
+
+    expect(dismissSpy).not.toHaveBeenCalled();
+    dismissSpy.mockRestore();
   });
 });
