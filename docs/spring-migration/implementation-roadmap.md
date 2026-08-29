@@ -192,7 +192,7 @@ com.skuri.skuri_backend
 | 1 | Firebase 초기화 | `infra/auth/config/FirebaseConfig.java` | Firebase Admin SDK 초기화 (`@Bean FirebaseApp`) |
 | 2 | Token 검증 | `infra/auth/firebase/FirebaseTokenVerifier.java` | `FirebaseAuth.verifyIdToken()` 래핑 |
 | 3 | 인증 필터 | `infra/auth/firebase/FirebaseAuthenticationFilter.java` | `OncePerRequestFilter` — ID Token 추출, 검증, SecurityContext 설정 |
-| 4 | Security 설정 | `infra/auth/config/SecurityConfig.java` | 필터 체인 (`/v1/app-versions/**`, `/v1/app-notices/**`, `/v1/legal-documents/**` permitAll, 나머지 인증 필수) |
+| 4 | Security 설정 | `infra/auth/config/SecurityConfig.java` | 필터 체인 (`GET /v1/app-versions/**`, `GET /v1/app-notices`, `GET /v1/app-notices/{appNoticeId}`, `GET /v1/legal-documents/**` permitAll, 나머지 인증 필수) |
 | 5 | OpenAPI 설정 | `infra/openapi/OpenApiConfig.java` | 전역 API 메타데이터, Bearer 보안 스키마, GroupedOpenApi 설정 |
 | 6 | Emulator 가드 | `infra/auth/config/FirebaseAuthEnvironmentGuard.java` | `local-emulator` 전용 허용 + emulator host 오염 차단 |
 
