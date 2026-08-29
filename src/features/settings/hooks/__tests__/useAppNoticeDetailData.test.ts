@@ -800,6 +800,35 @@ describe('useAppNoticeDetailData', () => {
     expect(result.current.notice?.likeCount).toBe(1);
   });
 
+  it('공지 좋아요 요청 중에는 추가 요청을 전송하지 않는다', async () => {
+    const repository = createRepository();
+    const deferredLike = createDeferred<{isLiked: boolean; likeCount: number}>();
+    repository.toggleLike.mockReturnValueOnce(deferredLike.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let firstTogglePromise!: ReturnType<typeof result.current.toggleLike>;
+    let secondTogglePromise!: ReturnType<typeof result.current.toggleLike>;
+    act(() => {
+      firstTogglePromise = result.current.toggleLike();
+      secondTogglePromise = result.current.toggleLike();
+    });
+
+    await expect(secondTogglePromise).rejects.toThrow('좋아요 처리 중입니다.');
+    expect(repository.toggleLike).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      deferredLike.resolve({isLiked: true, likeCount: 1});
+      await firstTogglePromise;
+    });
+
+    expect(result.current.notice?.isLiked).toBe(true);
+    expect(result.current.notice?.likeCount).toBe(1);
+  });
+
   it('같은 공지의 이전 댓글 재조회 응답이 삭제 상태를 되돌리지 않는다', async () => {
     const repository = createRepository();
     const deferredComments = createDeferred<NoticeCommentTreeNode[]>();
