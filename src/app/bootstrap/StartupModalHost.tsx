@@ -21,6 +21,19 @@ export const StartupModalHost = () => {
     startupModalMode === 'soft-update' ||
     startupModalMode === 'maintenance';
   const appNoticeFeed = useAppNoticeFeedData({enabled: shouldLoadAppNotices});
+  const reloadAppNoticeFeed = appNoticeFeed.reload;
+  const previousStartupModalModeRef = React.useRef(startupModalMode);
+
+  React.useEffect(() => {
+    const recoveringFromMaintenance =
+      previousStartupModalModeRef.current === 'maintenance' &&
+      (startupModalMode === 'force-update' || startupModalMode === 'soft-update');
+    previousStartupModalModeRef.current = startupModalMode;
+
+    if (recoveringFromMaintenance) {
+      reloadAppNoticeFeed().catch(() => undefined);
+    }
+  }, [reloadAppNoticeFeed, startupModalMode]);
 
   const noticeItems = React.useMemo<StartupNoticeItem[]>(() => {
     if (
