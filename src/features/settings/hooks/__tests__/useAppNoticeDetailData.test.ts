@@ -144,6 +144,37 @@ describe('useAppNoticeDetailData', () => {
     expect(result.current.commentDraft).toBe('');
   });
 
+  it('댓글 전송 중에는 다른 댓글의 수정이나 답글 모드로 전환하지 않는다', async () => {
+    const repository = createRepository();
+    const deferredComment = createDeferred<NoticeComment>();
+    repository.getComments.mockResolvedValueOnce([{...comment, replies: []}]);
+    repository.createComment.mockReturnValueOnce(deferredComment.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => result.current.setCommentDraft('새 댓글'));
+    let submitPromise!: ReturnType<typeof result.current.submitComment>;
+    act(() => {
+      submitPromise = result.current.submitComment();
+    });
+    act(() => {
+      result.current.startEditingComment('app-comment-1');
+      result.current.startReplyingComment('app-comment-1');
+    });
+
+    expect(result.current.commentDraft).toBe('새 댓글');
+    expect(result.current.isEditingComment).toBe(false);
+    expect(result.current.isReplyingComment).toBe(false);
+
+    await act(async () => {
+      deferredComment.resolve(comment);
+      await submitPromise;
+    });
+  });
+
   it('다른 댓글을 삭제해도 현재 작성 중인 초안을 보존한다', async () => {
     const repository = createRepository();
     const commentTree: NoticeCommentTreeNode = {...comment, replies: []};

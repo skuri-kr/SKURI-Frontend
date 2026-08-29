@@ -42,19 +42,34 @@ jest.mock('@/shared/design-system/components', () => {
     DetailCommentCard: ({
       comment,
       deleteDisabled,
+      onPressEdit,
       onPressReport,
+      replyDisabled,
     }: {
       comment: {id: string};
       deleteDisabled?: boolean;
+      onPressEdit?: () => void;
       onPressReport?: () => void;
+      replyDisabled?: boolean;
     }) => ReactModule.createElement(require('react-native').TouchableOpacity, {
-      accessibilityLabel: deleteDisabled ? '삭제 비활성화' : '삭제 활성화',
+      accessibilityLabel: [
+        deleteDisabled ? '삭제 비활성화' : '삭제 활성화',
+        onPressEdit ? '수정 활성화' : '수정 비활성화',
+        replyDisabled ? '답글 비활성화' : '답글 활성화',
+      ].join(', '),
       disabled: !onPressReport,
       onPress: onPressReport,
       testID: `app-notice-comment-card-${comment.id}`,
     }),
-    DetailComposer: ReactModule.forwardRef(({onSend}: {onSend: () => void}, _ref) =>
+    DetailComposer: ReactModule.forwardRef(({
+      editable,
+      onSend,
+    }: {
+      editable?: boolean;
+      onSend: () => void;
+    }, _ref) =>
       ReactModule.createElement(require('react-native').TouchableOpacity, {
+        accessibilityLabel: editable === false ? '입력 잠금' : '입력 가능',
         onPress: onSend,
         testID: 'app-notice-comment-submit',
       }),
@@ -236,6 +251,21 @@ describe('AppNoticeDetailScreen', () => {
 
     expect(
       screen.getByTestId('app-notice-comment-card-app-comment-1').props.accessibilityLabel,
-    ).toBe('삭제 비활성화');
+    ).toContain('삭제 비활성화');
+  });
+
+  it('댓글 전송 중에는 입력과 댓글 모드 전환을 비활성화한다', () => {
+    mockDetailData = {
+      ...mockDetailData,
+      commentItems: mockDetailData.commentItems.map(comment =>
+        comment.id === 'app-comment-2' ? {...comment, isEditable: true} : comment,
+      ),
+      submittingComment: true,
+    };
+    const screen = render(<AppNoticeDetailScreen />);
+
+    expect(screen.getByTestId('app-notice-comment-submit').props.accessibilityLabel).toBe('입력 잠금');
+    expect(screen.getByTestId('app-notice-comment-card-app-comment-1').props.accessibilityLabel).toContain('답글 비활성화');
+    expect(screen.getByTestId('app-notice-comment-card-app-comment-2').props.accessibilityLabel).toContain('수정 비활성화');
   });
 });
