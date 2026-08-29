@@ -175,6 +175,33 @@ describe('useAppNoticeDetailData', () => {
     });
   });
 
+  it('댓글 전송 요청은 진행 중 한 번만 전송한다', async () => {
+    const repository = createRepository();
+    const deferredComment = createDeferred<NoticeComment>();
+    repository.createComment.mockReturnValueOnce(deferredComment.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => result.current.setCommentDraft('등록된 댓글'));
+    let firstSubmitPromise!: ReturnType<typeof result.current.submitComment>;
+    let secondSubmitPromise!: ReturnType<typeof result.current.submitComment>;
+    act(() => {
+      firstSubmitPromise = result.current.submitComment();
+      secondSubmitPromise = result.current.submitComment();
+    });
+
+    expect(repository.createComment).toHaveBeenCalledTimes(1);
+    await expect(secondSubmitPromise).resolves.toEqual({commentId: undefined});
+
+    await act(async () => {
+      deferredComment.resolve(comment);
+      await firstSubmitPromise;
+    });
+  });
+
   it('댓글 수정 전송 중에는 같은 댓글의 삭제 요청을 전송하지 않는다', async () => {
     const repository = createRepository();
     const deferredEdit = createDeferred<NoticeComment>();
