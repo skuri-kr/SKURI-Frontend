@@ -465,6 +465,92 @@ describe('useAppNoticeDetailData', () => {
     expect(result.current.commentItems[0]?.isDeleted).toBe(false);
   });
 
+  it('이전 공지의 댓글 재조회 성공 결과가 새 공지 댓글을 덮어쓰지 않는다', async () => {
+    const repository = createRepository();
+    const deferredComments = createDeferred<NoticeCommentTreeNode[]>();
+    const secondNotice = {...notice, id: 'app-notice-2', title: '두 번째 공지'};
+    const secondComment: NoticeCommentTreeNode = {
+      ...comment,
+      content: '두 번째 공지 댓글',
+      id: 'app-comment-2',
+      noticeId: 'app-notice-2',
+      replies: [],
+    };
+    repository.getAppNotice.mockImplementation(async noticeId =>
+      noticeId === 'app-notice-1' ? notice : secondNotice,
+    );
+    repository.getComments
+      .mockResolvedValueOnce([{...comment, replies: []}])
+      .mockReturnValueOnce(deferredComments.promise)
+      .mockResolvedValueOnce([secondComment]);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result, rerender} = renderHook(
+      ({noticeId}: {noticeId: string}) => useAppNoticeDetailData(noticeId),
+      {initialProps: {noticeId: 'app-notice-1'}},
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let retryPromise!: ReturnType<typeof result.current.retryComments>;
+    act(() => {
+      retryPromise = result.current.retryComments();
+    });
+    rerender({noticeId: 'app-notice-2'});
+    await waitFor(() => expect(result.current.data?.title).toBe('두 번째 공지'));
+
+    await act(async () => {
+      deferredComments.resolve([{...comment, replies: []}]);
+      await retryPromise;
+    });
+
+    expect(result.current.commentItems[0]?.body).toBe('두 번째 공지 댓글');
+    expect(result.current.commentError).toBeNull();
+  });
+
+  it('이전 공지의 댓글 재조회 실패가 새 공지 오류 상태를 변경하지 않는다', async () => {
+    const repository = createRepository();
+    const deferredComments = createDeferred<NoticeCommentTreeNode[]>();
+    const secondNotice = {...notice, id: 'app-notice-2', title: '두 번째 공지'};
+    const secondComment: NoticeCommentTreeNode = {
+      ...comment,
+      content: '두 번째 공지 댓글',
+      id: 'app-comment-2',
+      noticeId: 'app-notice-2',
+      replies: [],
+    };
+    repository.getAppNotice.mockImplementation(async noticeId =>
+      noticeId === 'app-notice-1' ? notice : secondNotice,
+    );
+    repository.getComments
+      .mockResolvedValueOnce([{...comment, replies: []}])
+      .mockReturnValueOnce(deferredComments.promise)
+      .mockResolvedValueOnce([secondComment]);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result, rerender} = renderHook(
+      ({noticeId}: {noticeId: string}) => useAppNoticeDetailData(noticeId),
+      {initialProps: {noticeId: 'app-notice-1'}},
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let retryPromise!: ReturnType<typeof result.current.retryComments>;
+    act(() => {
+      retryPromise = result.current.retryComments();
+    });
+    rerender({noticeId: 'app-notice-2'});
+    await waitFor(() => expect(result.current.data?.title).toBe('두 번째 공지'));
+
+    await act(async () => {
+      deferredComments.reject(new Error('첫 번째 공지 댓글 조회 실패'));
+      await expect(retryPromise).resolves.toBeUndefined();
+    });
+
+    expect(result.current.commentItems[0]?.body).toBe('두 번째 공지 댓글');
+    expect(result.current.commentError).toBeNull();
+  });
+
   it('삭제된 부모 댓글을 답글 대상으로 표시할 때 공통 대체 문구를 사용한다', async () => {
     const repository = createRepository();
     const reply = {

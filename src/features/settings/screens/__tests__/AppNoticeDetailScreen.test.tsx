@@ -32,7 +32,12 @@ jest.mock('@/shared/design-system/components', () => {
   return {
     ArticleDetailSkeleton: () => null,
     DetailCommentCard: () => null,
-    DetailComposer: ReactModule.forwardRef(() => null),
+    DetailComposer: ReactModule.forwardRef(({onSend}: {onSend: () => void}, _ref) =>
+      ReactModule.createElement(require('react-native').TouchableOpacity, {
+        onPress: onSend,
+        testID: 'app-notice-comment-submit',
+      }),
+    ),
     DetailReactionChip: () => null,
     LinkifiedText: () => null,
     StackHeader: () => null,
@@ -65,6 +70,17 @@ describe('AppNoticeDetailScreen', () => {
         isEditable: false,
         isLiked: false,
         isMine: false,
+        isReply: false,
+        likeCount: 0,
+      }, {
+        authorLabel: '작성자',
+        body: '새 댓글',
+        dateLabel: '방금 전',
+        id: 'app-comment-2',
+        isDeleted: false,
+        isEditable: false,
+        isLiked: false,
+        isMine: true,
         isReply: false,
         likeCount: 0,
       }],
@@ -109,7 +125,7 @@ describe('AppNoticeDetailScreen', () => {
       setCommentDraft: jest.fn(),
       startEditingComment: jest.fn(),
       startReplyingComment: jest.fn(),
-      submitComment: jest.fn(),
+      submitComment: jest.fn().mockResolvedValue({commentId: 'app-comment-2'}),
       submittingComment: false,
       toggleCommentAnonymousPreference: jest.fn(),
       toggleCommentLike: jest.fn(),
@@ -137,6 +153,37 @@ describe('AppNoticeDetailScreen', () => {
 
     fireEvent(screen.getByTestId('app-notice-comment-app-comment-1'), 'layout', {
       nativeEvent: {layout: {y: 50}},
+    });
+
+    expect(scrollToSpy).toHaveBeenCalledTimes(1);
+    expect(scrollToSpy).toHaveBeenCalledWith(expect.objectContaining({animated: true}));
+  });
+
+  it('댓글 등록 후 대상 댓글 레이아웃이 늦어도 다시 스크롤한다', async () => {
+    const screen = render(<AppNoticeDetailScreen />);
+
+    fireEvent(screen.getByTestId('app-notice-body-card'), 'layout', {
+      nativeEvent: {layout: {y: 100}},
+    });
+    fireEvent(screen.getByTestId('app-notice-comments-list'), 'layout', {
+      nativeEvent: {layout: {y: 200}},
+    });
+    act(() => jest.advanceTimersByTime(160));
+    fireEvent(screen.getByTestId('app-notice-comment-app-comment-1'), 'layout', {
+      nativeEvent: {layout: {y: 50}},
+    });
+    scrollToSpy.mockClear();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('app-notice-comment-submit'));
+      await Promise.resolve();
+    });
+    act(() => jest.advanceTimersByTime(120));
+
+    expect(scrollToSpy).not.toHaveBeenCalled();
+
+    fireEvent(screen.getByTestId('app-notice-comment-app-comment-2'), 'layout', {
+      nativeEvent: {layout: {y: 80}},
     });
 
     expect(scrollToSpy).toHaveBeenCalledTimes(1);
