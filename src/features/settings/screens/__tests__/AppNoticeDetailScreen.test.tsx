@@ -245,6 +245,9 @@ describe('AppNoticeDetailScreen', () => {
   it('삭제 중인 댓글의 삭제 동작을 비활성화한다', () => {
     mockDetailData = {
       ...mockDetailData,
+      commentItems: mockDetailData.commentItems.map(comment =>
+        ({...comment, isEditable: true}),
+      ),
       commentDeletePendingIds: ['app-comment-1'],
     };
     const screen = render(<AppNoticeDetailScreen />);
@@ -252,6 +255,15 @@ describe('AppNoticeDetailScreen', () => {
     expect(
       screen.getByTestId('app-notice-comment-card-app-comment-1').props.accessibilityLabel,
     ).toContain('삭제 비활성화');
+    expect(
+      screen.getByTestId('app-notice-comment-card-app-comment-1').props.accessibilityLabel,
+    ).toContain('답글 비활성화');
+    expect(
+      screen.getByTestId('app-notice-comment-card-app-comment-1').props.accessibilityLabel,
+    ).toContain('수정 비활성화');
+    expect(
+      screen.getByTestId('app-notice-comment-card-app-comment-2').props.accessibilityLabel,
+    ).toContain('수정 활성화');
   });
 
   it('댓글 전송 중에는 입력과 댓글 모드 전환을 비활성화한다', () => {

@@ -195,6 +195,33 @@ describe('useAppNoticeDetailData', () => {
     expect(repository.getComments).toHaveBeenCalledTimes(1);
   });
 
+  it('댓글 삭제 중에는 같은 댓글의 수정이나 답글 모드로 전환하지 않는다', async () => {
+    const repository = createRepository();
+    const deferredDelete = createDeferred<void>();
+    repository.getComments.mockResolvedValueOnce([{...comment, replies: []}]);
+    repository.deleteComment.mockReturnValueOnce(deferredDelete.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let deletePromise!: ReturnType<typeof result.current.deleteComment>;
+    act(() => {
+      deletePromise = result.current.deleteComment('app-comment-1');
+      result.current.startEditingComment('app-comment-1');
+      result.current.startReplyingComment('app-comment-1');
+    });
+
+    expect(result.current.isEditingComment).toBe(false);
+    expect(result.current.isReplyingComment).toBe(false);
+
+    await act(async () => {
+      deferredDelete.resolve();
+      await deletePromise;
+    });
+  });
+
   it('댓글 조회만 실패하면 공지 본문은 표시하고 댓글 오류를 분리한다', async () => {
     const repository = createRepository();
     repository.getComments.mockRejectedValueOnce(new Error('댓글 네트워크 오류'));
