@@ -11,6 +11,7 @@ import {
 
 export interface ApiRequestConfig<D = unknown>
   extends Omit<AxiosRequestConfig<D>, 'baseURL'> {
+  optionalAuth?: boolean;
   requiresAuth?: boolean;
   forceRefreshToken?: boolean;
 }
@@ -47,9 +48,17 @@ const buildRequestHeaders = async (
     return headers;
   }
 
-  const authorization = await getAuthorizationHeaderValue({
-    forceRefresh: config.forceRefreshToken,
-  });
+  let authorization: string | null;
+  try {
+    authorization = await getAuthorizationHeaderValue({
+      forceRefresh: config.forceRefreshToken,
+    });
+  } catch (error) {
+    if (!config.optionalAuth) {
+      throw error;
+    }
+    return headers;
+  }
 
   if (authorization) {
     headers.Authorization = authorization;

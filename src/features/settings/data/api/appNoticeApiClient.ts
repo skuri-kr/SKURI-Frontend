@@ -17,6 +17,9 @@ export class AppNoticeApiClient {
   getAppNotice(noticeId: string) {
     return httpClient.get<ApiSuccessResponse<AppNoticeResponseDto>>(
       `/v1/app-notices/${noticeId}`,
+      {
+        optionalAuth: true,
+      },
     );
   }
 
