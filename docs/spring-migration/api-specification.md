@@ -2829,6 +2829,7 @@ Authorization:Bearer <firebase_id_token>
 | `PATCH/DELETE` | `/v1/app-notice-comments/{commentId}` | 댓글 수정/삭제 |
 | `POST/DELETE` | `/v1/app-notice-comments/{commentId}/like` | 댓글 좋아요 등록/취소 |
 
+- 위 상호작용 API는 `publishedAt <= now()`인 앱 공지만 허용한다. 미래 게시 시각으로 전환된 공지의 기존 댓글 ID를 사용한 수정·삭제·좋아요도 `404 APP_NOTICE_NOT_FOUND`를 반환한다.
 - 댓글 작성자를 제외한 모든 활성 운영자에게 알림 설정과 무관하게 `COMMENT_CREATED` 인앱·푸시 알림을 전송한다.
 - 답글 부모 작성자가 운영자이기도 하면 답글 알림 하나만 보내며, data는 `appNoticeId`, `commentId`를 포함한다.
 - 신고는 `targetType=APP_NOTICE_COMMENT`를 사용한다.
