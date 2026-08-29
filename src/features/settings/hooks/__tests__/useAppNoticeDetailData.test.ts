@@ -391,6 +391,41 @@ describe('useAppNoticeDetailData', () => {
     expect(result.current.commentError).toBe('댓글 네트워크 오류');
   });
 
+  it('댓글 조회 실패 뒤 재로드 중에는 새 댓글 전송을 잠근다', async () => {
+    const repository = createRepository();
+    const deferredComments = createDeferred<NoticeCommentTreeNode[]>();
+    repository.getComments
+      .mockRejectedValueOnce(new Error('댓글 네트워크 오류'))
+      .mockReturnValueOnce(deferredComments.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.commentError).toBe('댓글 네트워크 오류'));
+
+    let reloadPromise!: ReturnType<typeof result.current.reload>;
+    act(() => {
+      reloadPromise = result.current.reload();
+    });
+    await act(async () => {
+      await reloadPromise;
+    });
+    await waitFor(() => expect(result.current.commentsLoading).toBe(true));
+
+    act(() => result.current.setCommentDraft('새 댓글'));
+    await expect(result.current.submitComment()).rejects.toThrow(
+      '댓글 목록을 불러오는 중입니다.',
+    );
+    expect(repository.createComment).not.toHaveBeenCalled();
+
+    await act(async () => {
+      deferredComments.resolve([{...comment, replies: []}]);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.commentsLoading).toBe(false));
+    expect(result.current.commentItems).toHaveLength(1);
+  });
+
   it('댓글 조회가 지연돼도 공지 본문을 먼저 표시한다', async () => {
     const repository = createRepository();
     const deferredComments = createDeferred<NoticeCommentTreeNode[]>();
