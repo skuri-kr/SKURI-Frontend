@@ -5,10 +5,12 @@ import {act, fireEvent, render} from '@testing-library/react-native';
 import {useAppNoticeDetailData} from '../../hooks/useAppNoticeDetailData';
 import {AppNoticeDetailScreen} from '../AppNoticeDetailScreen';
 
+let mockRouteParams = {initialCommentId: 'app-comment-1', noticeId: 'app-notice-1'};
+
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({goBack: jest.fn()}),
   useRoute: () => ({
-    params: {initialCommentId: 'app-comment-1', noticeId: 'app-notice-1'},
+    params: mockRouteParams,
   }),
 }));
 
@@ -21,7 +23,13 @@ jest.mock('react-native-vector-icons/Ionicons', () => 'Icon');
 
 jest.mock('@/di', () => ({useReportRepository: () => ({})}));
 jest.mock('@/shared/hooks/useScreenView', () => ({useScreenView: jest.fn()}));
-jest.mock('@/shared/ui/ReportReasonModal', () => ({ReportReasonModal: () => null}));
+jest.mock('@/shared/ui/ReportReasonModal', () => {
+  const {View} = require('react-native');
+  return {
+    ReportReasonModal: ({visible}: {visible: boolean}) =>
+      visible ? <View testID="app-notice-report-modal" /> : null,
+  };
+});
 jest.mock('../../components/AppNoticeBadge', () => ({AppNoticeBadge: () => null}));
 jest.mock('../../components/AppNoticeHeroCarousel', () => ({AppNoticeHeroCarousel: () => null}));
 jest.mock('../../hooks/useAppNoticeDetailData', () => ({
@@ -31,7 +39,20 @@ jest.mock('@/shared/design-system/components', () => {
   const ReactModule = require('react') as typeof React;
   return {
     ArticleDetailSkeleton: () => null,
-    DetailCommentCard: () => null,
+    DetailCommentCard: ({
+      comment,
+      deleteDisabled,
+      onPressReport,
+    }: {
+      comment: {id: string};
+      deleteDisabled?: boolean;
+      onPressReport?: () => void;
+    }) => ReactModule.createElement(require('react-native').TouchableOpacity, {
+      accessibilityLabel: deleteDisabled ? '삭제 비활성화' : '삭제 활성화',
+      disabled: !onPressReport,
+      onPress: onPressReport,
+      testID: `app-notice-comment-card-${comment.id}`,
+    }),
     DetailComposer: ReactModule.forwardRef(({onSend}: {onSend: () => void}, _ref) =>
       ReactModule.createElement(require('react-native').TouchableOpacity, {
         onPress: onSend,
@@ -49,18 +70,21 @@ const mockedUseAppNoticeDetailData = jest.mocked(useAppNoticeDetailData);
 
 describe('AppNoticeDetailScreen', () => {
   let scrollToSpy: jest.SpyInstance;
+  let mockDetailData: ReturnType<typeof useAppNoticeDetailData>;
 
   beforeEach(() => {
     jest.useFakeTimers();
     jest.clearAllMocks();
+    mockRouteParams = {initialCommentId: 'app-comment-1', noticeId: 'app-notice-1'};
     scrollToSpy = jest.spyOn(ScrollView.prototype, 'scrollTo').mockImplementation(jest.fn());
-    mockedUseAppNoticeDetailData.mockReturnValue({
+    mockDetailData = {
       cancelCommentEdit: jest.fn(),
       cancelCommentReply: jest.fn(),
       commentAnonymousDisabled: false,
       commentAnonymousValue: false,
       commentDraft: '',
       commentError: null,
+      commentDeletePendingIds: [],
       commentItems: [{
         authorLabel: '작성자',
         body: '댓글',
@@ -131,7 +155,8 @@ describe('AppNoticeDetailScreen', () => {
       toggleCommentLike: jest.fn(),
       toggleLike: jest.fn(),
       togglingLike: false,
-    } as ReturnType<typeof useAppNoticeDetailData>);
+    } as ReturnType<typeof useAppNoticeDetailData>;
+    mockedUseAppNoticeDetailData.mockImplementation(() => mockDetailData);
   });
 
   afterEach(() => {
@@ -188,5 +213,29 @@ describe('AppNoticeDetailScreen', () => {
 
     expect(scrollToSpy).toHaveBeenCalledTimes(1);
     expect(scrollToSpy).toHaveBeenCalledWith(expect.objectContaining({animated: true}));
+  });
+
+  it('공지 전환 시 이전 공지의 댓글 신고 창을 닫는다', () => {
+    const screen = render(<AppNoticeDetailScreen />);
+
+    fireEvent.press(screen.getByTestId('app-notice-comment-card-app-comment-1'));
+    expect(screen.getByTestId('app-notice-report-modal')).toBeTruthy();
+
+    mockRouteParams = {initialCommentId: 'app-comment-2', noticeId: 'app-notice-2'};
+    screen.rerender(<AppNoticeDetailScreen />);
+
+    expect(screen.queryByTestId('app-notice-report-modal')).toBeNull();
+  });
+
+  it('삭제 중인 댓글의 삭제 동작을 비활성화한다', () => {
+    mockDetailData = {
+      ...mockDetailData,
+      commentDeletePendingIds: ['app-comment-1'],
+    };
+    const screen = render(<AppNoticeDetailScreen />);
+
+    expect(
+      screen.getByTestId('app-notice-comment-card-app-comment-1').props.accessibilityLabel,
+    ).toBe('삭제 비활성화');
   });
 });
