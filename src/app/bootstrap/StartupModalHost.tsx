@@ -23,6 +23,7 @@ export const StartupModalHost = () => {
   const appNoticeFeed = useAppNoticeFeedData({enabled: shouldLoadAppNotices});
   const reloadAppNoticeFeed = appNoticeFeed.reload;
   const previousStartupModalModeRef = React.useRef(startupModalMode);
+  const maintenanceRetryReloadedNoticeFeedRef = React.useRef(false);
 
   React.useEffect(() => {
     const recoveringFromMaintenance =
@@ -30,12 +31,22 @@ export const StartupModalHost = () => {
       (startupModalMode === 'force-update' || startupModalMode === 'soft-update');
     previousStartupModalModeRef.current = startupModalMode;
 
+    if (startupModalMode === 'hidden') {
+      maintenanceRetryReloadedNoticeFeedRef.current = false;
+    }
+
+    if (recoveringFromMaintenance && maintenanceRetryReloadedNoticeFeedRef.current) {
+      maintenanceRetryReloadedNoticeFeedRef.current = false;
+      return;
+    }
+
     if (recoveringFromMaintenance) {
       reloadAppNoticeFeed().catch(() => undefined);
     }
   }, [reloadAppNoticeFeed, startupModalMode]);
 
   const handleMaintenanceRetry = React.useCallback(() => {
+    maintenanceRetryReloadedNoticeFeedRef.current = true;
     retryVersionCheck();
     reloadAppNoticeFeed().catch(() => undefined);
   }, [reloadAppNoticeFeed, retryVersionCheck]);

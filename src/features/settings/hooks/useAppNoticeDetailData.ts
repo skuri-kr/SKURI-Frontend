@@ -137,6 +137,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   const noticeRevisionRef = React.useRef(0);
   const commentDeletePendingIdsRef = React.useRef(new Set<string>());
   const commentLikePendingIdsRef = React.useRef(new Set<string>());
+  const noticeLikePendingNoticeIdRef = React.useRef<string | null>(null);
   const pendingCommentEditIdRef = React.useRef<string | null>(null);
   const pendingCommentReplyTargetIdRef = React.useRef<string | null>(null);
   const commentSubmissionRequestIdRef = React.useRef(0);
@@ -368,6 +369,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     setCommentAnonymousDraft(null);
     commentDeletePendingIdsRef.current.clear();
     commentLikePendingIdsRef.current.clear();
+    noticeLikePendingNoticeIdRef.current = null;
     pendingCommentEditIdRef.current = null;
     pendingCommentReplyTargetIdRef.current = null;
     pendingCommentSubmissionRequestIdRef.current = null;
@@ -400,10 +402,14 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   ]);
 
   const toggleLike = React.useCallback(async () => {
-    if (!noticeId || !user?.uid || !notice || notice.id !== noticeId || togglingLike) {
+    if (!noticeId || !user?.uid || !notice || notice.id !== noticeId) {
       throw new Error('로그인이 필요합니다.');
     }
+    if (togglingLike || noticeLikePendingNoticeIdRef.current === noticeId) {
+      throw new Error('좋아요 처리 중입니다.');
+    }
     const mutationNoticeId = noticeId;
+    noticeLikePendingNoticeIdRef.current = mutationNoticeId;
     const previous = {isLiked: notice.isLiked, likeCount: notice.likeCount};
     const optimistic = {
       isLiked: !previous.isLiked,
@@ -425,6 +431,9 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       );
       throw toggleError;
     } finally {
+      if (noticeLikePendingNoticeIdRef.current === mutationNoticeId) {
+        noticeLikePendingNoticeIdRef.current = null;
+      }
       if (latestNoticeIdRef.current === mutationNoticeId) {
         setTogglingLike(false);
       }
