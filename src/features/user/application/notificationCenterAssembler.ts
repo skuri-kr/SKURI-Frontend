@@ -79,7 +79,11 @@ const buildIconMeta = (
       };
     case 'COMMENT_CREATED':
       return {
-        contextLabel: notification.data.noticeId ? '공지사항' : '커뮤니티',
+        contextLabel: notification.data.appNoticeId
+          ? '앱 공지'
+          : notification.data.noticeId
+            ? '공지사항'
+            : '커뮤니티',
         iconName: 'chatbubble-outline',
         iconTone: 'green',
       };
