@@ -774,6 +774,7 @@ SSE 운영 제약:
 | `POST_LIKED` | 게시글 좋아요 생성 | 게시글 작성자 | 자기 글 좋아요 제외 | `allNotifications` + `boardLikeNotifications` | O |
 | `COMMENT_CREATED` (게시글) | 게시글 댓글/답글 생성 | 게시글 작성자, 부모 댓글 작성자, 게시글 북마크 사용자 | 자기 자신 대상 제외, 동일 사용자 중복 수신은 1회로 dedupe | `allNotifications` + `commentNotifications` + `bookmarkedPostCommentNotifications` | O |
 | `COMMENT_CREATED` (공지) | 공지 댓글 답글 생성 | 부모 댓글 작성자 | `Notice.author`가 회원 식별자가 아니어서 루트 공지 작성자 알림은 현재 미지원 | `allNotifications` + `commentNotifications` | O |
+| `COMMENT_CREATED` (앱 공지) | 앱 공지 댓글/답글 생성 | 작성자 제외 활성 운영자 전체, 답글의 부모 댓글 작성자 | 운영자 알림은 설정 무시, 부모 작성자는 댓글 알림 설정 반영, 중복 수신자는 1회 dedupe | 설정 무시(운영자) / `allNotifications` + `commentNotifications`(부모 작성자) | O |
 | `NOTICE` | 새 학교 공지 생성 | 공지 허용 사용자 | 카테고리 상세 토글 비활성 사용자 제외 | `allNotifications` + `noticeNotifications` + `noticeNotificationsDetail` | O |
 | `APP_NOTICE` | 앱 공지 생성 | 일반: 시스템 알림 허용 사용자 / `HIGH`: 전체 사용자 | `HIGH`는 설정 무시 강제 발송 | 일반: `allNotifications` + `systemNotifications` / `HIGH`: 설정 무시 | O |
 | `ACADEMIC_SCHEDULE` | 학사 일정 리마인더 시각 도달 | 학사 일정 알림 허용 사용자 | 기본은 중요 일정만 대상 | `allNotifications` + `academicScheduleNotifications` | O |

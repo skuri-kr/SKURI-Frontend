@@ -928,12 +928,14 @@ UserNotification 엔티티:
   - `POST_LIKED`: 게시글 작성자 대상, 자기 좋아요 제외, `allNotifications` + `boardLikeNotifications` 반영, 인앱 인박스 생성
   - `COMMENT_CREATED`(게시글): 게시글 작성자, 부모 댓글 작성자, 게시글 북마크 사용자 대상, 자기 자신 제외, `allNotifications` + `commentNotifications` + `bookmarkedPostCommentNotifications` 반영, 중복 대상자는 1회 dedupe 후 인앱 인박스 생성
   - `COMMENT_CREATED`(공지): 현재 `Notice.author`는 문자열 필드만 있어 공지 작성자 식별이 불가능하므로, 부모 댓글 작성자 대상 답글 알림만 발송하며 `allNotifications` + `commentNotifications`를 반영
+  - `COMMENT_CREATED`(앱 공지): 작성자를 제외한 활성 운영자 전체와 답글의 부모 댓글 작성자 대상, 운영자 알림은 설정과 무관하게 발송하고 부모 작성자는 `allNotifications` + `commentNotifications`를 반영하며, 중복 대상자는 1회 dedupe 후 인앱 인박스 생성
   - `NOTICE`: `allNotifications` + `noticeNotifications` + `noticeNotificationsDetail` 반영
   - `APP_NOTICE`: 일반 공지는 `allNotifications` + `systemNotifications` 반영, `AppNoticePriority.HIGH`는 설정 무시 강제 발송
   - `ACADEMIC_SCHEDULE`: `allNotifications` + `academicScheduleNotifications` 반영, 기본은 중요 일정(`isPrimary=true`)만 대상
 
 Phase 8 댓글 알림 정책:
   - Board/Notice 공통 댓글 알림 설정은 `commentNotifications`를 사용한다.
+  - 앱 공지 댓글/답글은 작성자를 제외한 활성 운영자에게 설정과 무관하게 발송하며, 답글의 부모 댓글 작성자에게는 `allNotifications` + `commentNotifications`를 반영한다.
   - `COMMENT_CREATED`(게시글)은 게시글 작성자/부모 댓글 작성자 외에도 "해당 게시글을 북마크한 사용자"를 수신 대상에 포함한다.
   - 게시글 북마크 기반 댓글 알림은 `bookmarkedPostCommentNotifications`로 분리한다.
   - 동일 사용자가 여러 수신 조건에 동시에 해당하면 푸시/인앱 인박스는 1회만 생성한다.
