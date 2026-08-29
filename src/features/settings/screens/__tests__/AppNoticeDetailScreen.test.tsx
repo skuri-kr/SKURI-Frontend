@@ -144,6 +144,7 @@ describe('AppNoticeDetailScreen', () => {
       editingCommentId: null,
       error: null,
       isEditingComment: false,
+      isCommentComposerLocked: false,
       isReplyingComment: false,
       loading: false,
       notice: {
@@ -279,5 +280,16 @@ describe('AppNoticeDetailScreen', () => {
     expect(screen.getByTestId('app-notice-comment-submit').props.accessibilityLabel).toBe('입력 잠금');
     expect(screen.getByTestId('app-notice-comment-card-app-comment-1').props.accessibilityLabel).toContain('답글 비활성화');
     expect(screen.getByTestId('app-notice-comment-card-app-comment-2').props.accessibilityLabel).toContain('수정 비활성화');
+  });
+
+  it('삭제 중인 수정 또는 답글 작성창의 입력을 잠근다', () => {
+    mockDetailData = {
+      ...mockDetailData,
+      isCommentComposerLocked: true,
+      isEditingComment: true,
+    };
+    const screen = render(<AppNoticeDetailScreen />);
+
+    expect(screen.getByTestId('app-notice-comment-submit').props.accessibilityLabel).toBe('입력 잠금');
   });
 });

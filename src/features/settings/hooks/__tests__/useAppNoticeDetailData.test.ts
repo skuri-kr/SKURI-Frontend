@@ -237,6 +237,114 @@ describe('useAppNoticeDetailData', () => {
     expect(result.current.commentError).toBe('댓글 네트워크 오류');
   });
 
+  it('댓글 조회가 지연돼도 공지 본문을 먼저 표시한다', async () => {
+    const repository = createRepository();
+    const deferredComments = createDeferred<NoticeCommentTreeNode[]>();
+    repository.getComments.mockReturnValueOnce(deferredComments.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+
+    await waitFor(() => expect(result.current.data?.title).toBe('점검 안내'));
+    expect(result.current.loading).toBe(false);
+    expect(result.current.commentItems).toHaveLength(0);
+
+    await act(async () => {
+      deferredComments.resolve([{...comment, replies: []}]);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(result.current.commentItems).toHaveLength(1));
+  });
+
+  it('수정 중인 댓글이 삭제되면 전송을 잠근다', async () => {
+    const repository = createRepository();
+    const deferredDelete = createDeferred<void>();
+    repository.getComments.mockResolvedValueOnce([{...comment, replies: []}]);
+    repository.deleteComment.mockReturnValueOnce(deferredDelete.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      result.current.startEditingComment('app-comment-1');
+      result.current.setCommentDraft('수정 중인 댓글');
+    });
+    let deletePromise!: ReturnType<typeof result.current.deleteComment>;
+    act(() => {
+      deletePromise = result.current.deleteComment('app-comment-1');
+    });
+
+    expect(result.current.isCommentComposerLocked).toBe(true);
+    await expect(result.current.submitComment()).rejects.toThrow(
+      '삭제 중인 댓글은 수정하거나 답글을 작성할 수 없습니다.',
+    );
+    expect(repository.updateComment).not.toHaveBeenCalled();
+
+    await act(async () => {
+      deferredDelete.resolve();
+      await deletePromise;
+    });
+
+    await waitFor(() => expect(result.current.isEditingComment).toBe(false));
+    expect(result.current.commentDraft).toBe('');
+  });
+
+  it('재조회에서 사라진 수정 대상 댓글의 작성 모드를 취소한다', async () => {
+    const repository = createRepository();
+    repository.getComments
+      .mockResolvedValueOnce([{...comment, replies: []}])
+      .mockResolvedValueOnce([]);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      result.current.startEditingComment('app-comment-1');
+      result.current.setCommentDraft('수정 중인 댓글');
+    });
+    await act(async () => {
+      await result.current.retryComments();
+    });
+
+    await waitFor(() => expect(result.current.isEditingComment).toBe(false));
+    expect(result.current.commentDraft).toBe('');
+  });
+
+  it('재조회에서 삭제된 답글 대상은 작성 모드를 취소한다', async () => {
+    const repository = createRepository();
+    repository.getComments
+      .mockResolvedValueOnce([{...comment, replies: []}])
+      .mockResolvedValueOnce([{
+        ...comment,
+        content: '삭제된 댓글입니다',
+        isDeleted: true,
+        replies: [],
+      }]);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      result.current.startReplyingComment('app-comment-1');
+      result.current.setCommentDraft('답글 초안');
+    });
+    await act(async () => {
+      await result.current.retryComments();
+    });
+
+    await waitFor(() => expect(result.current.isReplyingComment).toBe(false));
+    expect(result.current.commentDraft).toBe('');
+  });
+
   it('같은 공지의 이전 재조회 응답이 새 댓글 상태를 덮어쓰지 않는다', async () => {
     const repository = createRepository();
     const deferredNotice = createDeferred<typeof notice>();
