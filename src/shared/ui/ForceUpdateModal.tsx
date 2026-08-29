@@ -169,7 +169,7 @@ export const ForceUpdateModal: React.FC<ForceUpdateModalProps> = ({
                   </View>
                 ) : null}
 
-                {!noticeLoading && noticeItems.length > 0 ? (
+                {noticeItems.length > 0 ? (
                   <View style={styles.noticeList}>
                     {noticeItems.map(item =>
                       mode === 'maintenance' ? (

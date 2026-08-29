@@ -442,8 +442,11 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   }, [completeNoticeMutation, invalidatePendingNoticeLoads, notice, noticeId, repository, togglingLike, user?.uid]);
 
   const toggleCommentLike = React.useCallback(async (commentId: string) => {
-    if (!noticeId || !user?.uid || commentLikePendingIdsRef.current.has(commentId)) {
+    if (!noticeId || !user?.uid) {
       throw new Error('로그인이 필요합니다.');
+    }
+    if (commentLikePendingIdsRef.current.has(commentId)) {
+      throw new Error('좋아요 처리 중입니다.');
     }
     if (commentDeletePendingIdsRef.current.has(commentId)) return;
     if (pendingCommentEditIdRef.current === commentId) return;

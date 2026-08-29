@@ -71,6 +71,8 @@ export const AppNoticeDetailScreen = () => {
   const pendingInitialCommentRef = React.useRef<string | null>(null);
   const pendingSubmittedCommentRef = React.useRef<string | null>(null);
   const reportSessionRef = React.useRef(0);
+  const reportSubmissionRequestIdRef = React.useRef(0);
+  const pendingReportSubmissionRequestIdRef = React.useRef<number | null>(null);
   const initialCommentIntentRef = React.useRef({
     commentId: route.params?.initialCommentId,
     noticeId: route.params?.noticeId,
@@ -188,6 +190,7 @@ export const AppNoticeDetailScreen = () => {
     setReportCategory(null);
     setReportReason('');
     setReportSubmitting(false);
+    pendingReportSubmissionRequestIdRef.current = null;
     commentOffsetsRef.current.clear();
     bodyCardMeasuredRef.current = false;
     commentSectionMeasuredRef.current = false;
@@ -247,10 +250,13 @@ export const AppNoticeDetailScreen = () => {
       !reportReason.trim() ||
       reportTargetNoticeId !== route.params?.noticeId
     ) return;
+    if (pendingReportSubmissionRequestIdRef.current !== null) return;
     const reportSession = reportSessionRef.current;
+    const reportSubmissionRequestId = ++reportSubmissionRequestIdRef.current;
     const targetId = reportTargetId;
     const targetNoticeId = reportTargetNoticeId;
     const reason = reportReason.trim();
+    pendingReportSubmissionRequestIdRef.current = reportSubmissionRequestId;
     setReportSubmitting(true);
     try {
       await submitAppNoticeCommentReport(
@@ -278,6 +284,10 @@ export const AppNoticeDetailScreen = () => {
       ) return;
       setReportSubmitting(false);
       showError(caught, '신고 접수에 실패했습니다.');
+    } finally {
+      if (pendingReportSubmissionRequestIdRef.current === reportSubmissionRequestId) {
+        pendingReportSubmissionRequestIdRef.current = null;
+      }
     }
   };
 
