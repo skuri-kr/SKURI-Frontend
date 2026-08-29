@@ -915,6 +915,9 @@ Taxi history 계약 메모:
 | `notice_bookmarks` | 공지 북마크 | ~100,000 |
 | `app_notices` | 앱 공지 | ~100 |
 | `app_notice_read_status` | 앱 공지 읽음 상태 | ~500,000 |
+| `app_notice_likes` | 앱 공지 좋아요 | ~200,000 |
+| `app_notice_comments` | 앱 공지 댓글/답글 | ~5,000/년 |
+| `app_notice_comment_likes` | 앱 공지 댓글 좋아요 | ~100,000 |
 | `legal_documents` | 이용약관/개인정보 처리방침 | ~2 |
 
 ### 2.7 Campus 도메인
@@ -1048,6 +1051,10 @@ Taxi history 계약 메모:
 | 공지-좋아요 | notices | notice_likes | 1:N | 공지별 좋아요 |
 | 공지-북마크 | notices | notice_bookmarks | 1:N | 공지별 북마크 |
 | 앱 공지-읽음 | app_notices | app_notice_read_status | 1:N | 앱 공지별 읽음 상태 |
+| 앱 공지-좋아요 | app_notices | app_notice_likes | 1:N | 앱 공지별 좋아요 |
+| 앱 공지-댓글 | app_notices | app_notice_comments | 1:N | 앱 공지에 여러 댓글/답글 |
+| 앱 공지 댓글-대댓글 | app_notice_comments | app_notice_comments | 1:N (self) | 무제한 self-reference + placeholder soft delete |
+| 앱 공지 댓글-좋아요 | app_notice_comments | app_notice_comment_likes | 1:N | 앱 공지 댓글별 좋아요 |
 | 캠퍼스 배너 | campus_banners | (없음) | 독립 테이블 | 홈 배너 콘텐츠/노출 기간/정렬 관리 |
 | 강의-시간 | courses | course_schedules | 1:N | 강의에 여러 시간 슬롯 |
 | 시간표-강의 | user_timetables | user_timetable_courses | 1:N | 시간표에 여러 강의 |
@@ -1114,6 +1121,22 @@ ALTER TABLE notice_read_status
 ALTER TABLE app_notice_read_status
   ADD CONSTRAINT fk_app_notice_read_status_notice
   FOREIGN KEY (app_notice_id) REFERENCES app_notices(id) ON DELETE CASCADE;
+
+ALTER TABLE app_notice_likes
+  ADD CONSTRAINT fk_app_notice_likes_notice
+  FOREIGN KEY (app_notice_id) REFERENCES app_notices(id) ON DELETE CASCADE;
+
+ALTER TABLE app_notice_comments
+  ADD CONSTRAINT fk_app_notice_comments_notice
+  FOREIGN KEY (app_notice_id) REFERENCES app_notices(id) ON DELETE CASCADE;
+
+ALTER TABLE app_notice_comments
+  ADD CONSTRAINT fk_app_notice_comments_parent
+  FOREIGN KEY (parent_id) REFERENCES app_notice_comments(id) ON DELETE SET NULL;
+
+ALTER TABLE app_notice_comment_likes
+  ADD CONSTRAINT fk_app_notice_comment_likes_comment
+  FOREIGN KEY (comment_id) REFERENCES app_notice_comments(id) ON DELETE CASCADE;
 
 ALTER TABLE notice_comments
   ADD CONSTRAINT fk_notice_comments_notice
@@ -1248,6 +1271,13 @@ CREATE INDEX idx_notice_read_user ON notice_read_status(user_id);
 
 -- app_notice_read_status
 CREATE INDEX idx_app_notice_read_app_notice ON app_notice_read_status(app_notice_id);
+
+-- app_notice_comments
+CREATE INDEX idx_app_notice_comments_notice_created ON app_notice_comments(app_notice_id, created_at);
+CREATE INDEX idx_app_notice_comments_parent_id ON app_notice_comments(parent_id);
+
+-- app_notice_comment_likes
+CREATE INDEX idx_app_notice_comment_likes_comment_id ON app_notice_comment_likes(comment_id);
 
 -- notice_comments
 CREATE INDEX idx_notice_comments_notice ON notice_comments(notice_id);

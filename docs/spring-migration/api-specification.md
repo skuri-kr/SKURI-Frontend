@@ -5491,6 +5491,10 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 앱 공지 생성
 
 - `imageUrls[]`에는 `POST /v1/images`의 `APP_NOTICE_IMAGE` 업로드 결과 URL을 넣을 수 있습니다.
+- `actionUrl`은 유효한 HTTPS URL만 허용한다.
+- `actionLabel`은 최대 30자이며 `actionUrl`이 있을 때만 사용할 수 있다.
+- `actionLabel`만 전달하면 `422 VALIDATION_ERROR`와 `actionLabel은 actionUrl과 함께 사용할 수 있습니다.`를 반환한다.
+- HTTPS가 아닌 URL 또는 형식이 잘못된 URL은 `422 VALIDATION_ERROR`와 `actionUrl은 유효한 HTTPS URL이어야 합니다.`를 반환한다.
 
 **Request:**
 ```json
@@ -5526,7 +5530,10 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 - 전달한 필드만 반영한다.
 - 누락된 필드와 `null` 필드는 변경하지 않는다.
 - 모든 수정 가능 필드를 보내면 전체 수정처럼 사용할 수 있다.
-- `actionUrl`은 HTTPS만 허용하고 빈 문자열은 URL과 버튼을 제거한다. `actionLabel`은 최대 30자이며 URL이 있을 때만 사용한다.
+- `actionUrl`은 유효한 HTTPS URL만 허용한다. 빈 문자열을 보내면 URL과 버튼 문구를 제거한다.
+- `actionLabel`은 최대 30자이며 URL이 있을 때만 사용할 수 있다. 빈 문자열이면 앱은 `관련 페이지 보기` 기본 문구를 사용한다.
+- URL이 없는 상태에서 `actionLabel`만 전달하면 `422 VALIDATION_ERROR`와 `actionLabel은 actionUrl과 함께 사용할 수 있습니다.`를 반환한다.
+- HTTPS가 아닌 URL 또는 형식이 잘못된 URL은 `422 VALIDATION_ERROR`와 `actionUrl은 유효한 HTTPS URL이어야 합니다.`를 반환한다.
 
 **Request:**
 ```json

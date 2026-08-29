@@ -525,6 +525,7 @@ SSE 운영 제약:
 | `POST/DELETE` | `/v1/app-notices/{id}/like` | 앱 공지 좋아요 |
 | `GET/POST` | `/v1/app-notices/{id}/comments` | 앱 공지 댓글 목록/작성 |
 | `PATCH/DELETE` | `/v1/app-notice-comments/{id}` | 앱 공지 댓글 수정/삭제 |
+| `POST/DELETE` | `/v1/app-notice-comments/{id}/like` | 앱 공지 댓글 좋아요 등록/취소 |
 | `GET` | `/v1/members/me/app-notices/unread-count` | 미읽음 앱 공지 수 |
 | `POST` | `/v1/members/me/app-notices/{appNoticeId}/read` | 앱 공지 읽음 처리 |
 | `POST` | `/v1/admin/app-notices` | 앱 공지 생성 (관리자) |
@@ -666,6 +667,7 @@ SSE 운영 제약:
 - `status`: `PENDING`, `REVIEWING`, `ACTIONED`, `REJECTED`
 - duplicate policy: `reporterId + targetType + targetId` 전 상태 기준 재신고 금지
 - `NOTICE_COMMENT.targetAuthorId = noticeComment.userId`, 삭제 댓글은 `NOTICE_COMMENT_NOT_FOUND`
+- `APP_NOTICE_COMMENT.targetAuthorId = appNoticeComment.userId`, 삭제 댓글은 `APP_NOTICE_COMMENT_NOT_FOUND`
 - `CHAT_MESSAGE.targetAuthorId = message.senderId`
 - `CHAT_ROOM.targetAuthorId = chatRoom.createdBy` (seed/public 방처럼 creator가 없으면 `null` 허용, `PARTY` 타입 방은 제외)
 - `TAXI_PARTY.targetAuthorId = party.leaderId`
