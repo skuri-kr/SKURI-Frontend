@@ -149,6 +149,7 @@ describe('AppNoticeDetailScreen', () => {
       error: null,
       isEditingComment: false,
       isCommentComposerLocked: false,
+      isCommentComposerUnavailable: false,
       isReplyingComment: false,
       loading: false,
       notice: {
@@ -357,6 +358,17 @@ describe('AppNoticeDetailScreen', () => {
     mockDetailData = {
       ...mockDetailData,
       commentsLoading: true,
+      isCommentComposerUnavailable: true,
+    };
+    const screen = render(<AppNoticeDetailScreen />);
+
+    expect(screen.getByTestId('app-notice-comment-submit').props.accessibilityLabel).toBe('입력 잠금');
+  });
+
+  it('댓글 목록을 다시 불러와야 하면 입력을 잠근다', () => {
+    mockDetailData = {
+      ...mockDetailData,
+      isCommentComposerUnavailable: true,
     };
     const screen = render(<AppNoticeDetailScreen />);
 

@@ -183,6 +183,35 @@ describe('SpringAppNoticeRepository', () => {
     expect(mockedApiClient.unlikeNotice).toHaveBeenCalledWith('app-notice-1');
   });
 
+  it('겹친 댓글 조회 중 최신 요청만 댓글 좋아요 캐시를 갱신한다', async () => {
+    mockedApiClient.likeComment.mockResolvedValue({
+      data: {commentId: 'app-comment-1', isLiked: true, likeCount: 1},
+      success: true,
+    });
+    mockedApiClient.unlikeComment.mockResolvedValue({
+      data: {commentId: 'app-comment-1', isLiked: false, likeCount: 0},
+      success: true,
+    });
+    const repository = new SpringAppNoticeRepository();
+    const firstRead = deferred<ReturnType<typeof commentResponse>>();
+    const secondRead = deferred<ReturnType<typeof commentResponse>>();
+    mockedApiClient.getComments
+      .mockReturnValueOnce(firstRead.promise)
+      .mockReturnValueOnce(secondRead.promise);
+
+    const firstPendingRead = repository.getComments('app-notice-1');
+    const secondPendingRead = repository.getComments('app-notice-1');
+    secondRead.resolve(commentResponse(true, 1));
+    await secondPendingRead;
+    firstRead.resolve(commentResponse(false, 0));
+    await firstPendingRead;
+
+    await repository.toggleCommentLike('app-notice-1', 'app-comment-1');
+
+    expect(mockedApiClient.likeComment).not.toHaveBeenCalled();
+    expect(mockedApiClient.unlikeComment).toHaveBeenCalledWith('app-comment-1');
+  });
+
   it('지연된 댓글 조회가 댓글 좋아요 캐시를 되돌리지 않는다', async () => {
     mockedApiClient.getComments.mockResolvedValueOnce(commentResponse(false, 0));
     mockedApiClient.likeComment.mockResolvedValue({
