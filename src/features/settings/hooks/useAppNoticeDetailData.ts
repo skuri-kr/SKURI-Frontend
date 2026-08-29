@@ -144,15 +144,21 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   const commentAnonymousValue = commentAnonymousDraft ?? storedAnonymous;
 
   const refreshComments = React.useCallback(async () => {
-    if (!noticeId || !user?.uid) {
-      setComments([]);
-      setCommentError(null);
+    const requestedNoticeId = noticeId;
+    if (!requestedNoticeId || !user?.uid) {
+      if (latestNoticeIdRef.current === requestedNoticeId) {
+        setComments([]);
+        setCommentError(null);
+      }
       return;
     }
     try {
-      setComments(await repository.getComments(noticeId));
+      const nextComments = await repository.getComments(requestedNoticeId);
+      if (latestNoticeIdRef.current !== requestedNoticeId) return;
+      setComments(nextComments);
       setCommentError(null);
     } catch (refreshError) {
+      if (latestNoticeIdRef.current !== requestedNoticeId) return;
       setCommentError(getErrorMessage(refreshError));
       throw refreshError;
     }

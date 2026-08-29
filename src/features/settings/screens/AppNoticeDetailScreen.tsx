@@ -67,6 +67,7 @@ export const AppNoticeDetailScreen = () => {
   const commentSectionMeasuredRef = React.useRef(false);
   const appliedInitialCommentRef = React.useRef<string | null>(null);
   const pendingInitialCommentRef = React.useRef<string | null>(null);
+  const pendingSubmittedCommentRef = React.useRef<string | null>(null);
   const {
     cancelCommentEdit,
     cancelCommentReply,
@@ -110,44 +111,18 @@ export const AppNoticeDetailScreen = () => {
     }
   }, [reload]);
 
-  const handleSubmitComment = React.useCallback(() => {
-    submitComment()
-      .then(result => {
-        Keyboard.dismiss();
-        const commentId = result.commentId;
-        if (!commentId) return;
-        setTimeout(() => {
-          const offset = commentOffsetsRef.current.get(commentId);
-          if (offset == null) return;
-          scrollRef.current?.scrollTo({
-            animated: true,
-            y: Math.max(
-              0,
-              bodyCardOffsetRef.current +
-                commentSectionOffsetRef.current +
-                offset -
-                SPACING.lg,
-            ),
-          });
-        }, 120);
-      })
-      .catch(caughtError => showError(caughtError, '댓글 처리에 실패했습니다.'));
-  }, [submitComment]);
-
   const focusComposer = React.useCallback(() => {
     setTimeout(() => composerRef.current?.focus(), Platform.OS === 'ios' ? 180 : 80);
   }, []);
 
-  const scrollToPendingInitialComment = React.useCallback(() => {
-    const commentId = pendingInitialCommentRef.current;
+  const scrollToCommentIfMeasured = React.useCallback((commentId: string) => {
     if (
-      !commentId ||
       !bodyCardMeasuredRef.current ||
       !commentSectionMeasuredRef.current
-    ) return;
+    ) return false;
 
     const offset = commentOffsetsRef.current.get(commentId);
-    if (offset == null) return;
+    if (offset == null) return false;
 
     scrollRef.current?.scrollTo({
       animated: true,
@@ -159,9 +134,33 @@ export const AppNoticeDetailScreen = () => {
           SPACING.lg,
       ),
     });
+    return true;
+  }, []);
+
+  const scrollToPendingInitialComment = React.useCallback(() => {
+    const commentId = pendingInitialCommentRef.current;
+    if (!commentId || !scrollToCommentIfMeasured(commentId)) return;
     appliedInitialCommentRef.current = commentId;
     pendingInitialCommentRef.current = null;
-  }, []);
+  }, [scrollToCommentIfMeasured]);
+
+  const scrollToPendingSubmittedComment = React.useCallback(() => {
+    const commentId = pendingSubmittedCommentRef.current;
+    if (!commentId || !scrollToCommentIfMeasured(commentId)) return;
+    pendingSubmittedCommentRef.current = null;
+  }, [scrollToCommentIfMeasured]);
+
+  const handleSubmitComment = React.useCallback(() => {
+    submitComment()
+      .then(result => {
+        Keyboard.dismiss();
+        const commentId = result.commentId;
+        if (!commentId) return;
+        pendingSubmittedCommentRef.current = commentId;
+        setTimeout(scrollToPendingSubmittedComment, 120);
+      })
+      .catch(caughtError => showError(caughtError, '댓글 처리에 실패했습니다.'));
+  }, [scrollToPendingSubmittedComment, submitComment]);
 
   React.useEffect(() => {
     commentOffsetsRef.current.clear();
@@ -169,6 +168,7 @@ export const AppNoticeDetailScreen = () => {
     commentSectionMeasuredRef.current = false;
     appliedInitialCommentRef.current = null;
     pendingInitialCommentRef.current = null;
+    pendingSubmittedCommentRef.current = null;
   }, [route.params?.noticeId]);
 
   React.useEffect(() => {
@@ -259,6 +259,7 @@ export const AppNoticeDetailScreen = () => {
                 bodyCardOffsetRef.current = event.nativeEvent.layout.y;
                 bodyCardMeasuredRef.current = true;
                 scrollToPendingInitialComment();
+                scrollToPendingSubmittedComment();
               }}
               style={styles.bodyCard}
               testID="app-notice-body-card">
@@ -333,6 +334,7 @@ export const AppNoticeDetailScreen = () => {
                     commentSectionOffsetRef.current = event.nativeEvent.layout.y;
                     commentSectionMeasuredRef.current = true;
                     scrollToPendingInitialComment();
+                    scrollToPendingSubmittedComment();
                   }}
                   style={styles.commentsList}
                   testID="app-notice-comments-list">
@@ -343,6 +345,9 @@ export const AppNoticeDetailScreen = () => {
                         commentOffsetsRef.current.set(comment.id, event.nativeEvent.layout.y);
                         if (pendingInitialCommentRef.current === comment.id) {
                           scrollToPendingInitialComment();
+                        }
+                        if (pendingSubmittedCommentRef.current === comment.id) {
+                          scrollToPendingSubmittedComment();
                         }
                       }}
                       testID={`app-notice-comment-${comment.id}`}>
