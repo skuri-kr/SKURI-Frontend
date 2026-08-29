@@ -71,6 +71,10 @@ export const AppNoticeDetailScreen = () => {
   const pendingInitialCommentRef = React.useRef<string | null>(null);
   const pendingSubmittedCommentRef = React.useRef<string | null>(null);
   const reportSessionRef = React.useRef(0);
+  const initialCommentIntentRef = React.useRef({
+    commentId: route.params?.initialCommentId,
+    noticeId: route.params?.noticeId,
+  });
   const currentNoticeIdRef = React.useRef(route.params?.noticeId);
   currentNoticeIdRef.current = route.params?.noticeId;
   const {
@@ -190,19 +194,41 @@ export const AppNoticeDetailScreen = () => {
     appliedInitialCommentRef.current = null;
     pendingInitialCommentRef.current = null;
     pendingSubmittedCommentRef.current = null;
+    return () => {
+      reportSessionRef.current += 1;
+    };
   }, [route.params?.noticeId]);
 
   React.useEffect(() => {
+    const nextIntent = {
+      commentId: route.params?.initialCommentId,
+      noticeId: route.params?.noticeId,
+    };
+    const previousIntent = initialCommentIntentRef.current;
+    initialCommentIntentRef.current = nextIntent;
+    if (
+      previousIntent.noticeId === nextIntent.noticeId &&
+      previousIntent.commentId !== nextIntent.commentId &&
+      nextIntent.commentId
+    ) {
+      retryComments().catch(() => undefined);
+    }
+  }, [retryComments, route.params?.initialCommentId, route.params?.noticeId]);
+
+  React.useEffect(() => {
     const initialCommentId = route.params?.initialCommentId;
+    const hasInitialComment = Boolean(
+      initialCommentId && commentItems.some(comment => comment.id === initialCommentId),
+    );
     if (
       !initialCommentId ||
       appliedInitialCommentRef.current === initialCommentId ||
-      commentItems.length === 0
+      !hasInitialComment
     ) return;
     pendingInitialCommentRef.current = initialCommentId;
     const timeoutId = setTimeout(scrollToPendingInitialComment, 160);
     return () => clearTimeout(timeoutId);
-  }, [commentItems.length, route.params?.initialCommentId, scrollToPendingInitialComment]);
+  }, [commentItems, route.params?.initialCommentId, scrollToPendingInitialComment]);
 
   const closeReport = () => {
     if (reportSubmitting) return;

@@ -65,6 +65,13 @@ const appendCommentToTree = (
   return inserted ? nextComments : [...nextComments, nextComment];
 };
 
+const countActiveComments = (comments: NoticeCommentTreeNode[]): number =>
+  comments.reduce(
+    (count, comment) =>
+      count + (comment.isDeleted ? 0 : 1) + countActiveComments(comment.replies),
+    0,
+  );
+
 const getAuthorLabel = (comment: NoticeCommentTreeNode) =>
   comment.isAnonymous
     ? `익명${comment.anonymousOrder ?? ''}`
@@ -222,6 +229,11 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         return;
       }
       setComments(nextComments);
+      setNotice(current =>
+        current?.id === requestedNoticeId
+          ? {...current, commentCount: countActiveComments(nextComments)}
+          : current,
+      );
       setCommentError(null);
       commentLoadFailedRef.current = false;
       setCommentsLoading(false);
@@ -310,6 +322,11 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
             commentRevision !== commentRevisionRef.current
           ) return;
           setComments(nextComments);
+          setNotice(current =>
+            current?.id === noticeId
+              ? {...current, commentCount: countActiveComments(nextComments)}
+              : current,
+          );
           setCommentError(null);
           commentLoadFailedRef.current = false;
           setCommentsLoading(false);
