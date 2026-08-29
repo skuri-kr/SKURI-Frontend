@@ -469,6 +469,7 @@ erDiagram
     app_notices ||--o{ app_notice_likes : "liked"
     app_notices ||--o{ app_notice_comments : "has"
     app_notice_comments ||--o{ app_notice_comment_likes : "liked"
+    app_notice_comments ||--o{ app_notice_comments : "parent-child"
     notice_comments ||--o{ notice_comments : "parent-child"
 ```
 
