@@ -118,6 +118,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   const [commentAnonymousDraft, setCommentAnonymousDraft] = React.useState<boolean | null>(null);
   const [commentDeletePendingIds, setCommentDeletePendingIds] = React.useState<string[]>([]);
   const [commentLikePendingIds, setCommentLikePendingIds] = React.useState<string[]>([]);
+  const [commentsLoading, setCommentsLoading] = React.useState(false);
   const [submittingComment, setSubmittingComment] = React.useState(false);
   const [togglingLike, setTogglingLike] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
@@ -128,6 +129,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   const commentRevisionRef = React.useRef(0);
   const noticeRevisionRef = React.useRef(0);
   const commentDeletePendingIdsRef = React.useRef(new Set<string>());
+  const commentLikePendingIdsRef = React.useRef(new Set<string>());
   const activeNoticeIdRef = React.useRef<string | null>(null);
   const latestNoticeIdRef = React.useRef(noticeId);
   latestNoticeIdRef.current = noticeId;
@@ -193,9 +195,11 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       ) {
         setComments([]);
         setCommentError(null);
+        setCommentsLoading(false);
       }
       return;
     }
+    setCommentsLoading(true);
     try {
       const nextComments = await repository.getComments(requestedNoticeId);
       if (
@@ -205,6 +209,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       ) return;
       setComments(nextComments);
       setCommentError(null);
+      setCommentsLoading(false);
     } catch (refreshError) {
       if (
         latestNoticeIdRef.current !== requestedNoticeId ||
@@ -212,6 +217,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         commentRevision !== commentRevisionRef.current
       ) return;
       setCommentError(getErrorMessage(refreshError));
+      setCommentsLoading(false);
       throw refreshError;
     }
   }, [noticeId, repository, user?.uid]);
@@ -223,6 +229,9 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     const noticeRevision = noticeRevisionRef.current;
     const routeChanged = activeNoticeIdRef.current !== noticeId;
     setLoading(true);
+    if (routeChanged) {
+      setCommentsLoading(Boolean(user?.uid));
+    }
     setError(null);
     if (routeChanged) {
       setNotice(null);
@@ -234,6 +243,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         setNotice(null);
         setComments([]);
         setError('앱 공지사항 ID가 없습니다.');
+        setCommentsLoading(false);
         return;
       }
       const nextNotice = await repository.getAppNotice(noticeId);
@@ -245,6 +255,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         setNotice(null);
         setComments([]);
         setError('앱 공지사항을 찾을 수 없습니다.');
+        setCommentsLoading(false);
         return;
       }
       setNotice(nextNotice);
@@ -262,6 +273,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
           ) {
             setComments([]);
             setCommentError(null);
+            setCommentsLoading(false);
           }
           return;
         }
@@ -274,6 +286,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
           ) return;
           setComments(nextComments);
           setCommentError(null);
+          setCommentsLoading(false);
         } catch (commentsLoadError) {
           if (
             latestNoticeIdRef.current !== noticeId ||
@@ -281,6 +294,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
             commentRevision !== commentRevisionRef.current
           ) return;
           setCommentError(getErrorMessage(commentsLoadError));
+          setCommentsLoading(false);
         }
       };
       loadComments().catch(() => undefined);
@@ -290,6 +304,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         noticeRevision === noticeRevisionRef.current
       ) {
         setError(getErrorMessage(loadError));
+        setCommentsLoading(false);
       }
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
@@ -306,6 +321,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     setReplyTargetCommentId(null);
     setCommentAnonymousDraft(null);
     commentDeletePendingIdsRef.current.clear();
+    commentLikePendingIdsRef.current.clear();
     setCommentDeletePendingIds([]);
     setCommentError(null);
     setCommentLikePendingIds([]);
@@ -368,7 +384,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   }, [completeNoticeMutation, invalidatePendingNoticeLoads, notice, noticeId, repository, togglingLike, user?.uid]);
 
   const toggleCommentLike = React.useCallback(async (commentId: string) => {
-    if (!noticeId || !user?.uid || commentLikePendingIds.includes(commentId)) {
+    if (!noticeId || !user?.uid || commentLikePendingIdsRef.current.has(commentId)) {
       throw new Error('로그인이 필요합니다.');
     }
     if (commentDeletePendingIdsRef.current.has(commentId)) return;
@@ -381,6 +397,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       likeCount: Math.max(0, previous.likeCount + (previous.isLiked ? -1 : 1)),
     };
     invalidatePendingCommentLoads();
+    commentLikePendingIdsRef.current.add(commentId);
     setComments(current => updateCommentTree(current, commentId, comment => ({...comment, ...optimistic})));
     setCommentLikePendingIds(current => [...current, commentId]);
     try {
@@ -400,12 +417,13 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       ));
       throw toggleError;
     } finally {
+      commentLikePendingIdsRef.current.delete(commentId);
       if (latestNoticeIdRef.current === mutationNoticeId) {
         setCommentLikePendingIds(current => current.filter(id => id !== commentId));
       }
       completeCommentMutation(mutationNoticeId);
     }
-  }, [commentLikePendingIds, completeCommentMutation, flattenedEntries, invalidatePendingCommentLoads, noticeId, repository, user?.uid]);
+  }, [completeCommentMutation, flattenedEntries, invalidatePendingCommentLoads, noticeId, repository, user?.uid]);
 
   const submitComment = React.useCallback(async () => {
     if (!noticeId || !user?.uid || !notice || notice.id !== noticeId) {
@@ -414,6 +432,9 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     const targetCommentId = editingCommentId ?? replyTargetCommentId;
     if (targetCommentId && commentDeletePendingIdsRef.current.has(targetCommentId)) {
       throw new Error('삭제 중인 댓글은 수정하거나 답글을 작성할 수 없습니다.');
+    }
+    if (commentsLoading) {
+      throw new Error('댓글 목록을 불러오는 중입니다.');
     }
     const mutationNoticeId = noticeId;
     const content = commentDraft.trim();
@@ -472,13 +493,14 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       }
       completeContentMutation(mutationNoticeId);
     }
-  }, [commentAnonymousValue, commentDraft, completeContentMutation, editingCommentId, invalidatePendingContentLoads, notice, noticeId, replyTargetCommentId, repository, storedAnonymous, user]);
+  }, [commentAnonymousValue, commentDraft, commentsLoading, completeContentMutation, editingCommentId, invalidatePendingContentLoads, notice, noticeId, replyTargetCommentId, repository, storedAnonymous, user]);
 
   const deleteComment = React.useCallback(async (commentId: string) => {
     if (!noticeId || !user?.uid || notice?.id !== noticeId) {
       throw new Error('앱 공지사항을 다시 불러와주세요.');
     }
     if (commentDeletePendingIdsRef.current.has(commentId)) return;
+    if (commentLikePendingIdsRef.current.has(commentId)) return;
     const mutationNoticeId = noticeId;
     commentDeletePendingIdsRef.current.add(commentId);
     setCommentDeletePendingIds(current => [...current, commentId]);
@@ -564,13 +586,14 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   return {
     cancelCommentEdit: () => { setEditingCommentId(null); setCommentDraft(''); setCommentAnonymousDraft(null); },
     cancelCommentReply: () => { setReplyTargetCommentId(null); setCommentDraft(''); },
-    commentAnonymousDisabled: submittingComment || isCommentComposerLocked,
+    commentAnonymousDisabled: commentsLoading || submittingComment || isCommentComposerLocked,
     commentAnonymousValue,
     commentDraft,
     commentError,
     commentDeletePendingIds,
     commentItems,
     commentLikePendingIds,
+    commentsLoading,
     data: viewData,
     deleteComment,
     editingCommentId,

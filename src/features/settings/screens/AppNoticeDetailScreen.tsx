@@ -82,6 +82,7 @@ export const AppNoticeDetailScreen = () => {
     commentDeletePendingIds,
     commentItems,
     commentLikePendingIds,
+    commentsLoading,
     data,
     deleteComment,
     editingCommentId,
@@ -157,16 +158,20 @@ export const AppNoticeDetailScreen = () => {
   }, [scrollToCommentIfMeasured]);
 
   const handleSubmitComment = React.useCallback(() => {
+    const submittedNoticeId = route.params?.noticeId;
     submitComment()
       .then(result => {
-        Keyboard.dismiss();
         const commentId = result.commentId;
-        if (!commentId) return;
+        if (!commentId || currentNoticeIdRef.current !== submittedNoticeId) return;
+        Keyboard.dismiss();
         pendingSubmittedCommentRef.current = commentId;
         setTimeout(scrollToPendingSubmittedComment, 120);
       })
-      .catch(caughtError => showError(caughtError, '댓글 처리에 실패했습니다.'));
-  }, [scrollToPendingSubmittedComment, submitComment]);
+      .catch(caughtError => {
+        if (currentNoticeIdRef.current !== submittedNoticeId) return;
+        showError(caughtError, '댓글 처리에 실패했습니다.');
+      });
+  }, [route.params?.noticeId, scrollToPendingSubmittedComment, submitComment]);
 
   React.useEffect(() => {
     reportSessionRef.current += 1;
@@ -390,7 +395,10 @@ export const AppNoticeDetailScreen = () => {
                       testID={`app-notice-comment-${comment.id}`}>
                       <DetailCommentCard
                         comment={comment}
-                        deleteDisabled={commentDeletePendingIds.includes(comment.id)}
+                        deleteDisabled={
+                          commentDeletePendingIds.includes(comment.id) ||
+                          commentLikePendingIds.includes(comment.id)
+                        }
                         likeDisabled={
                           commentLikePendingIds.includes(comment.id) ||
                           commentDeletePendingIds.includes(comment.id)
@@ -435,13 +443,18 @@ export const AppNoticeDetailScreen = () => {
               anonymousChecked={commentAnonymousValue}
               anonymousDisabled={commentAnonymousDisabled}
               anonymousLabel="익명"
-              editable={!submittingComment && !isCommentComposerLocked}
+              editable={!commentsLoading && !submittingComment && !isCommentComposerLocked}
               onChangeText={setCommentDraft}
               onSend={handleSubmitComment}
               onToggleAnonymous={toggleCommentAnonymousPreference}
               placeholder={editingCommentId ? '댓글을 수정하세요...' : isReplyingComment ? '답글을 입력하세요...' : '댓글을 입력하세요...'}
               ref={composerRef}
-              sendEnabled={!submittingComment && !isCommentComposerLocked && Boolean(commentDraft.trim())}
+              sendEnabled={
+                !commentsLoading &&
+                !submittingComment &&
+                !isCommentComposerLocked &&
+                Boolean(commentDraft.trim())
+              }
               value={commentDraft}
             />
           </KeyboardAvoidingView>
