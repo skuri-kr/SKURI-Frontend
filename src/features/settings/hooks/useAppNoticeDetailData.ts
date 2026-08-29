@@ -160,6 +160,9 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       (editingCommentId && commentLikePendingIds.includes(editingCommentId))
     ),
   );
+  const isCommentFeedUnavailable = Boolean(commentError) && commentItems.length === 0;
+  const isCommentComposerUnavailable =
+    commentsLoading || isCommentFeedUnavailable;
   const commentAnonymousValue = commentAnonymousDraft ?? storedAnonymous;
 
   const invalidatePendingNoticeLoads = React.useCallback(() => {
@@ -244,6 +247,8 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     const commentRevision = commentRevisionRef.current;
     const noticeRevision = noticeRevisionRef.current;
     const routeChanged = activeNoticeIdRef.current !== noticeId;
+    const retryFailedComments =
+      !routeChanged && commentLoadFailedRef.current && Boolean(user?.uid);
     setLoading(true);
     if (routeChanged || commentLoadFailedRef.current) {
       setCommentsLoading(Boolean(user?.uid));
@@ -253,6 +258,9 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       setNotice(null);
       setComments([]);
       setCommentError(null);
+    }
+    if (retryFailedComments) {
+      refreshComments().catch(() => undefined);
     }
     try {
       if (!noticeId) {
@@ -316,7 +324,9 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
           setCommentsLoading(false);
         }
       };
-      loadComments().catch(() => undefined);
+      if (!retryFailedComments) {
+        loadComments().catch(() => undefined);
+      }
     } catch (loadError) {
       if (
         requestId === requestIdRef.current &&
@@ -328,7 +338,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [noticeId, repository, user?.uid]);
+  }, [noticeId, refreshComments, repository, user?.uid]);
 
   React.useEffect(() => {
     load().catch(() => undefined);
@@ -459,8 +469,12 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     if (targetCommentId && commentDeletePendingIdsRef.current.has(targetCommentId)) {
       throw new Error('삭제 중인 댓글은 수정하거나 답글을 작성할 수 없습니다.');
     }
-    if (commentsLoading) {
-      throw new Error('댓글 목록을 불러오는 중입니다.');
+    if (isCommentComposerUnavailable) {
+      throw new Error(
+        commentsLoading
+          ? '댓글 목록을 불러오는 중입니다.'
+          : '댓글을 다시 불러온 뒤 작성할 수 있습니다.',
+      );
     }
     if (editingCommentId && commentLikePendingIdsRef.current.has(editingCommentId)) {
       throw new Error('좋아요 처리 중인 댓글은 수정할 수 없습니다.');
@@ -541,7 +555,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       }
       completeContentMutation(mutationNoticeId);
     }
-  }, [commentAnonymousValue, commentDraft, commentsLoading, completeContentMutation, editingCommentId, invalidatePendingContentLoads, notice, noticeId, replyTargetCommentId, repository, storedAnonymous, user]);
+  }, [commentAnonymousValue, commentDraft, commentsLoading, completeContentMutation, editingCommentId, invalidatePendingContentLoads, isCommentComposerUnavailable, notice, noticeId, replyTargetCommentId, repository, storedAnonymous, user]);
 
   const deleteComment = React.useCallback(async (commentId: string) => {
     if (!noticeId || !user?.uid || notice?.id !== noticeId) {
@@ -636,7 +650,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   return {
     cancelCommentEdit: () => { setEditingCommentId(null); setCommentDraft(''); setCommentAnonymousDraft(null); },
     cancelCommentReply: () => { setReplyTargetCommentId(null); setCommentDraft(''); },
-    commentAnonymousDisabled: commentsLoading || submittingComment || isCommentComposerLocked,
+    commentAnonymousDisabled: isCommentComposerUnavailable || submittingComment || isCommentComposerLocked,
     commentAnonymousValue,
     commentDraft,
     commentError,
@@ -650,6 +664,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     error,
     isEditingComment: Boolean(editingCommentId),
     isCommentComposerLocked,
+    isCommentComposerUnavailable,
     isReplyingComment: Boolean(replyTargetCommentId),
     loading,
     notice,

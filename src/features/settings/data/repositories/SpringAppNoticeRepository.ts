@@ -27,6 +27,8 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
 
   private readonly commentCacheGeneration = new Map<string, number>();
 
+  private readonly commentReadGeneration = new Map<string, number>();
+
   private readonly noticeCache = new Map<string, AppNotice>();
 
   private readonly noticeCacheGeneration = new Map<string, number>();
@@ -71,11 +73,16 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
 
   async getComments(noticeId: string): Promise<NoticeCommentTreeNode[]> {
     const cacheGeneration = this.commentCacheGeneration.get(noticeId) ?? 0;
+    const readGeneration = (this.commentReadGeneration.get(noticeId) ?? 0) + 1;
+    this.commentReadGeneration.set(noticeId, readGeneration);
     const response = await appNoticeApiClient.getComments(noticeId);
     const tree = buildCommentTree(
       response.data.map(comment => mapNoticeCommentDto(noticeId, comment)),
     );
-    if ((this.commentCacheGeneration.get(noticeId) ?? 0) === cacheGeneration) {
+    if (
+      (this.commentCacheGeneration.get(noticeId) ?? 0) === cacheGeneration &&
+      this.commentReadGeneration.get(noticeId) === readGeneration
+    ) {
       this.commentCache.set(noticeId, tree);
     }
     return cloneCommentTree(tree);

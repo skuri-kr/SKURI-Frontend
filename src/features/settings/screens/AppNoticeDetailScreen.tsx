@@ -90,6 +90,7 @@ export const AppNoticeDetailScreen = () => {
     error,
     isEditingComment,
     isCommentComposerLocked,
+    isCommentComposerUnavailable,
     isReplyingComment,
     loading,
     notice,
@@ -456,14 +457,14 @@ export const AppNoticeDetailScreen = () => {
               anonymousChecked={commentAnonymousValue}
               anonymousDisabled={commentAnonymousDisabled}
               anonymousLabel="익명"
-              editable={!commentsLoading && !submittingComment && !isCommentComposerLocked}
+              editable={!isCommentComposerUnavailable && !submittingComment && !isCommentComposerLocked}
               onChangeText={setCommentDraft}
               onSend={handleSubmitComment}
               onToggleAnonymous={toggleCommentAnonymousPreference}
               placeholder={editingCommentId ? '댓글을 수정하세요...' : isReplyingComment ? '답글을 입력하세요...' : '댓글을 입력하세요...'}
               ref={composerRef}
               sendEnabled={
-                !commentsLoading &&
+                !isCommentComposerUnavailable &&
                 !submittingComment &&
                 !isCommentComposerLocked &&
                 Boolean(commentDraft.trim())
