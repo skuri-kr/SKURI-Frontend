@@ -123,6 +123,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   const [error, setError] = React.useState<string | null>(null);
   const [commentError, setCommentError] = React.useState<string | null>(null);
   const requestIdRef = React.useRef(0);
+  const contentRevisionRef = React.useRef(0);
   const activeNoticeIdRef = React.useRef<string | null>(null);
   const latestNoticeIdRef = React.useRef(noticeId);
   latestNoticeIdRef.current = noticeId;
@@ -143,8 +144,13 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   )?.comment;
   const commentAnonymousValue = commentAnonymousDraft ?? storedAnonymous;
 
+  const invalidatePendingContentLoads = React.useCallback(() => {
+    contentRevisionRef.current += 1;
+  }, []);
+
   const refreshComments = React.useCallback(async () => {
     const requestedNoticeId = noticeId;
+    const contentRevision = contentRevisionRef.current;
     if (!requestedNoticeId || !user?.uid) {
       if (latestNoticeIdRef.current === requestedNoticeId) {
         setComments([]);
@@ -154,11 +160,17 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     }
     try {
       const nextComments = await repository.getComments(requestedNoticeId);
-      if (latestNoticeIdRef.current !== requestedNoticeId) return;
+      if (
+        latestNoticeIdRef.current !== requestedNoticeId ||
+        contentRevision !== contentRevisionRef.current
+      ) return;
       setComments(nextComments);
       setCommentError(null);
     } catch (refreshError) {
-      if (latestNoticeIdRef.current !== requestedNoticeId) return;
+      if (
+        latestNoticeIdRef.current !== requestedNoticeId ||
+        contentRevision !== contentRevisionRef.current
+      ) return;
       setCommentError(getErrorMessage(refreshError));
       throw refreshError;
     }
@@ -166,6 +178,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
 
   const load = React.useCallback(async () => {
     const requestId = ++requestIdRef.current;
+    const contentRevision = contentRevisionRef.current;
     const routeChanged = activeNoticeIdRef.current !== noticeId;
     setLoading(true);
     setError(null);
@@ -185,7 +198,10 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         repository.getAppNotice(noticeId),
         user?.uid ? repository.getComments(noticeId) : Promise.resolve([]),
       ]);
-      if (requestId !== requestIdRef.current) return;
+      if (
+        requestId !== requestIdRef.current ||
+        contentRevision !== contentRevisionRef.current
+      ) return;
       if (noticeResult.status === 'rejected') {
         throw noticeResult.reason;
       }
@@ -210,7 +226,10 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         });
       }
     } catch (loadError) {
-      if (requestId === requestIdRef.current) {
+      if (
+        requestId === requestIdRef.current &&
+        contentRevision === contentRevisionRef.current
+      ) {
         setError(getErrorMessage(loadError));
       }
     } finally {
@@ -243,6 +262,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       isLiked: !previous.isLiked,
       likeCount: Math.max(0, previous.likeCount + (previous.isLiked ? -1 : 1)),
     };
+    invalidatePendingContentLoads();
     setNotice(current => (current ? {...current, ...optimistic} : current));
     setTogglingLike(true);
     try {
@@ -262,7 +282,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         setTogglingLike(false);
       }
     }
-  }, [notice, noticeId, repository, togglingLike, user?.uid]);
+  }, [invalidatePendingContentLoads, notice, noticeId, repository, togglingLike, user?.uid]);
 
   const toggleCommentLike = React.useCallback(async (commentId: string) => {
     if (!noticeId || !user?.uid || commentLikePendingIds.includes(commentId)) {
@@ -276,6 +296,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       isLiked: !previous.isLiked,
       likeCount: Math.max(0, previous.likeCount + (previous.isLiked ? -1 : 1)),
     };
+    invalidatePendingContentLoads();
     setComments(current => updateCommentTree(current, commentId, comment => ({...comment, ...optimistic})));
     setCommentLikePendingIds(current => [...current, commentId]);
     try {
@@ -291,7 +312,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         setCommentLikePendingIds(current => current.filter(id => id !== commentId));
       }
     }
-  }, [commentLikePendingIds, flattenedEntries, noticeId, repository, user?.uid]);
+  }, [commentLikePendingIds, flattenedEntries, invalidatePendingContentLoads, noticeId, repository, user?.uid]);
 
   const submitComment = React.useCallback(async () => {
     if (!noticeId || !user?.uid || !notice || notice.id !== noticeId) {
@@ -300,6 +321,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     const mutationNoticeId = noticeId;
     const content = commentDraft.trim();
     if (!content) throw new Error('댓글 내용을 입력해주세요.');
+    invalidatePendingContentLoads();
     setSubmittingComment(true);
     try {
       let commentId = editingCommentId;
@@ -352,13 +374,14 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         setSubmittingComment(false);
       }
     }
-  }, [commentAnonymousValue, commentDraft, editingCommentId, notice, noticeId, replyTargetCommentId, repository, storedAnonymous, user]);
+  }, [commentAnonymousValue, commentDraft, editingCommentId, invalidatePendingContentLoads, notice, noticeId, replyTargetCommentId, repository, storedAnonymous, user]);
 
   const deleteComment = React.useCallback(async (commentId: string) => {
     if (!noticeId || !user?.uid || notice?.id !== noticeId) {
       throw new Error('앱 공지사항을 다시 불러와주세요.');
     }
     const mutationNoticeId = noticeId;
+    invalidatePendingContentLoads();
     try {
       await repository.deleteComment(mutationNoticeId, commentId);
     } catch (deleteError) {
@@ -396,7 +419,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       setCommentDraft('');
       setCommentAnonymousDraft(null);
     }
-  }, [editingCommentId, notice, noticeId, replyTargetCommentId, repository, user?.uid]);
+  }, [editingCommentId, invalidatePendingContentLoads, notice, noticeId, replyTargetCommentId, repository, user?.uid]);
 
   const startEditingComment = React.useCallback((commentId: string) => {
     const target = flattenedEntries.find(entry => entry.comment.id === commentId)?.comment;
