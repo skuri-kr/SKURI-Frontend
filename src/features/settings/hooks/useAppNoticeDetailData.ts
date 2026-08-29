@@ -132,6 +132,8 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   const commentLikePendingIdsRef = React.useRef(new Set<string>());
   const pendingCommentEditIdRef = React.useRef<string | null>(null);
   const pendingCommentReplyTargetIdRef = React.useRef<string | null>(null);
+  const commentSubmissionRequestIdRef = React.useRef(0);
+  const pendingCommentSubmissionRequestIdRef = React.useRef<number | null>(null);
   const activeNoticeIdRef = React.useRef<string | null>(null);
   const latestNoticeIdRef = React.useRef(noticeId);
   latestNoticeIdRef.current = noticeId;
@@ -335,6 +337,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     commentLikePendingIdsRef.current.clear();
     pendingCommentEditIdRef.current = null;
     pendingCommentReplyTargetIdRef.current = null;
+    pendingCommentSubmissionRequestIdRef.current = null;
     setCommentDeletePendingIds([]);
     setCommentError(null);
     setCommentLikePendingIds([]);
@@ -443,6 +446,9 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     if (!noticeId || !user?.uid || !notice || notice.id !== noticeId) {
       throw new Error('로그인이 필요합니다.');
     }
+    if (pendingCommentSubmissionRequestIdRef.current !== null) {
+      return {commentId: undefined};
+    }
     const targetCommentId = editingCommentId ?? replyTargetCommentId;
     if (targetCommentId && commentDeletePendingIdsRef.current.has(targetCommentId)) {
       throw new Error('삭제 중인 댓글은 수정하거나 답글을 작성할 수 없습니다.');
@@ -456,6 +462,8 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     const mutationNoticeId = noticeId;
     const content = commentDraft.trim();
     if (!content) throw new Error('댓글 내용을 입력해주세요.');
+    const commentSubmissionRequestId = ++commentSubmissionRequestIdRef.current;
+    pendingCommentSubmissionRequestIdRef.current = commentSubmissionRequestId;
     const pendingCommentEditId = editingCommentId;
     const pendingCommentReplyTargetId = replyTargetCommentId;
     if (pendingCommentEditId) {
@@ -513,6 +521,9 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       }
       return {commentId: undefined};
     } finally {
+      if (pendingCommentSubmissionRequestIdRef.current === commentSubmissionRequestId) {
+        pendingCommentSubmissionRequestIdRef.current = null;
+      }
       if (pendingCommentEditIdRef.current === pendingCommentEditId) {
         pendingCommentEditIdRef.current = null;
       }
