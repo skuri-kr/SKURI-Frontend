@@ -259,6 +259,96 @@ describe('useAppNoticeDetailData', () => {
     await waitFor(() => expect(result.current.commentItems).toHaveLength(1));
   });
 
+  it('공지 좋아요 중에도 진행 중인 초기 댓글 조회 결과를 반영한다', async () => {
+    const repository = createRepository();
+    const deferredComments = createDeferred<NoticeCommentTreeNode[]>();
+    repository.getComments.mockReturnValueOnce(deferredComments.promise);
+    repository.toggleLike.mockResolvedValueOnce({isLiked: true, likeCount: 1});
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+
+    await waitFor(() => expect(result.current.data?.title).toBe('점검 안내'));
+    await waitFor(() => expect(repository.getComments).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await result.current.toggleLike();
+    });
+    await act(async () => {
+      deferredComments.resolve([{...comment, replies: []}]);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(result.current.commentItems).toHaveLength(1));
+  });
+
+  it('삭제 중인 댓글의 좋아요 요청을 전송하지 않는다', async () => {
+    const repository = createRepository();
+    const deferredDelete = createDeferred<void>();
+    repository.getComments.mockResolvedValueOnce([{...comment, replies: []}]);
+    repository.deleteComment.mockReturnValueOnce(deferredDelete.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let deletePromise!: ReturnType<typeof result.current.deleteComment>;
+    act(() => {
+      deletePromise = result.current.deleteComment('app-comment-1');
+    });
+    await act(async () => {
+      await result.current.toggleCommentLike('app-comment-1');
+    });
+
+    expect(repository.toggleCommentLike).not.toHaveBeenCalled();
+
+    await act(async () => {
+      deferredDelete.resolve();
+      await deletePromise;
+    });
+  });
+
+  it('삭제 완료 후 늦은 댓글 좋아요 응답이 삭제 표시를 되돌리지 않는다', async () => {
+    const repository = createRepository();
+    const deferredLike = createDeferred<{isLiked: boolean; likeCount: number}>();
+    const reply: NoticeCommentTreeNode = {
+      ...comment,
+      id: 'app-comment-2',
+      isAuthor: false,
+      parentId: 'app-comment-1',
+      replies: [],
+    };
+    repository.getComments.mockResolvedValueOnce([{
+      ...comment,
+      replies: [reply],
+    }]);
+    repository.toggleCommentLike.mockReturnValueOnce(deferredLike.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let likePromise!: ReturnType<typeof result.current.toggleCommentLike>;
+    act(() => {
+      likePromise = result.current.toggleCommentLike('app-comment-1');
+    });
+    await act(async () => {
+      await result.current.deleteComment('app-comment-1');
+    });
+    await act(async () => {
+      deferredLike.resolve({isLiked: true, likeCount: 1});
+      await likePromise;
+    });
+
+    expect(result.current.commentItems.find(item => item.id === 'app-comment-1')).toMatchObject({
+      id: 'app-comment-1',
+      isDeleted: true,
+      isLiked: false,
+    });
+  });
+
   it('수정 중인 댓글이 삭제되면 전송을 잠근다', async () => {
     const repository = createRepository();
     const deferredDelete = createDeferred<void>();

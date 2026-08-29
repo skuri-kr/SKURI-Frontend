@@ -42,18 +42,21 @@ jest.mock('@/shared/design-system/components', () => {
     DetailCommentCard: ({
       comment,
       deleteDisabled,
+      likeDisabled,
       onPressEdit,
       onPressReport,
       replyDisabled,
     }: {
       comment: {id: string};
       deleteDisabled?: boolean;
+      likeDisabled?: boolean;
       onPressEdit?: () => void;
       onPressReport?: () => void;
       replyDisabled?: boolean;
     }) => ReactModule.createElement(require('react-native').TouchableOpacity, {
       accessibilityLabel: [
         deleteDisabled ? '삭제 비활성화' : '삭제 활성화',
+        likeDisabled ? '좋아요 비활성화' : '좋아요 활성화',
         onPressEdit ? '수정 활성화' : '수정 비활성화',
         replyDisabled ? '답글 비활성화' : '답글 활성화',
       ].join(', '),
@@ -256,6 +259,9 @@ describe('AppNoticeDetailScreen', () => {
     expect(
       screen.getByTestId('app-notice-comment-card-app-comment-1').props.accessibilityLabel,
     ).toContain('삭제 비활성화');
+    expect(
+      screen.getByTestId('app-notice-comment-card-app-comment-1').props.accessibilityLabel,
+    ).toContain('좋아요 비활성화');
     expect(
       screen.getByTestId('app-notice-comment-card-app-comment-1').props.accessibilityLabel,
     ).toContain('답글 비활성화');
