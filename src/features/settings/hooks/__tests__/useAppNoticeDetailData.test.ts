@@ -206,6 +206,102 @@ describe('useAppNoticeDetailData', () => {
     });
   });
 
+  it('댓글 수정 전송 중에는 같은 댓글의 좋아요 요청을 전송하지 않는다', async () => {
+    const repository = createRepository();
+    const deferredEdit = createDeferred<NoticeComment>();
+    repository.getComments.mockResolvedValueOnce([{...comment, replies: []}]);
+    repository.updateComment.mockReturnValueOnce(deferredEdit.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      result.current.startEditingComment('app-comment-1');
+      result.current.setCommentDraft('수정 중인 댓글');
+    });
+    let submitPromise!: ReturnType<typeof result.current.submitComment>;
+    act(() => {
+      submitPromise = result.current.submitComment();
+    });
+    await act(async () => {
+      await result.current.toggleCommentLike('app-comment-1');
+    });
+
+    expect(repository.toggleCommentLike).not.toHaveBeenCalled();
+
+    await act(async () => {
+      deferredEdit.resolve({...comment, content: '수정 중인 댓글'});
+      await submitPromise;
+    });
+  });
+
+  it('댓글 좋아요 중에는 같은 댓글을 수정 전송하지 않는다', async () => {
+    const repository = createRepository();
+    const deferredLike = createDeferred<{isLiked: boolean; likeCount: number}>();
+    repository.getComments.mockResolvedValueOnce([{...comment, replies: []}]);
+    repository.toggleCommentLike.mockReturnValueOnce(deferredLike.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let likePromise!: ReturnType<typeof result.current.toggleCommentLike>;
+    act(() => {
+      likePromise = result.current.toggleCommentLike('app-comment-1');
+      result.current.startEditingComment('app-comment-1');
+      result.current.setCommentDraft('수정 중인 댓글');
+    });
+    await expect(result.current.submitComment()).rejects.toThrow(
+      '좋아요 처리 중인 댓글은 수정할 수 없습니다.',
+    );
+    expect(repository.updateComment).not.toHaveBeenCalled();
+
+    await act(async () => {
+      deferredLike.resolve({isLiked: true, likeCount: 1});
+      await likePromise;
+    });
+  });
+
+  it('답글 전송 중에는 대상 댓글의 삭제 요청을 전송하지 않는다', async () => {
+    const repository = createRepository();
+    const deferredReply = createDeferred<NoticeComment>();
+    const reply: NoticeComment = {
+      ...comment,
+      id: 'app-comment-2',
+      isAuthor: false,
+      parentId: 'app-comment-1',
+    };
+    repository.getComments.mockResolvedValueOnce([{...comment, replies: []}]);
+    repository.createComment.mockReturnValueOnce(deferredReply.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      result.current.startReplyingComment('app-comment-1');
+      result.current.setCommentDraft('답글');
+    });
+    let submitPromise!: ReturnType<typeof result.current.submitComment>;
+    act(() => {
+      submitPromise = result.current.submitComment();
+    });
+    await act(async () => {
+      await result.current.deleteComment('app-comment-1');
+    });
+
+    expect(repository.deleteComment).not.toHaveBeenCalled();
+
+    await act(async () => {
+      deferredReply.resolve(reply);
+      await submitPromise;
+    });
+  });
+
   it('다른 댓글을 삭제해도 현재 작성 중인 초안을 보존한다', async () => {
     const repository = createRepository();
     const commentTree: NoticeCommentTreeNode = {...comment, replies: []};
@@ -589,6 +685,7 @@ describe('useAppNoticeDetailData', () => {
 
     expect(result.current.notice?.commentCount).toBe(0);
     expect(result.current.commentItems).toHaveLength(0);
+    expect(result.current.commentsLoading).toBe(false);
   });
 
   it('동시에 실행된 댓글 재시도 중 마지막 요청의 결과만 반영한다', async () => {

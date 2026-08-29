@@ -165,6 +165,7 @@ describe('AppNoticeDetailScreen', () => {
       },
       reload: jest.fn(),
       replyTargetLabel: null,
+      replyTargetCommentId: null,
       retryComments: jest.fn(),
       setCommentDraft: jest.fn(),
       startEditingComment: jest.fn(),
@@ -319,6 +320,26 @@ describe('AppNoticeDetailScreen', () => {
     expect(
       screen.getByTestId('app-notice-comment-card-app-comment-1').props.accessibilityLabel,
     ).toContain('삭제 비활성화');
+    expect(
+      screen.getByTestId('app-notice-comment-card-app-comment-1').props.accessibilityLabel,
+    ).toContain('좋아요 비활성화');
+  });
+
+  it('답글 전송 중에는 대상 댓글의 삭제 동작을 비활성화한다', () => {
+    mockDetailData = {
+      ...mockDetailData,
+      commentItems: mockDetailData.commentItems.map(comment =>
+        comment.id === 'app-comment-1' ? {...comment, isEditable: true} : comment,
+      ),
+      isReplyingComment: true,
+      replyTargetCommentId: 'app-comment-1',
+      submittingComment: true,
+    };
+    const screen = render(<AppNoticeDetailScreen />);
+
+    expect(
+      screen.getByTestId('app-notice-comment-card-app-comment-1').props.accessibilityLabel,
+    ).toContain('삭제 비활성화');
   });
 
   it('삭제 중인 수정 또는 답글 작성창의 입력을 잠근다', () => {
@@ -340,6 +361,18 @@ describe('AppNoticeDetailScreen', () => {
     const screen = render(<AppNoticeDetailScreen />);
 
     expect(screen.getByTestId('app-notice-comment-submit').props.accessibilityLabel).toBe('입력 잠금');
+  });
+
+  it('댓글을 불러오는 동안 빈 상태 대신 로딩 표시를 노출한다', () => {
+    mockDetailData = {
+      ...mockDetailData,
+      commentItems: [],
+      commentsLoading: true,
+    };
+    const screen = render(<AppNoticeDetailScreen />);
+
+    expect(screen.getByTestId('app-notice-comments-loading')).toBeTruthy();
+    expect(screen.queryByText('첫 댓글을 남겨보세요!')).toBeNull();
   });
 
   it('공지 전환 뒤 이전 댓글 전송 완료는 키보드를 닫지 않는다', async () => {
