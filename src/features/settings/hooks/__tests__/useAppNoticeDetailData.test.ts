@@ -179,6 +179,68 @@ describe('useAppNoticeDetailData', () => {
     expect(result.current.commentError).toBe('댓글 네트워크 오류');
   });
 
+  it('같은 공지의 이전 재조회 응답이 새 댓글 상태를 덮어쓰지 않는다', async () => {
+    const repository = createRepository();
+    const deferredNotice = createDeferred<typeof notice>();
+    const deferredComments = createDeferred<NoticeCommentTreeNode[]>();
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    repository.getAppNotice.mockReturnValueOnce(deferredNotice.promise);
+    repository.getComments.mockReturnValueOnce(deferredComments.promise);
+    let reloadPromise!: ReturnType<typeof result.current.reload>;
+    act(() => {
+      reloadPromise = result.current.reload();
+    });
+
+    act(() => result.current.setCommentDraft('새 댓글'));
+    await act(async () => {
+      await result.current.submitComment();
+    });
+
+    await act(async () => {
+      deferredNotice.resolve(notice);
+      deferredComments.resolve([]);
+      await reloadPromise;
+    });
+
+    expect(result.current.notice?.commentCount).toBe(1);
+    expect(result.current.commentItems).toHaveLength(1);
+    expect(result.current.commentItems[0]?.body).toBe('등록된 댓글');
+  });
+
+  it('같은 공지의 이전 댓글 재조회 응답이 삭제 상태를 되돌리지 않는다', async () => {
+    const repository = createRepository();
+    const deferredComments = createDeferred<NoticeCommentTreeNode[]>();
+    repository.getComments
+      .mockResolvedValueOnce([{...comment, replies: []}])
+      .mockReturnValueOnce(deferredComments.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let retryPromise!: ReturnType<typeof result.current.retryComments>;
+    act(() => {
+      retryPromise = result.current.retryComments();
+    });
+    await act(async () => {
+      await result.current.deleteComment('app-comment-1');
+    });
+
+    await act(async () => {
+      deferredComments.resolve([{...comment, replies: []}]);
+      await retryPromise;
+    });
+
+    expect(result.current.notice?.commentCount).toBe(0);
+    expect(result.current.commentItems).toHaveLength(0);
+  });
+
   it('라우트 공지 ID가 바뀌면 이전 공지와 댓글을 즉시 조작할 수 없게 한다', async () => {
     const repository = createRepository();
     const commentTree: NoticeCommentTreeNode = {...comment, replies: []};
