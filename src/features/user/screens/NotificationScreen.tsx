@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  View,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
@@ -170,7 +171,7 @@ export const NotificationScreen = () => {
       );
     }
 
-    if (appNoticeFeed.error || !appNoticeFeed.data) {
+    if (!appNoticeFeed.data) {
       return (
         <StateCard
           actionLabel="다시 시도"
@@ -192,10 +193,21 @@ export const NotificationScreen = () => {
     }
 
     return (
-      <AppNoticeFeedList
-        data={appNoticeFeed.data}
-        onPressItem={handlePressAppNotice}
-      />
+      <>
+        {appNoticeFeed.error ? (
+          <View style={styles.refreshErrorBanner}>
+            <Text style={styles.refreshErrorText}>{appNoticeFeed.error}</Text>
+            <TouchableOpacity
+              onPress={() => appNoticeFeed.reload().catch(() => undefined)}>
+              <Text style={styles.refreshErrorAction}>다시 시도</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+        <AppNoticeFeedList
+          data={appNoticeFeed.data}
+          onPressItem={handlePressAppNotice}
+        />
+      </>
     );
   };
 
@@ -243,6 +255,27 @@ const styles = StyleSheet.create({
   },
   headerActionDisabled: {
     color: COLORS.text.muted,
+  },
+  refreshErrorAction: {
+    color: COLORS.brand.primaryStrong,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  refreshErrorBanner: {
+    alignItems: 'center',
+    backgroundColor: COLORS.accent.orangeSoft,
+    borderRadius: 10,
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    justifyContent: 'space-between',
+    marginBottom: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  refreshErrorText: {
+    color: COLORS.text.secondary,
+    flex: 1,
+    fontSize: 13,
   },
   scrollView: {
     flex: 1,
