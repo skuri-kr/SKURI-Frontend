@@ -391,7 +391,10 @@ export const AppNoticeDetailScreen = () => {
                       <DetailCommentCard
                         comment={comment}
                         deleteDisabled={commentDeletePendingIds.includes(comment.id)}
-                        likeDisabled={commentLikePendingIds.includes(comment.id)}
+                        likeDisabled={
+                          commentLikePendingIds.includes(comment.id) ||
+                          commentDeletePendingIds.includes(comment.id)
+                        }
                         onPressDelete={comment.isEditable ? () => {
                           Alert.alert('댓글 삭제', '이 댓글을 삭제하시겠습니까?', [
                             {text: '취소', style: 'cancel'},
