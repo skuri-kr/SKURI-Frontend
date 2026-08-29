@@ -212,6 +212,40 @@ describe('useAppNoticeDetailData', () => {
     expect(result.current.commentItems[0]?.body).toBe('등록된 댓글');
   });
 
+  it('좋아요 요청 중 시작된 재조회가 완료된 좋아요 상태를 되돌리지 않는다', async () => {
+    const repository = createRepository();
+    const deferredLike = createDeferred<{isLiked: boolean; likeCount: number}>();
+    const deferredNotice = createDeferred<typeof notice>();
+    repository.toggleLike.mockReturnValueOnce(deferredLike.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let togglePromise!: ReturnType<typeof result.current.toggleLike>;
+    let reloadPromise!: ReturnType<typeof result.current.reload>;
+    act(() => {
+      togglePromise = result.current.toggleLike();
+    });
+    repository.getAppNotice.mockReturnValueOnce(deferredNotice.promise);
+    act(() => {
+      reloadPromise = result.current.reload();
+    });
+
+    await act(async () => {
+      deferredLike.resolve({isLiked: true, likeCount: 1});
+      await togglePromise;
+    });
+    await act(async () => {
+      deferredNotice.resolve(notice);
+      await reloadPromise;
+    });
+
+    expect(result.current.notice?.isLiked).toBe(true);
+    expect(result.current.notice?.likeCount).toBe(1);
+  });
+
   it('같은 공지의 이전 댓글 재조회 응답이 삭제 상태를 되돌리지 않는다', async () => {
     const repository = createRepository();
     const deferredComments = createDeferred<NoticeCommentTreeNode[]>();
@@ -238,6 +272,69 @@ describe('useAppNoticeDetailData', () => {
     });
 
     expect(result.current.notice?.commentCount).toBe(0);
+    expect(result.current.commentItems).toHaveLength(0);
+  });
+
+  it('동시에 실행된 댓글 재시도 중 마지막 요청의 결과만 반영한다', async () => {
+    const repository = createRepository();
+    const firstRetry = createDeferred<NoticeCommentTreeNode[]>();
+    const secondRetry = createDeferred<NoticeCommentTreeNode[]>();
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    repository.getComments
+      .mockReturnValueOnce(firstRetry.promise)
+      .mockReturnValueOnce(secondRetry.promise);
+
+    let firstRetryPromise!: ReturnType<typeof result.current.retryComments>;
+    let secondRetryPromise!: ReturnType<typeof result.current.retryComments>;
+    act(() => {
+      firstRetryPromise = result.current.retryComments();
+      secondRetryPromise = result.current.retryComments();
+    });
+
+    await act(async () => {
+      secondRetry.resolve([{...comment, content: '최신 댓글', replies: []}]);
+      await secondRetryPromise;
+    });
+    await act(async () => {
+      firstRetry.reject(new Error('이전 댓글 조회 실패'));
+      await firstRetryPromise;
+    });
+
+    expect(result.current.commentItems[0]?.body).toBe('최신 댓글');
+    expect(result.current.commentError).toBeNull();
+  });
+
+  it('같은 댓글의 삭제 요청은 진행 중 한 번만 전송한다', async () => {
+    const repository = createRepository();
+    const deferredDelete = createDeferred<void>();
+    repository.getComments.mockResolvedValueOnce([{...comment, replies: []}]);
+    repository.deleteComment.mockReturnValueOnce(deferredDelete.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let firstDeletePromise!: ReturnType<typeof result.current.deleteComment>;
+    let secondDeletePromise!: ReturnType<typeof result.current.deleteComment>;
+    act(() => {
+      firstDeletePromise = result.current.deleteComment('app-comment-1');
+      secondDeletePromise = result.current.deleteComment('app-comment-1');
+    });
+
+    expect(repository.deleteComment).toHaveBeenCalledTimes(1);
+    expect(result.current.commentDeletePendingIds).toEqual(['app-comment-1']);
+
+    await act(async () => {
+      deferredDelete.resolve();
+      await Promise.all([firstDeletePromise, secondDeletePromise]);
+    });
+
+    expect(result.current.commentDeletePendingIds).toEqual([]);
     expect(result.current.commentItems).toHaveLength(0);
   });
 
