@@ -55,6 +55,7 @@ export const AppNoticeDetailScreen = () => {
   const [refreshing, setRefreshing] = React.useState(false);
   const [reportVisible, setReportVisible] = React.useState(false);
   const [reportTargetId, setReportTargetId] = React.useState<string | null>(null);
+  const [reportTargetNoticeId, setReportTargetNoticeId] = React.useState<string | null>(null);
   const [reportCategory, setReportCategory] = React.useState<ReportCategory | null>(null);
   const [reportReason, setReportReason] = React.useState('');
   const [reportSubmitting, setReportSubmitting] = React.useState(false);
@@ -68,6 +69,9 @@ export const AppNoticeDetailScreen = () => {
   const appliedInitialCommentRef = React.useRef<string | null>(null);
   const pendingInitialCommentRef = React.useRef<string | null>(null);
   const pendingSubmittedCommentRef = React.useRef<string | null>(null);
+  const reportSessionRef = React.useRef(0);
+  const currentNoticeIdRef = React.useRef(route.params?.noticeId);
+  currentNoticeIdRef.current = route.params?.noticeId;
   const {
     cancelCommentEdit,
     cancelCommentReply,
@@ -75,6 +79,7 @@ export const AppNoticeDetailScreen = () => {
     commentAnonymousValue,
     commentDraft,
     commentError,
+    commentDeletePendingIds,
     commentItems,
     commentLikePendingIds,
     data,
@@ -163,6 +168,13 @@ export const AppNoticeDetailScreen = () => {
   }, [scrollToPendingSubmittedComment, submitComment]);
 
   React.useEffect(() => {
+    reportSessionRef.current += 1;
+    setReportVisible(false);
+    setReportTargetId(null);
+    setReportTargetNoticeId(null);
+    setReportCategory(null);
+    setReportReason('');
+    setReportSubmitting(false);
     commentOffsetsRef.current.clear();
     bodyCardMeasuredRef.current = false;
     commentSectionMeasuredRef.current = false;
@@ -185,26 +197,50 @@ export const AppNoticeDetailScreen = () => {
 
   const closeReport = () => {
     if (reportSubmitting) return;
+    reportSessionRef.current += 1;
     setReportVisible(false);
     setReportTargetId(null);
+    setReportTargetNoticeId(null);
     setReportCategory(null);
     setReportReason('');
   };
 
   const submitReport = async () => {
-    if (!reportTargetId || !reportCategory || !reportReason.trim()) return;
+    if (
+      !reportTargetId ||
+      !reportCategory ||
+      !reportReason.trim() ||
+      reportTargetNoticeId !== route.params?.noticeId
+    ) return;
+    const reportSession = reportSessionRef.current;
+    const targetId = reportTargetId;
+    const targetNoticeId = reportTargetNoticeId;
+    const reason = reportReason.trim();
     setReportSubmitting(true);
     try {
       await submitAppNoticeCommentReport(
         reportRepository,
-        reportTargetId,
+        targetId,
         reportCategory,
-        reportReason,
+        reason,
       );
+      if (
+        reportSessionRef.current !== reportSession ||
+        currentNoticeIdRef.current !== targetNoticeId
+      ) return;
       setReportSubmitting(false);
-      closeReport();
+      reportSessionRef.current += 1;
+      setReportVisible(false);
+      setReportTargetId(null);
+      setReportTargetNoticeId(null);
+      setReportCategory(null);
+      setReportReason('');
       Alert.alert('신고 접수 완료', '운영팀이 확인 후 처리할 예정입니다.');
     } catch (caught) {
+      if (
+        reportSessionRef.current !== reportSession ||
+        currentNoticeIdRef.current !== targetNoticeId
+      ) return;
       setReportSubmitting(false);
       showError(caught, '신고 접수에 실패했습니다.');
     }
@@ -353,6 +389,7 @@ export const AppNoticeDetailScreen = () => {
                       testID={`app-notice-comment-${comment.id}`}>
                       <DetailCommentCard
                         comment={comment}
+                        deleteDisabled={commentDeletePendingIds.includes(comment.id)}
                         likeDisabled={commentLikePendingIds.includes(comment.id)}
                         onPressDelete={comment.isEditable ? () => {
                           Alert.alert('댓글 삭제', '이 댓글을 삭제하시겠습니까?', [
@@ -364,7 +401,10 @@ export const AppNoticeDetailScreen = () => {
                         onPressLike={comment.isDeleted ? undefined : () => toggleCommentLike(comment.id).catch(caughtError => showError(caughtError, '댓글 좋아요 처리에 실패했습니다.'))}
                         onPressReply={comment.isDeleted ? undefined : () => { startReplyingComment(comment.id); focusComposer(); }}
                         onPressReport={comment.isDeleted || comment.isMine ? undefined : () => {
+                          setReportTargetNoticeId(route.params?.noticeId);
                           setReportTargetId(comment.id);
+                          setReportCategory(null);
+                          setReportReason('');
                           setReportVisible(true);
                         }}
                       />
@@ -412,7 +452,7 @@ export const AppNoticeDetailScreen = () => {
         selectedCategory={reportCategory}
         submitting={reportSubmitting}
         title="앱 공지 댓글 신고"
-        visible={reportVisible}
+        visible={reportVisible && reportTargetNoticeId === route.params?.noticeId}
       />
     </SafeAreaView>
   );
