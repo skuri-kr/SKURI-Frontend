@@ -35,6 +35,11 @@ export const StartupModalHost = () => {
     }
   }, [reloadAppNoticeFeed, startupModalMode]);
 
+  const handleMaintenanceRetry = React.useCallback(() => {
+    retryVersionCheck();
+    reloadAppNoticeFeed().catch(() => undefined);
+  }, [reloadAppNoticeFeed, retryVersionCheck]);
+
   const noticeItems = React.useMemo<StartupNoticeItem[]>(() => {
     if (
       startupModalMode === 'hidden' || !appNoticeFeed.data
@@ -64,7 +69,7 @@ export const StartupModalHost = () => {
       noticeItems={noticeItems}
       noticeLoading={shouldLoadAppNotices && appNoticeFeed.loading}
       onPressClose={dismissStartupModal}
-      onPressRetry={retryVersionCheck}
+      onPressRetry={handleMaintenanceRetry}
       retrying={checkingVersion}
       visible
     />
