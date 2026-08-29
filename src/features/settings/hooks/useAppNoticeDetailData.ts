@@ -145,6 +145,10 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   const replyTargetComment = flattenedEntries.find(
     entry => entry.comment.id === replyTargetCommentId,
   )?.comment;
+  const commentComposerTargetId = editingCommentId ?? replyTargetCommentId;
+  const isCommentComposerLocked = Boolean(
+    commentComposerTargetId && commentDeletePendingIds.includes(commentComposerTargetId),
+  );
   const commentAnonymousValue = commentAnonymousDraft ?? storedAnonymous;
 
   const invalidatePendingContentLoads = React.useCallback(() => {
@@ -210,18 +214,11 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         setError('앱 공지사항 ID가 없습니다.');
         return;
       }
-      const [noticeResult, commentsResult] = await Promise.allSettled([
-        repository.getAppNotice(noticeId),
-        user?.uid ? repository.getComments(noticeId) : Promise.resolve([]),
-      ]);
+      const nextNotice = await repository.getAppNotice(noticeId);
       if (
         requestId !== requestIdRef.current ||
         contentRevision !== contentRevisionRef.current
       ) return;
-      if (noticeResult.status === 'rejected') {
-        throw noticeResult.reason;
-      }
-      const nextNotice = noticeResult.value;
       if (!nextNotice) {
         setNotice(null);
         setComments([]);
@@ -230,23 +227,41 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       }
       setNotice(nextNotice);
       activeNoticeIdRef.current = noticeId;
-      if (
-        commentsResult.status === 'fulfilled' &&
-        commentRequestId === commentRequestIdRef.current
-      ) {
-        setComments(commentsResult.value);
-        setCommentError(null);
-      } else if (
-        commentsResult.status === 'rejected' &&
-        commentRequestId === commentRequestIdRef.current
-      ) {
-        setCommentError(getErrorMessage(commentsResult.reason));
-      }
       if (user?.uid) {
         repository.markAsRead(noticeId).catch(markError => {
           console.error('앱 공지 읽음 처리에 실패했습니다.', markError);
         });
       }
+      const loadComments = async () => {
+        if (!user?.uid) {
+          if (
+            latestNoticeIdRef.current === noticeId &&
+            commentRequestId === commentRequestIdRef.current
+          ) {
+            setComments([]);
+            setCommentError(null);
+          }
+          return;
+        }
+        try {
+          const nextComments = await repository.getComments(noticeId);
+          if (
+            latestNoticeIdRef.current !== noticeId ||
+            commentRequestId !== commentRequestIdRef.current ||
+            contentRevision !== contentRevisionRef.current
+          ) return;
+          setComments(nextComments);
+          setCommentError(null);
+        } catch (commentsLoadError) {
+          if (
+            latestNoticeIdRef.current !== noticeId ||
+            commentRequestId !== commentRequestIdRef.current ||
+            contentRevision !== contentRevisionRef.current
+          ) return;
+          setCommentError(getErrorMessage(commentsLoadError));
+        }
+      };
+      loadComments().catch(() => undefined);
     } catch (loadError) {
       if (
         requestId === requestIdRef.current &&
@@ -275,6 +290,27 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     setSubmittingComment(false);
     setTogglingLike(false);
   }, [noticeId]);
+
+  React.useEffect(() => {
+    if (
+      editingCommentId &&
+      (!editingComment || !editingComment.isAuthor || editingComment.isDeleted)
+    ) {
+      setEditingCommentId(null);
+      setCommentDraft('');
+      setCommentAnonymousDraft(null);
+    }
+    if (replyTargetCommentId && (!replyTargetComment || replyTargetComment.isDeleted)) {
+      setReplyTargetCommentId(null);
+      setCommentDraft('');
+      setCommentAnonymousDraft(null);
+    }
+  }, [
+    editingComment,
+    editingCommentId,
+    replyTargetComment,
+    replyTargetCommentId,
+  ]);
 
   const toggleLike = React.useCallback(async () => {
     if (!noticeId || !user?.uid || !notice || notice.id !== noticeId || togglingLike) {
@@ -343,6 +379,10 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   const submitComment = React.useCallback(async () => {
     if (!noticeId || !user?.uid || !notice || notice.id !== noticeId) {
       throw new Error('로그인이 필요합니다.');
+    }
+    const targetCommentId = editingCommentId ?? replyTargetCommentId;
+    if (targetCommentId && commentDeletePendingIdsRef.current.has(targetCommentId)) {
+      throw new Error('삭제 중인 댓글은 수정하거나 답글을 작성할 수 없습니다.');
     }
     const mutationNoticeId = noticeId;
     const content = commentDraft.trim();
@@ -493,7 +533,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   return {
     cancelCommentEdit: () => { setEditingCommentId(null); setCommentDraft(''); setCommentAnonymousDraft(null); },
     cancelCommentReply: () => { setReplyTargetCommentId(null); setCommentDraft(''); },
-    commentAnonymousDisabled: submittingComment,
+    commentAnonymousDisabled: submittingComment || isCommentComposerLocked,
     commentAnonymousValue,
     commentDraft,
     commentError,
@@ -505,6 +545,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     editingCommentId,
     error,
     isEditingComment: Boolean(editingCommentId),
+    isCommentComposerLocked,
     isReplyingComment: Boolean(replyTargetCommentId),
     loading,
     notice,
