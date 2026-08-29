@@ -397,7 +397,8 @@ export const AppNoticeDetailScreen = () => {
                         comment={comment}
                         deleteDisabled={
                           commentDeletePendingIds.includes(comment.id) ||
-                          commentLikePendingIds.includes(comment.id)
+                          commentLikePendingIds.includes(comment.id) ||
+                          (submittingComment && editingCommentId === comment.id)
                         }
                         likeDisabled={
                           commentLikePendingIds.includes(comment.id) ||

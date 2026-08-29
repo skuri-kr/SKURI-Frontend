@@ -130,6 +130,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   const noticeRevisionRef = React.useRef(0);
   const commentDeletePendingIdsRef = React.useRef(new Set<string>());
   const commentLikePendingIdsRef = React.useRef(new Set<string>());
+  const pendingCommentEditIdRef = React.useRef<string | null>(null);
   const activeNoticeIdRef = React.useRef<string | null>(null);
   const latestNoticeIdRef = React.useRef(noticeId);
   latestNoticeIdRef.current = noticeId;
@@ -322,6 +323,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     setCommentAnonymousDraft(null);
     commentDeletePendingIdsRef.current.clear();
     commentLikePendingIdsRef.current.clear();
+    pendingCommentEditIdRef.current = null;
     setCommentDeletePendingIds([]);
     setCommentError(null);
     setCommentLikePendingIds([]);
@@ -439,14 +441,18 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     const mutationNoticeId = noticeId;
     const content = commentDraft.trim();
     if (!content) throw new Error('댓글 내용을 입력해주세요.');
+    const pendingCommentEditId = editingCommentId;
+    if (pendingCommentEditId) {
+      pendingCommentEditIdRef.current = pendingCommentEditId;
+    }
     invalidatePendingContentLoads();
     setSubmittingComment(true);
     try {
-      let commentId = editingCommentId;
-      if (editingCommentId) {
+      let commentId = pendingCommentEditId;
+      if (pendingCommentEditId) {
         const updatedComment = await repository.updateComment(
           mutationNoticeId,
-          editingCommentId,
+          pendingCommentEditId,
           content,
           commentAnonymousValue,
         );
@@ -455,7 +461,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         }
         setComments(current => updateCommentTree(
           current,
-          editingCommentId,
+          pendingCommentEditId,
           currentComment => ({...updatedComment, replies: currentComment.replies}),
         ));
       } else {
@@ -488,6 +494,9 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       }
       return {commentId: undefined};
     } finally {
+      if (pendingCommentEditIdRef.current === pendingCommentEditId) {
+        pendingCommentEditIdRef.current = null;
+      }
       if (latestNoticeIdRef.current === mutationNoticeId) {
         setSubmittingComment(false);
       }
@@ -501,6 +510,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     }
     if (commentDeletePendingIdsRef.current.has(commentId)) return;
     if (commentLikePendingIdsRef.current.has(commentId)) return;
+    if (pendingCommentEditIdRef.current === commentId) return;
     const mutationNoticeId = noticeId;
     commentDeletePendingIdsRef.current.add(commentId);
     setCommentDeletePendingIds(current => [...current, commentId]);
