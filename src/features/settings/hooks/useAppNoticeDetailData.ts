@@ -134,6 +134,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   const pendingCommentReplyTargetIdRef = React.useRef<string | null>(null);
   const commentSubmissionRequestIdRef = React.useRef(0);
   const pendingCommentSubmissionRequestIdRef = React.useRef<number | null>(null);
+  const commentLoadFailedRef = React.useRef(false);
   const activeNoticeIdRef = React.useRef<string | null>(null);
   const latestNoticeIdRef = React.useRef(noticeId);
   latestNoticeIdRef.current = noticeId;
@@ -219,6 +220,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       }
       setComments(nextComments);
       setCommentError(null);
+      commentLoadFailedRef.current = false;
       setCommentsLoading(false);
     } catch (refreshError) {
       if (
@@ -230,6 +232,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         return;
       }
       setCommentError(getErrorMessage(refreshError));
+      commentLoadFailedRef.current = true;
       setCommentsLoading(false);
       throw refreshError;
     }
@@ -242,7 +245,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     const noticeRevision = noticeRevisionRef.current;
     const routeChanged = activeNoticeIdRef.current !== noticeId;
     setLoading(true);
-    if (routeChanged) {
+    if (routeChanged || commentLoadFailedRef.current) {
       setCommentsLoading(Boolean(user?.uid));
     }
     setError(null);
@@ -286,6 +289,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
           ) {
             setComments([]);
             setCommentError(null);
+            commentLoadFailedRef.current = false;
             setCommentsLoading(false);
           }
           return;
@@ -299,6 +303,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
           ) return;
           setComments(nextComments);
           setCommentError(null);
+          commentLoadFailedRef.current = false;
           setCommentsLoading(false);
         } catch (commentsLoadError) {
           if (
@@ -307,6 +312,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
             commentRevision !== commentRevisionRef.current
           ) return;
           setCommentError(getErrorMessage(commentsLoadError));
+          commentLoadFailedRef.current = true;
           setCommentsLoading(false);
         }
       };
