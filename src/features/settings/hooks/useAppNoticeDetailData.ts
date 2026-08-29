@@ -457,22 +457,24 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   }, [completeContentMutation, editingCommentId, invalidatePendingContentLoads, notice, noticeId, replyTargetCommentId, repository, user?.uid]);
 
   const startEditingComment = React.useCallback((commentId: string) => {
+    if (submittingComment) return;
     const target = flattenedEntries.find(entry => entry.comment.id === commentId)?.comment;
     if (!target?.isAuthor || target.isDeleted) return;
     setEditingCommentId(commentId);
     setReplyTargetCommentId(null);
     setCommentDraft(target.content);
     setCommentAnonymousDraft(Boolean(target.isAnonymous));
-  }, [flattenedEntries]);
+  }, [flattenedEntries, submittingComment]);
 
   const startReplyingComment = React.useCallback((commentId: string) => {
+    if (submittingComment) return;
     const target = flattenedEntries.find(entry => entry.comment.id === commentId)?.comment;
     if (!target || target.isDeleted) return;
     setEditingCommentId(null);
     setReplyTargetCommentId(commentId);
     setCommentDraft('');
     setCommentAnonymousDraft(null);
-  }, [flattenedEntries]);
+  }, [flattenedEntries, submittingComment]);
 
   const toggleCommentAnonymousPreference = React.useCallback(() => {
     if (editingCommentId) {
