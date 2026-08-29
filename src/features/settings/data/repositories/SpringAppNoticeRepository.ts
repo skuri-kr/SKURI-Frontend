@@ -25,7 +25,11 @@ import type {
 export class SpringAppNoticeRepository implements IAppNoticeRepository {
   private readonly commentCache = new Map<string, NoticeCommentTreeNode[]>();
 
+  private readonly commentCacheGeneration = new Map<string, number>();
+
   private readonly noticeCache = new Map<string, AppNotice>();
+
+  private readonly noticeCacheGeneration = new Map<string, number>();
 
   async getUnreadCount(): Promise<number> {
     const response = await appNoticeApiClient.getUnreadCount();
@@ -33,10 +37,13 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
   }
 
   async getAppNotice(noticeId: string): Promise<AppNotice | null> {
+    const cacheGeneration = this.noticeCacheGeneration.get(noticeId) ?? 0;
     try {
       const response = await appNoticeApiClient.getAppNotice(noticeId);
       const notice = mapAppNoticeResponseDto(response.data);
-      this.noticeCache.set(noticeId, notice);
+      if ((this.noticeCacheGeneration.get(noticeId) ?? 0) === cacheGeneration) {
+        this.noticeCache.set(noticeId, notice);
+      }
       return notice;
     } catch (error) {
       if (
@@ -56,11 +63,14 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
   }
 
   async getComments(noticeId: string): Promise<NoticeCommentTreeNode[]> {
+    const cacheGeneration = this.commentCacheGeneration.get(noticeId) ?? 0;
     const response = await appNoticeApiClient.getComments(noticeId);
     const tree = buildCommentTree(
       response.data.map(comment => mapNoticeCommentDto(noticeId, comment)),
     );
-    this.commentCache.set(noticeId, tree);
+    if ((this.commentCacheGeneration.get(noticeId) ?? 0) === cacheGeneration) {
+      this.commentCache.set(noticeId, tree);
+    }
     return cloneCommentTree(tree);
   }
 
@@ -68,6 +78,7 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
     noticeId: string,
     comment: NoticeCommentFormData & {userId: string; userDisplayName: string},
   ): Promise<NoticeComment> {
+    this.invalidateCommentCache(noticeId);
     const response = await appNoticeApiClient.createComment(noticeId, {
       content: comment.content.trim(),
       isAnonymous: Boolean(comment.isAnonymous),
@@ -78,7 +89,7 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
       ...flattenComments(this.commentCache.get(noticeId) ?? []),
       createdComment,
     ];
-    this.commentCache.set(noticeId, buildCommentTree(nextComments));
+    this.commitCommentCache(noticeId, buildCommentTree(nextComments));
     return createdComment;
   }
 
@@ -88,6 +99,7 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
     content: string,
     isAnonymous?: boolean,
   ): Promise<NoticeComment> {
+    this.invalidateCommentCache(noticeId);
     const response = await appNoticeApiClient.updateComment(commentId, {
       content: content.trim(),
       ...(isAnonymous === undefined ? {} : {isAnonymous}),
@@ -98,16 +110,17 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
       const next = flattenComments(comments).map(comment =>
         comment.id === commentId ? updatedComment : comment,
       );
-      this.commentCache.set(noticeId, buildCommentTree(next));
+      this.commitCommentCache(noticeId, buildCommentTree(next));
     }
     return updatedComment;
   }
 
   async deleteComment(noticeId: string, commentId: string): Promise<void> {
+    this.invalidateCommentCache(noticeId);
     await appNoticeApiClient.deleteComment(commentId);
     const comments = this.commentCache.get(noticeId);
     if (comments) {
-      this.commentCache.set(noticeId, markCommentDeleted(comments, commentId));
+      this.commitCommentCache(noticeId, markCommentDeleted(comments, commentId));
     }
   }
 
@@ -116,11 +129,12 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
     if (!current) {
       throw new RepositoryError(RepositoryErrorCode.NOT_FOUND, '앱 공지사항을 찾을 수 없습니다.');
     }
+    this.invalidateNoticeCache(noticeId);
     const response = current.isLiked
       ? await appNoticeApiClient.unlikeNotice(noticeId)
       : await appNoticeApiClient.likeNotice(noticeId);
     const state = mapNoticeLikeResponseDto(response.data);
-    this.noticeCache.set(noticeId, {...current, ...state});
+    this.commitNoticeCache(noticeId, {...current, ...state});
     return state;
   }
 
@@ -130,14 +144,16 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
     if (!target) {
       throw new RepositoryError(RepositoryErrorCode.NOT_FOUND, '댓글을 찾을 수 없습니다.');
     }
+    this.invalidateCommentCache(noticeId);
     const response = target.isLiked
       ? await appNoticeApiClient.unlikeComment(commentId)
       : await appNoticeApiClient.likeComment(commentId);
     const state = mapNoticeCommentLikeResponseDto(response.data);
-    const next = flattenComments(comments).map(comment =>
+    const latestComments = this.commentCache.get(noticeId) ?? comments;
+    const next = flattenComments(latestComments).map(comment =>
       comment.id === commentId ? {...comment, ...state} : comment,
     );
-    this.commentCache.set(noticeId, buildCommentTree(next));
+    this.commitCommentCache(noticeId, buildCommentTree(next));
     return state;
   }
 
@@ -170,6 +186,33 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
       .catch(error => callbacks.onError(error as Error));
 
     return () => {};
+  }
+
+  private invalidateCommentCache(noticeId: string) {
+    this.commentCacheGeneration.set(
+      noticeId,
+      (this.commentCacheGeneration.get(noticeId) ?? 0) + 1,
+    );
+  }
+
+  private invalidateNoticeCache(noticeId: string) {
+    this.noticeCacheGeneration.set(
+      noticeId,
+      (this.noticeCacheGeneration.get(noticeId) ?? 0) + 1,
+    );
+  }
+
+  private commitCommentCache(
+    noticeId: string,
+    comments: NoticeCommentTreeNode[],
+  ) {
+    this.invalidateCommentCache(noticeId);
+    this.commentCache.set(noticeId, comments);
+  }
+
+  private commitNoticeCache(noticeId: string, notice: AppNotice) {
+    this.invalidateNoticeCache(noticeId);
+    this.noticeCache.set(noticeId, notice);
   }
 }
 
