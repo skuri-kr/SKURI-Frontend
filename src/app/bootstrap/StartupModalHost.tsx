@@ -8,6 +8,11 @@ import {useAppBootstrap} from './useAppBootstrap';
 
 const MAX_NOTICE_COUNT = 3;
 
+type NoticeFeedReloadAttempt = {
+  promise: Promise<void>;
+  status: 'failed' | 'pending' | 'succeeded';
+};
+
 export const StartupModalHost = () => {
   const {
     checkingVersion,
@@ -23,7 +28,8 @@ export const StartupModalHost = () => {
   const appNoticeFeed = useAppNoticeFeedData({enabled: shouldLoadAppNotices});
   const reloadAppNoticeFeed = appNoticeFeed.reload;
   const previousStartupModalModeRef = React.useRef(startupModalMode);
-  const maintenanceRetryReloadedNoticeFeedRef = React.useRef(false);
+  const maintenanceRetryNoticeFeedRef =
+    React.useRef<NoticeFeedReloadAttempt | null>(null);
 
   React.useEffect(() => {
     const recoveringFromMaintenance =
@@ -32,23 +38,45 @@ export const StartupModalHost = () => {
     previousStartupModalModeRef.current = startupModalMode;
 
     if (startupModalMode === 'hidden') {
-      maintenanceRetryReloadedNoticeFeedRef.current = false;
+      maintenanceRetryNoticeFeedRef.current = null;
     }
 
-    if (recoveringFromMaintenance && maintenanceRetryReloadedNoticeFeedRef.current) {
-      maintenanceRetryReloadedNoticeFeedRef.current = false;
+    if (!recoveringFromMaintenance) return;
+
+    const retryAttempt = maintenanceRetryNoticeFeedRef.current;
+    if (retryAttempt?.status === 'succeeded') {
+      maintenanceRetryNoticeFeedRef.current = null;
       return;
     }
 
-    if (recoveringFromMaintenance) {
-      reloadAppNoticeFeed().catch(() => undefined);
+    if (retryAttempt?.status === 'pending') {
+      retryAttempt.promise.catch(() => {
+        if (maintenanceRetryNoticeFeedRef.current !== retryAttempt) return;
+        maintenanceRetryNoticeFeedRef.current = null;
+        reloadAppNoticeFeed().catch(() => undefined);
+      });
+      return;
     }
+
+    maintenanceRetryNoticeFeedRef.current = null;
+    reloadAppNoticeFeed().catch(() => undefined);
   }, [reloadAppNoticeFeed, startupModalMode]);
 
   const handleMaintenanceRetry = React.useCallback(() => {
-    maintenanceRetryReloadedNoticeFeedRef.current = true;
+    const attempt: NoticeFeedReloadAttempt = {
+      promise: reloadAppNoticeFeed(),
+      status: 'pending',
+    };
+    maintenanceRetryNoticeFeedRef.current = attempt;
+    attempt.promise.then(
+      () => {
+        attempt.status = 'succeeded';
+      },
+      () => {
+        attempt.status = 'failed';
+      },
+    );
     retryVersionCheck();
-    reloadAppNoticeFeed().catch(() => undefined);
   }, [reloadAppNoticeFeed, retryVersionCheck]);
 
   const noticeItems = React.useMemo<StartupNoticeItem[]>(() => {
