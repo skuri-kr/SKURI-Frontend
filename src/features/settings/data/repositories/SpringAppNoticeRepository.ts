@@ -23,6 +23,12 @@ import type {
 } from './IAppNoticeRepository';
 
 export class SpringAppNoticeRepository implements IAppNoticeRepository {
+  private readonly getCurrentUserId: () => string | null;
+
+  private cacheUserId: string | null | undefined;
+
+  private cacheUserSession = 0;
+
   private readonly commentCache = new Map<string, NoticeCommentTreeNode[]>();
 
   private readonly commentCacheGeneration = new Map<string, number>();
@@ -35,12 +41,17 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
 
   private readonly noticeReadGeneration = new Map<string, number>();
 
+  constructor(getCurrentUserId: () => string | null = () => null) {
+    this.getCurrentUserId = getCurrentUserId;
+  }
+
   async getUnreadCount(): Promise<number> {
     const response = await appNoticeApiClient.getUnreadCount();
     return response.data.count;
   }
 
   async getAppNotice(noticeId: string): Promise<AppNotice | null> {
+    const userSession = this.getCurrentUserSession();
     const cacheGeneration = this.noticeCacheGeneration.get(noticeId) ?? 0;
     const readGeneration = (this.noticeReadGeneration.get(noticeId) ?? 0) + 1;
     this.noticeReadGeneration.set(noticeId, readGeneration);
@@ -48,6 +59,7 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
       const response = await appNoticeApiClient.getAppNotice(noticeId);
       const notice = mapAppNoticeResponseDto(response.data);
       if (
+        this.isCurrentUserSession(userSession) &&
         (this.noticeCacheGeneration.get(noticeId) ?? 0) === cacheGeneration &&
         this.noticeReadGeneration.get(noticeId) === readGeneration
       ) {
@@ -72,6 +84,7 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
   }
 
   async getComments(noticeId: string): Promise<NoticeCommentTreeNode[]> {
+    const userSession = this.getCurrentUserSession();
     const cacheGeneration = this.commentCacheGeneration.get(noticeId) ?? 0;
     const readGeneration = (this.commentReadGeneration.get(noticeId) ?? 0) + 1;
     this.commentReadGeneration.set(noticeId, readGeneration);
@@ -80,6 +93,7 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
       response.data.map(comment => mapNoticeCommentDto(noticeId, comment)),
     );
     if (
+      this.isCurrentUserSession(userSession) &&
       (this.commentCacheGeneration.get(noticeId) ?? 0) === cacheGeneration &&
       this.commentReadGeneration.get(noticeId) === readGeneration
     ) {
@@ -92,6 +106,7 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
     noticeId: string,
     comment: NoticeCommentFormData & {userId: string; userDisplayName: string},
   ): Promise<NoticeComment> {
+    const userSession = this.getCurrentUserSession();
     this.invalidateCommentCache(noticeId);
     const response = await appNoticeApiClient.createComment(noticeId, {
       content: comment.content.trim(),
@@ -99,11 +114,13 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
       parentId: comment.parentId,
     });
     const createdComment = mapNoticeCommentDto(noticeId, response.data);
-    const nextComments = [
-      ...flattenComments(this.commentCache.get(noticeId) ?? []),
-      createdComment,
-    ];
-    this.commitCommentCache(noticeId, buildCommentTree(nextComments));
+    if (this.isCurrentUserSession(userSession)) {
+      const nextComments = [
+        ...flattenComments(this.commentCache.get(noticeId) ?? []),
+        createdComment,
+      ];
+      this.commitCommentCache(noticeId, buildCommentTree(nextComments));
+    }
     return createdComment;
   }
 
@@ -113,6 +130,7 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
     content: string,
     isAnonymous?: boolean,
   ): Promise<NoticeComment> {
+    const userSession = this.getCurrentUserSession();
     this.invalidateCommentCache(noticeId);
     const response = await appNoticeApiClient.updateComment(commentId, {
       content: content.trim(),
@@ -120,7 +138,7 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
     });
     const updatedComment = mapNoticeCommentDto(noticeId, response.data);
     const comments = this.commentCache.get(noticeId);
-    if (comments) {
+    if (comments && this.isCurrentUserSession(userSession)) {
       const next = flattenComments(comments).map(comment =>
         comment.id === commentId ? updatedComment : comment,
       );
@@ -130,16 +148,21 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
   }
 
   async deleteComment(noticeId: string, commentId: string): Promise<void> {
+    const userSession = this.getCurrentUserSession();
     this.invalidateCommentCache(noticeId);
     await appNoticeApiClient.deleteComment(commentId);
     const comments = this.commentCache.get(noticeId);
-    if (comments) {
+    if (comments && this.isCurrentUserSession(userSession)) {
       this.commitCommentCache(noticeId, markCommentDeleted(comments, commentId));
     }
   }
 
   async toggleLike(noticeId: string) {
+    const userSession = this.getCurrentUserSession();
     const current = this.noticeCache.get(noticeId) ?? (await this.getAppNotice(noticeId));
+    if (!this.isCurrentUserSession(userSession)) {
+      throw new RepositoryError(RepositoryErrorCode.UNAUTHENTICATED, '로그인 정보가 변경되었습니다.');
+    }
     if (!current) {
       throw new RepositoryError(RepositoryErrorCode.NOT_FOUND, '앱 공지사항을 찾을 수 없습니다.');
     }
@@ -148,12 +171,18 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
       ? await appNoticeApiClient.unlikeNotice(noticeId)
       : await appNoticeApiClient.likeNotice(noticeId);
     const state = mapNoticeLikeResponseDto(response.data);
-    this.commitNoticeCache(noticeId, {...current, ...state});
+    if (this.isCurrentUserSession(userSession)) {
+      this.commitNoticeCache(noticeId, {...current, ...state});
+    }
     return state;
   }
 
   async toggleCommentLike(noticeId: string, commentId: string) {
+    const userSession = this.getCurrentUserSession();
     const comments = this.commentCache.get(noticeId) ?? (await this.getComments(noticeId));
+    if (!this.isCurrentUserSession(userSession)) {
+      throw new RepositoryError(RepositoryErrorCode.UNAUTHENTICATED, '로그인 정보가 변경되었습니다.');
+    }
     const target = flattenComments(comments).find(comment => comment.id === commentId);
     if (!target) {
       throw new RepositoryError(RepositoryErrorCode.NOT_FOUND, '댓글을 찾을 수 없습니다.');
@@ -163,11 +192,13 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
       ? await appNoticeApiClient.unlikeComment(commentId)
       : await appNoticeApiClient.likeComment(commentId);
     const state = mapNoticeCommentLikeResponseDto(response.data);
-    const latestComments = this.commentCache.get(noticeId) ?? comments;
-    const next = flattenComments(latestComments).map(comment =>
-      comment.id === commentId ? {...comment, ...state} : comment,
-    );
-    this.commitCommentCache(noticeId, buildCommentTree(next));
+    if (this.isCurrentUserSession(userSession)) {
+      const latestComments = this.commentCache.get(noticeId) ?? comments;
+      const next = flattenComments(latestComments).map(comment =>
+        comment.id === commentId ? {...comment, ...state} : comment,
+      );
+      this.commitCommentCache(noticeId, buildCommentTree(next));
+    }
     return state;
   }
 
@@ -207,6 +238,25 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
       noticeId,
       (this.commentCacheGeneration.get(noticeId) ?? 0) + 1,
     );
+  }
+
+  private getCurrentUserSession() {
+    const userId = this.getCurrentUserId();
+    if (this.cacheUserId !== userId) {
+      this.cacheUserId = userId;
+      this.cacheUserSession += 1;
+      this.commentCache.clear();
+      this.commentCacheGeneration.clear();
+      this.commentReadGeneration.clear();
+      this.noticeCache.clear();
+      this.noticeCacheGeneration.clear();
+      this.noticeReadGeneration.clear();
+    }
+    return this.cacheUserSession;
+  }
+
+  private isCurrentUserSession(userSession: number) {
+    return this.getCurrentUserSession() === userSession;
   }
 
   private invalidateNoticeCache(noticeId: string) {

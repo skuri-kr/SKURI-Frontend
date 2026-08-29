@@ -71,6 +71,7 @@ export const AppNoticeDetailScreen = () => {
   const pendingInitialCommentRef = React.useRef<string | null>(null);
   const pendingSubmittedCommentRef = React.useRef<string | null>(null);
   const reportSessionRef = React.useRef(0);
+  const interactionSessionRef = React.useRef(0);
   const reportSubmissionRequestIdRef = React.useRef(0);
   const pendingReportSubmissionRequestIdRef = React.useRef<number | null>(null);
   const initialCommentIntentRef = React.useRef({
@@ -79,6 +80,12 @@ export const AppNoticeDetailScreen = () => {
   });
   const currentNoticeIdRef = React.useRef(route.params?.noticeId);
   currentNoticeIdRef.current = route.params?.noticeId;
+  const isCurrentInteraction = React.useCallback(
+    (interactionSession: number, noticeId?: string) =>
+      interactionSessionRef.current === interactionSession &&
+      currentNoticeIdRef.current === noticeId,
+    [],
+  );
   const {
     cancelCommentEdit,
     cancelCommentReply,
@@ -166,23 +173,59 @@ export const AppNoticeDetailScreen = () => {
     pendingSubmittedCommentRef.current = null;
   }, [scrollToCommentIfMeasured]);
 
+  const handleNoticeLike = React.useCallback(() => {
+    const interactionSession = interactionSessionRef.current;
+    const interactionNoticeId = route.params?.noticeId;
+    toggleLike().catch(caughtError => {
+      if (!isCurrentInteraction(interactionSession, interactionNoticeId)) return;
+      showError(caughtError, '좋아요 처리에 실패했습니다.');
+    });
+  }, [isCurrentInteraction, route.params?.noticeId, toggleLike]);
+
+  const handleCommentLike = React.useCallback((commentId: string) => {
+    const interactionSession = interactionSessionRef.current;
+    const interactionNoticeId = route.params?.noticeId;
+    toggleCommentLike(commentId).catch(caughtError => {
+      if (!isCurrentInteraction(interactionSession, interactionNoticeId)) return;
+      showError(caughtError, '댓글 좋아요 처리에 실패했습니다.');
+    });
+  }, [isCurrentInteraction, route.params?.noticeId, toggleCommentLike]);
+
+  const handleDeleteComment = React.useCallback((commentId: string) => {
+    const interactionSession = interactionSessionRef.current;
+    const interactionNoticeId = route.params?.noticeId;
+    Alert.alert('댓글 삭제', '이 댓글을 삭제하시겠습니까?', [
+      {text: '취소', style: 'cancel'},
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: () => deleteComment(commentId).catch(caughtError => {
+          if (!isCurrentInteraction(interactionSession, interactionNoticeId)) return;
+          showError(caughtError, '댓글 삭제에 실패했습니다.');
+        }),
+      },
+    ]);
+  }, [deleteComment, isCurrentInteraction, route.params?.noticeId]);
+
   const handleSubmitComment = React.useCallback(() => {
+    const interactionSession = interactionSessionRef.current;
     const submittedNoticeId = route.params?.noticeId;
     submitComment()
       .then(result => {
         const commentId = result.commentId;
-        if (!commentId || currentNoticeIdRef.current !== submittedNoticeId) return;
+        if (!commentId || !isCurrentInteraction(interactionSession, submittedNoticeId)) return;
         Keyboard.dismiss();
         pendingSubmittedCommentRef.current = commentId;
         setTimeout(scrollToPendingSubmittedComment, 120);
       })
       .catch(caughtError => {
-        if (currentNoticeIdRef.current !== submittedNoticeId) return;
+        if (!isCurrentInteraction(interactionSession, submittedNoticeId)) return;
         showError(caughtError, '댓글 처리에 실패했습니다.');
       });
-  }, [route.params?.noticeId, scrollToPendingSubmittedComment, submitComment]);
+  }, [isCurrentInteraction, route.params?.noticeId, scrollToPendingSubmittedComment, submitComment]);
 
   React.useEffect(() => {
+    const interactionSession = ++interactionSessionRef.current;
     reportSessionRef.current += 1;
     setReportVisible(false);
     setReportTargetId(null);
@@ -198,6 +241,9 @@ export const AppNoticeDetailScreen = () => {
     pendingInitialCommentRef.current = null;
     pendingSubmittedCommentRef.current = null;
     return () => {
+      if (interactionSessionRef.current === interactionSession) {
+        interactionSessionRef.current += 1;
+      }
       reportSessionRef.current += 1;
     };
   }, [route.params?.noticeId]);
@@ -393,7 +439,7 @@ export const AppNoticeDetailScreen = () => {
                   count={notice?.likeCount ?? 0}
                   disabled={togglingLike}
                   iconName={notice?.isLiked ? 'heart' : 'heart-outline'}
-                  onPress={() => toggleLike().catch(caughtError => showError(caughtError, '좋아요 처리에 실패했습니다.'))}
+                  onPress={handleNoticeLike}
                 />
               </View>
 
@@ -453,14 +499,9 @@ export const AppNoticeDetailScreen = () => {
                           commentDeletePendingIds.includes(comment.id) ||
                           (submittingComment && editingCommentId === comment.id)
                         }
-                        onPressDelete={comment.isEditable ? () => {
-                          Alert.alert('댓글 삭제', '이 댓글을 삭제하시겠습니까?', [
-                            {text: '취소', style: 'cancel'},
-                            {text: '삭제', style: 'destructive', onPress: () => deleteComment(comment.id).catch(caughtError => showError(caughtError, '댓글 삭제에 실패했습니다.'))},
-                          ]);
-                        } : undefined}
+                        onPressDelete={comment.isEditable ? () => handleDeleteComment(comment.id) : undefined}
                         onPressEdit={comment.isEditable && !submittingComment && !commentDeletePendingIds.includes(comment.id) ? () => { startEditingComment(comment.id); focusComposer(); } : undefined}
-                        onPressLike={comment.isDeleted ? undefined : () => toggleCommentLike(comment.id).catch(caughtError => showError(caughtError, '댓글 좋아요 처리에 실패했습니다.'))}
+                        onPressLike={comment.isDeleted ? undefined : () => handleCommentLike(comment.id)}
                         onPressReply={comment.isDeleted || commentDeletePendingIds.includes(comment.id) ? undefined : () => { startReplyingComment(comment.id); focusComposer(); }}
                         replyDisabled={submittingComment || commentDeletePendingIds.includes(comment.id)}
                         onPressReport={comment.isDeleted || comment.isMine ? undefined : () => {
