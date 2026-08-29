@@ -31,6 +31,8 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
 
   private readonly noticeCacheGeneration = new Map<string, number>();
 
+  private readonly noticeReadGeneration = new Map<string, number>();
+
   async getUnreadCount(): Promise<number> {
     const response = await appNoticeApiClient.getUnreadCount();
     return response.data.count;
@@ -38,10 +40,15 @@ export class SpringAppNoticeRepository implements IAppNoticeRepository {
 
   async getAppNotice(noticeId: string): Promise<AppNotice | null> {
     const cacheGeneration = this.noticeCacheGeneration.get(noticeId) ?? 0;
+    const readGeneration = (this.noticeReadGeneration.get(noticeId) ?? 0) + 1;
+    this.noticeReadGeneration.set(noticeId, readGeneration);
     try {
       const response = await appNoticeApiClient.getAppNotice(noticeId);
       const notice = mapAppNoticeResponseDto(response.data);
-      if ((this.noticeCacheGeneration.get(noticeId) ?? 0) === cacheGeneration) {
+      if (
+        (this.noticeCacheGeneration.get(noticeId) ?? 0) === cacheGeneration &&
+        this.noticeReadGeneration.get(noticeId) === readGeneration
+      ) {
         this.noticeCache.set(noticeId, notice);
       }
       return notice;
