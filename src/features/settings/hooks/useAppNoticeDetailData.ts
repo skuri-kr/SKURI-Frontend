@@ -131,6 +131,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   const commentDeletePendingIdsRef = React.useRef(new Set<string>());
   const commentLikePendingIdsRef = React.useRef(new Set<string>());
   const pendingCommentEditIdRef = React.useRef<string | null>(null);
+  const pendingCommentReplyTargetIdRef = React.useRef<string | null>(null);
   const activeNoticeIdRef = React.useRef<string | null>(null);
   const latestNoticeIdRef = React.useRef(noticeId);
   latestNoticeIdRef.current = noticeId;
@@ -151,7 +152,10 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
   )?.comment;
   const commentComposerTargetId = editingCommentId ?? replyTargetCommentId;
   const isCommentComposerLocked = Boolean(
-    commentComposerTargetId && commentDeletePendingIds.includes(commentComposerTargetId),
+    commentComposerTargetId && (
+      commentDeletePendingIds.includes(commentComposerTargetId) ||
+      (editingCommentId && commentLikePendingIds.includes(editingCommentId))
+    ),
   );
   const commentAnonymousValue = commentAnonymousDraft ?? storedAnonymous;
 
@@ -205,18 +209,24 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       const nextComments = await repository.getComments(requestedNoticeId);
       if (
         latestNoticeIdRef.current !== requestedNoticeId ||
-        commentRequestId !== commentRequestIdRef.current ||
-        commentRevision !== commentRevisionRef.current
+        commentRequestId !== commentRequestIdRef.current
       ) return;
+      if (commentRevision !== commentRevisionRef.current) {
+        setCommentsLoading(false);
+        return;
+      }
       setComments(nextComments);
       setCommentError(null);
       setCommentsLoading(false);
     } catch (refreshError) {
       if (
         latestNoticeIdRef.current !== requestedNoticeId ||
-        commentRequestId !== commentRequestIdRef.current ||
-        commentRevision !== commentRevisionRef.current
+        commentRequestId !== commentRequestIdRef.current
       ) return;
+      if (commentRevision !== commentRevisionRef.current) {
+        setCommentsLoading(false);
+        return;
+      }
       setCommentError(getErrorMessage(refreshError));
       setCommentsLoading(false);
       throw refreshError;
@@ -324,6 +334,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     commentDeletePendingIdsRef.current.clear();
     commentLikePendingIdsRef.current.clear();
     pendingCommentEditIdRef.current = null;
+    pendingCommentReplyTargetIdRef.current = null;
     setCommentDeletePendingIds([]);
     setCommentError(null);
     setCommentLikePendingIds([]);
@@ -390,6 +401,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       throw new Error('로그인이 필요합니다.');
     }
     if (commentDeletePendingIdsRef.current.has(commentId)) return;
+    if (pendingCommentEditIdRef.current === commentId) return;
     const target = flattenedEntries.find(entry => entry.comment.id === commentId)?.comment;
     if (!target) throw new Error('댓글을 찾을 수 없습니다.');
     const mutationNoticeId = noticeId;
@@ -438,12 +450,19 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     if (commentsLoading) {
       throw new Error('댓글 목록을 불러오는 중입니다.');
     }
+    if (editingCommentId && commentLikePendingIdsRef.current.has(editingCommentId)) {
+      throw new Error('좋아요 처리 중인 댓글은 수정할 수 없습니다.');
+    }
     const mutationNoticeId = noticeId;
     const content = commentDraft.trim();
     if (!content) throw new Error('댓글 내용을 입력해주세요.');
     const pendingCommentEditId = editingCommentId;
+    const pendingCommentReplyTargetId = replyTargetCommentId;
     if (pendingCommentEditId) {
       pendingCommentEditIdRef.current = pendingCommentEditId;
+    }
+    if (pendingCommentReplyTargetId) {
+      pendingCommentReplyTargetIdRef.current = pendingCommentReplyTargetId;
     }
     invalidatePendingContentLoads();
     setSubmittingComment(true);
@@ -497,6 +516,9 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       if (pendingCommentEditIdRef.current === pendingCommentEditId) {
         pendingCommentEditIdRef.current = null;
       }
+      if (pendingCommentReplyTargetIdRef.current === pendingCommentReplyTargetId) {
+        pendingCommentReplyTargetIdRef.current = null;
+      }
       if (latestNoticeIdRef.current === mutationNoticeId) {
         setSubmittingComment(false);
       }
@@ -511,6 +533,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     if (commentDeletePendingIdsRef.current.has(commentId)) return;
     if (commentLikePendingIdsRef.current.has(commentId)) return;
     if (pendingCommentEditIdRef.current === commentId) return;
+    if (pendingCommentReplyTargetIdRef.current === commentId) return;
     const mutationNoticeId = noticeId;
     commentDeletePendingIdsRef.current.add(commentId);
     setCommentDeletePendingIds(current => [...current, commentId]);
@@ -616,6 +639,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     reload: load,
     retryComments: refreshComments,
     replyTargetLabel: replyTargetComment ? getReplyTargetLabel(replyTargetComment) : null,
+    replyTargetCommentId,
     setCommentDraft,
     startEditingComment,
     startReplyingComment,

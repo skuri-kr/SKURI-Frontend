@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Keyboard,
   KeyboardAvoidingView,
@@ -95,6 +96,7 @@ export const AppNoticeDetailScreen = () => {
     reload,
     retryComments,
     replyTargetLabel,
+    replyTargetCommentId,
     setCommentDraft,
     startEditingComment,
     startReplyingComment,
@@ -368,7 +370,13 @@ export const AppNoticeDetailScreen = () => {
                   </TouchableOpacity>
                 </View>
               ) : null}
-              {!commentError && commentItems.length === 0 ? (
+              {commentsLoading ? (
+                <View style={styles.commentsLoading} testID="app-notice-comments-loading">
+                  <ActivityIndicator color={COLORS.brand.primary} size="small" />
+                  <Text style={styles.commentsLoadingText}>댓글을 불러오는 중입니다.</Text>
+                </View>
+              ) : null}
+              {!commentsLoading && !commentError && commentItems.length === 0 ? (
                 <Text style={styles.emptyComments}>첫 댓글을 남겨보세요!</Text>
               ) : commentItems.length > 0 ? (
                 <View
@@ -398,11 +406,15 @@ export const AppNoticeDetailScreen = () => {
                         deleteDisabled={
                           commentDeletePendingIds.includes(comment.id) ||
                           commentLikePendingIds.includes(comment.id) ||
-                          (submittingComment && editingCommentId === comment.id)
+                          (submittingComment && (
+                            editingCommentId === comment.id ||
+                            replyTargetCommentId === comment.id
+                          ))
                         }
                         likeDisabled={
                           commentLikePendingIds.includes(comment.id) ||
-                          commentDeletePendingIds.includes(comment.id)
+                          commentDeletePendingIds.includes(comment.id) ||
+                          (submittingComment && editingCommentId === comment.id)
                         }
                         onPressDelete={comment.isEditable ? () => {
                           Alert.alert('댓글 삭제', '이 댓글을 삭제하시겠습니까?', [
@@ -493,6 +505,8 @@ const styles = StyleSheet.create({
   commentsError: {gap: SPACING.sm, paddingVertical: SPACING.lg},
   commentsErrorAction: {color: COLORS.brand.primaryStrong, fontSize: 13, fontWeight: '700'},
   commentsErrorText: {color: COLORS.status.danger, fontSize: 13},
+  commentsLoading: {alignItems: 'center', flexDirection: 'row', gap: SPACING.sm, paddingVertical: SPACING.lg},
+  commentsLoadingText: {color: COLORS.text.muted, fontSize: 13},
   commentsTitle: {color: COLORS.text.primary, fontSize: 17, fontWeight: '700'},
   composerBanner: {alignItems: 'center', backgroundColor: COLORS.background.surface, borderTopColor: COLORS.border.subtle, borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm},
   composerBannerAction: {color: COLORS.brand.primaryStrong, fontWeight: '700'},
