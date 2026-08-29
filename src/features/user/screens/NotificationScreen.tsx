@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {useNavigation} from '@react-navigation/native';
+import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/Ionicons';
 
@@ -49,6 +49,21 @@ export const NotificationScreen = () => {
   const [refreshing, setRefreshing] = React.useState(false);
   const notificationCenter = useNotificationCenterData();
   const appNoticeFeed = useAppNoticeFeedData();
+  const reloadAppNoticeFeed = appNoticeFeed.reload;
+  const hasFocusedRef = React.useRef(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!hasFocusedRef.current) {
+        hasFocusedRef.current = true;
+        return;
+      }
+
+      reloadAppNoticeFeed().catch(refreshError => {
+        console.error('앱 공지사항 목록을 다시 불러오지 못했습니다.', refreshError);
+      });
+    }, [reloadAppNoticeFeed]),
+  );
 
   const unreadCount = notificationCenter.data?.unreadCount ?? 0;
 
