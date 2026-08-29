@@ -2,6 +2,7 @@ export type AppSettingActionKey =
   | 'darkMode'
   | 'termsOfUse'
   | 'privacyPolicy'
+  | 'adPrivacy'
   | 'appName'
   | 'appVersion';
 

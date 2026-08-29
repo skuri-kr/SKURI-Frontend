@@ -1,4 +1,11 @@
-import { useEffect, useState } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import type {PropsWithChildren} from 'react';
 
 import {useAppConfigRepository} from '@/di';
 import { logCrashlyticsMessage, subscribeAuthStateChange } from '@/shared/lib/firebase';
@@ -18,7 +25,9 @@ export interface AppBootstrapState {
   startupModalMode: StartupModalMode;
 }
 
-export const useAppBootstrap = (): AppBootstrapState => {
+const AppBootstrapContext = createContext<AppBootstrapState | null>(null);
+
+const useCreateAppBootstrap = (): AppBootstrapState => {
   const appConfigRepository = useAppConfigRepository();
   const [checkingVersion, setCheckingVersion] = useState(true);
   const [modalConfig, setModalConfig] = useState<VersionModalConfig | undefined>();
@@ -84,17 +93,38 @@ export const useAppBootstrap = (): AppBootstrapState => {
     };
   }, [appConfigRepository, retryKey]);
 
-  return {
-    checkingVersion,
-    dismissStartupModal: () => {
-      setStartupModalMode(currentMode =>
-        currentMode === 'soft-update' ? 'hidden' : currentMode,
-      );
-    },
-    modalConfig,
-    retryVersionCheck: () => {
-      setRetryKey(currentKey => currentKey + 1);
-    },
-    startupModalMode,
-  };
+  return useMemo(
+    () => ({
+      checkingVersion,
+      dismissStartupModal: () => {
+        setStartupModalMode(currentMode =>
+          currentMode === 'soft-update' ? 'hidden' : currentMode,
+        );
+      },
+      modalConfig,
+      retryVersionCheck: () => {
+        setRetryKey(currentKey => currentKey + 1);
+      },
+      startupModalMode,
+    }),
+    [checkingVersion, modalConfig, startupModalMode],
+  );
+};
+
+export const AppBootstrapProvider = ({children}: PropsWithChildren) => {
+  const value = useCreateAppBootstrap();
+
+  return React.createElement(AppBootstrapContext.Provider, {value}, children);
+};
+
+export const useAppBootstrap = (): AppBootstrapState => {
+  const context = useContext(AppBootstrapContext);
+
+  if (!context) {
+    throw new Error(
+      'useAppBootstrap must be used within an AppBootstrapProvider.',
+    );
+  }
+
+  return context;
 };

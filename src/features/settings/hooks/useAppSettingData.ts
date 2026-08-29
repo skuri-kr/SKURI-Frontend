@@ -13,6 +13,7 @@ type AppSettingIconKey =
   | 'darkMode'
   | 'termsOfUse'
   | 'privacyPolicy'
+  | 'adPrivacy'
   | 'appName'
   | 'appVersion';
 
@@ -67,6 +68,14 @@ const APP_SETTING_SECTIONS_BASE: AppSettingSectionConfig[] = [
         iconKey: 'privacyPolicy',
         id: 'privacy-policy',
         title: '개인정보 처리방침',
+        type: 'link',
+      },
+      {
+        actionKey: 'adPrivacy',
+        iconKey: 'adPrivacy',
+        id: 'ad-privacy',
+        subtitle: '광고 동의 선택을 확인하거나 변경합니다',
+        title: '광고 개인정보 설정',
         type: 'link',
       },
     ],
@@ -126,6 +135,12 @@ const resolveRowIcon = (iconKey: AppSettingIconKey) => {
         iconBackgroundColor: COLORS.brand.primaryTint,
         iconColor: COLORS.brand.primary,
         iconName: 'shield-checkmark-outline',
+      };
+    case 'adPrivacy':
+      return {
+        iconBackgroundColor: COLORS.accent.blueSoft,
+        iconColor: COLORS.accent.blue,
+        iconName: 'options-outline',
       };
     case 'appName':
       return {
