@@ -647,6 +647,33 @@ describe('useAppNoticeDetailData', () => {
     });
   });
 
+  it('댓글 좋아요 요청 중에는 추가 요청을 처리 중 메시지로 차단한다', async () => {
+    const repository = createRepository();
+    const deferredLike = createDeferred<{isLiked: boolean; likeCount: number}>();
+    repository.getComments.mockResolvedValueOnce([{...comment, replies: []}]);
+    repository.toggleCommentLike.mockReturnValueOnce(deferredLike.promise);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let firstLikePromise!: ReturnType<typeof result.current.toggleCommentLike>;
+    let secondLikePromise!: ReturnType<typeof result.current.toggleCommentLike>;
+    act(() => {
+      firstLikePromise = result.current.toggleCommentLike('app-comment-1');
+      secondLikePromise = result.current.toggleCommentLike('app-comment-1');
+    });
+
+    await expect(secondLikePromise).rejects.toThrow('좋아요 처리 중입니다.');
+    expect(repository.toggleCommentLike).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      deferredLike.resolve({isLiked: true, likeCount: 1});
+      await firstLikePromise;
+    });
+  });
+
   it('수정 중인 댓글이 삭제되면 전송을 잠근다', async () => {
     const repository = createRepository();
     const deferredDelete = createDeferred<void>();

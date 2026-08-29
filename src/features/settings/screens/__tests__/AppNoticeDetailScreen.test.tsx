@@ -346,6 +346,30 @@ describe('AppNoticeDetailScreen', () => {
     alertSpy.mockRestore();
   });
 
+  it('신고 제출 중에는 추가 제출 요청을 전송하지 않는다', async () => {
+    let resolveReport!: () => void;
+    mockedSubmitAppNoticeCommentReport.mockReturnValueOnce(new Promise(resolve => {
+      resolveReport = () => resolve({
+        createdAt: '2026-08-29T00:00:00',
+        id: 'report-1',
+        status: 'PENDING',
+      });
+    }));
+    const screen = render(<AppNoticeDetailScreen />);
+
+    fireEvent.press(screen.getByTestId('app-notice-comment-card-app-comment-1'));
+    fireEvent.press(screen.getByTestId('app-notice-report-form'));
+    fireEvent.press(screen.getByTestId('app-notice-report-submit'));
+    fireEvent.press(screen.getByTestId('app-notice-report-submit'));
+
+    expect(mockedSubmitAppNoticeCommentReport).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveReport();
+      await Promise.resolve();
+    });
+  });
+
   it('삭제 중인 댓글의 삭제 동작을 비활성화한다', () => {
     mockDetailData = {
       ...mockDetailData,
