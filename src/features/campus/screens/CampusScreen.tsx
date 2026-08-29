@@ -27,6 +27,7 @@ import {
 } from '@/app/data-freshness/invalidationKeys';
 import {createCampusEntryNavigation} from '@/app/navigation/services/campusEntryNavigation';
 import {BOTTOM_TAB_BAR_HEIGHT} from '@/shared/constants/layout';
+import {InlineBannerAd} from '@/shared/ads';
 import {StateCard} from '@/shared/design-system/components';
 import {COLORS, SPACING} from '@/shared/design-system/tokens';
 import {useScreenEnterAnimation} from '@/shared/hooks/useScreenEnterAnimation';
@@ -282,6 +283,11 @@ export const CampusScreen = () => {
                 />
               </View>
 
+              <InlineBannerAd
+                placement="campusHome"
+                style={styles.adSection}
+              />
+
               <View style={styles.section}>
                 <CampusSectionHeader
                   actionLabel={CAMPUS_HOME_ACTION_LABELS.cafeteria}
@@ -336,6 +342,11 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: SPACING.xxl,
     paddingHorizontal: SPACING.lg,
+  },
+  adSection: {
+    marginBottom: SPACING.xxl,
+    marginHorizontal: SPACING.lg,
+    marginTop: 0,
   },
   noticeInfoBubble: {
     position: 'absolute',

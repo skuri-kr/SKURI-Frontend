@@ -6,11 +6,17 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  type ViewToken,
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 import {BOTTOM_TAB_BAR_HEIGHT} from '@/shared/constants/layout';
+import {
+  InlineBannerAd,
+  interleaveAds,
+  type InterleavedAdItem,
+} from '@/shared/ads';
 import {StateCard} from '@/shared/design-system/components';
 import {
   COLORS,
@@ -18,12 +24,13 @@ import {
   SHADOWS,
   SPACING,
 } from '@/shared/design-system/tokens';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {CommunityBoardPostCard} from './CommunityBoardPostCard';
 import type {CommunityBoardPostViewData} from '../model/communityViewData';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface CommunityBoardSegmentProps {
+  active: boolean;
   activeSearchLabel?: string;
   error: string | null;
   hasMore: boolean;
@@ -39,6 +46,7 @@ interface CommunityBoardSegmentProps {
 }
 
 export const CommunityBoardSegment = ({
+  active,
   activeSearchLabel,
   error,
   hasMore,
@@ -54,6 +62,35 @@ export const CommunityBoardSegment = ({
 }: CommunityBoardSegmentProps) => {
   const showInitialLoading = loading && items.length === 0;
   const insets = useSafeAreaInsets();
+  const [visibleAdSlots, setVisibleAdSlots] = React.useState<Set<number>>(
+    () => new Set(),
+  );
+  const listItems = React.useMemo(
+    () =>
+      interleaveAds(items, {
+        enabled: !activeSearchLabel && !error && !showInitialLoading,
+      }),
+    [activeSearchLabel, error, items, showInitialLoading],
+  );
+  const handleViewableItemsChanged = React.useRef(
+    ({viewableItems}: {viewableItems: ViewToken[]}) => {
+      const nextVisibleAdSlots = new Set(
+        viewableItems.flatMap(viewableItem => {
+          const item = viewableItem.item as InterleavedAdItem<
+            CommunityBoardPostViewData
+          >;
+          return item.kind === 'ad' ? [item.slotIndex] : [];
+        }),
+      );
+
+      setVisibleAdSlots(currentSlots =>
+        currentSlots.size === nextVisibleAdSlots.size &&
+        [...currentSlots].every(slot => nextVisibleAdSlots.has(slot))
+          ? currentSlots
+          : nextVisibleAdSlots,
+      );
+    },
+  ).current;
 
   const handleEndReached = React.useCallback(() => {
     if (loadingMore || !hasMore) {
@@ -67,8 +104,11 @@ export const CommunityBoardSegment = ({
     <View style={styles.container}>
       <FlatList
         contentContainerStyle={styles.listContent}
-        data={items}
-        keyExtractor={item => item.id}
+        data={listItems}
+        extraData={visibleAdSlots}
+        keyExtractor={item =>
+          item.kind === 'ad' ? item.key : item.content.id
+        }
         ListEmptyComponent={
           showInitialLoading ? (
             <View style={styles.stateWrap}>
@@ -141,6 +181,7 @@ export const CommunityBoardSegment = ({
         }
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.35}
+        onViewableItemsChanged={handleViewableItemsChanged}
         refreshControl={
           <RefreshControl
             onRefresh={onRefresh}
@@ -148,10 +189,23 @@ export const CommunityBoardSegment = ({
             tintColor={COLORS.brand.primary}
           />
         }
-        renderItem={({item}) => (
-          <CommunityBoardPostCard item={item} onPress={onPressPost} />
-        )}
+        removeClippedSubviews={false}
+        renderItem={({item}) =>
+          item.kind === 'ad' ? (
+            <InlineBannerAd
+              active={active && visibleAdSlots.has(item.slotIndex)}
+              placement="communityBoardList"
+              slotIndex={item.slotIndex}
+            />
+          ) : (
+            <CommunityBoardPostCard
+              item={item.content}
+              onPress={onPressPost}
+            />
+          )
+        }
         showsVerticalScrollIndicator={false}
+        viewabilityConfig={VIEWABILITY_CONFIG}
       />
 
       <TouchableOpacity
@@ -159,12 +213,17 @@ export const CommunityBoardSegment = ({
         accessibilityRole="button"
         activeOpacity={0.9}
         onPress={onPressWrite}
-        style={[styles.writeButton, {bottom: BOTTOM_TAB_BAR_HEIGHT + insets.bottom + SPACING.sm}]}>
+        style={[
+          styles.writeButton,
+          {bottom: BOTTOM_TAB_BAR_HEIGHT + insets.bottom + SPACING.sm},
+        ]}>
         <Icon color={COLORS.text.inverse} name="create-outline" size={24} />
       </TouchableOpacity>
     </View>
   );
 };
+
+const VIEWABILITY_CONFIG = {itemVisiblePercentThreshold: 20};
 
 const styles = StyleSheet.create({
   container: {
@@ -175,8 +234,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.lg,
   },
-  headerContent: {
-  },
+  headerContent: {},
   searchSummaryCard: {
     alignItems: 'center',
     backgroundColor: COLORS.background.surface,
