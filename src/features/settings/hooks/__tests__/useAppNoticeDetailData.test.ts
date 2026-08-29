@@ -444,6 +444,30 @@ describe('useAppNoticeDetailData', () => {
     expect(result.current.commentItems).toHaveLength(1);
   });
 
+  it('댓글 재조회 결과로 댓글 수를 함께 갱신한다', async () => {
+    const repository = createRepository();
+    const secondComment: NoticeCommentTreeNode = {
+      ...comment,
+      id: 'app-comment-2',
+      replies: [],
+    };
+    repository.getComments
+      .mockResolvedValueOnce([{...comment, replies: []}])
+      .mockResolvedValueOnce([{...comment, replies: []}, secondComment]);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.notice?.commentCount).toBe(1));
+
+    await act(async () => {
+      await result.current.retryComments();
+    });
+
+    expect(result.current.notice?.commentCount).toBe(2);
+  });
+
   it('댓글 재로드 중 공지 좋아요를 눌러도 댓글 재시도를 완료한다', async () => {
     const repository = createRepository();
     const deferredNotice = createDeferred<typeof notice>();
@@ -906,7 +930,7 @@ describe('useAppNoticeDetailData', () => {
   it('이전 공지의 댓글 작성 완료가 새 공지 상태를 변경하지 않는다', async () => {
     const repository = createRepository();
     const deferredCreate = createDeferred<NoticeComment>();
-    const secondNotice = {...notice, commentCount: 4, id: 'app-notice-2', title: '두 번째 공지'};
+    const secondNotice = {...notice, commentCount: 0, id: 'app-notice-2', title: '두 번째 공지'};
     repository.createComment.mockReturnValueOnce(deferredCreate.promise);
     repository.getAppNotice.mockImplementation(async noticeId =>
       noticeId === 'app-notice-1' ? notice : secondNotice,
@@ -934,7 +958,7 @@ describe('useAppNoticeDetailData', () => {
       await submitPromise;
     });
 
-    expect(result.current.notice?.commentCount).toBe(4);
+    expect(result.current.notice?.commentCount).toBe(0);
     expect(result.current.commentItems).toHaveLength(0);
   });
 
@@ -1119,7 +1143,7 @@ describe('useAppNoticeDetailData', () => {
   it('이전 공지의 댓글 삭제 완료가 새 공지 상태를 변경하지 않는다', async () => {
     const repository = createRepository();
     const deferredDelete = createDeferred<void>();
-    const secondNotice = {...notice, commentCount: 4, id: 'app-notice-2', title: '두 번째 공지'};
+    const secondNotice = {...notice, commentCount: 1, id: 'app-notice-2', title: '두 번째 공지'};
     const secondComment = {...comment, noticeId: 'app-notice-2', replies: []};
     repository.deleteComment.mockReturnValueOnce(deferredDelete.promise);
     repository.getAppNotice.mockImplementation(async noticeId =>
@@ -1151,7 +1175,7 @@ describe('useAppNoticeDetailData', () => {
       await deletePromise;
     });
 
-    expect(result.current.notice?.commentCount).toBe(4);
+    expect(result.current.notice?.commentCount).toBe(1);
     expect(result.current.commentItems[0]?.isDeleted).toBe(false);
   });
 
