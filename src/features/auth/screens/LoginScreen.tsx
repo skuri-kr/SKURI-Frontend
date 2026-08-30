@@ -33,6 +33,12 @@ import {useScreenView} from '@/shared/hooks';
 import {AuthFeatureChip} from '../components/AuthFeatureChip';
 import {AUTH_BRAND_ACCENT_COLOR} from '../constants/authPalette';
 import {useAuth} from '../hooks/useAuth';
+import {getLoginBackgroundSeason} from '../model/loginBackgroundSeason';
+
+const LOGIN_BACKGROUND_IMAGES = {
+  autumn: require('../../../../assets/images/login/login_bg_autumn.png'),
+  spring: require('../../../../assets/images/login/login_bg_spring.png'),
+} as const;
 
 const FEATURE_CHIPS = [
   '🚕 택시 파티',
@@ -65,6 +71,8 @@ export const LoginScreen = (_props: LoginScreenProps) => {
   useScreenView();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<LoginNavigation>();
+  const loginBackgroundSource =
+    LOGIN_BACKGROUND_IMAGES[getLoginBackgroundSeason()];
 
   const [loading, setLoading] = useState(false);
   const [adminVisible, setAdminVisible] = useState(false);
@@ -134,7 +142,7 @@ export const LoginScreen = (_props: LoginScreenProps) => {
         <View style={styles.heroSection}>
           <ImageBackground
             resizeMode="cover"
-            source={require('../../../../assets/images/login/login_main.png')}
+            source={loginBackgroundSource}
             style={styles.heroImage}>
             {Platform.OS === 'android' ? (
               <View
