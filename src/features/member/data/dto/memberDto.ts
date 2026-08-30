@@ -38,6 +38,8 @@ export interface MemberResponseDto {
   isAdmin: boolean;
   bankAccount?: MemberBankAccountDto | null;
   notificationSetting?: MemberNotificationSettingDto | null;
+  termsAccepted: boolean;
+  termsVersion: string | null;
   joinedAt: string;
   lastLogin?: string | null;
 }

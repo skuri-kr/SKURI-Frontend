@@ -24,8 +24,8 @@ export const SettingScreen = () => {
   useScreenView();
 
   const navigation = useNavigation<NativeStackNavigationProp<CampusStackParamList>>();
-  const {data} = useAppSettingData();
-  const {showPrivacyOptions} = useAds();
+  const {privacyOptionsRequired, showPrivacyOptions} = useAds();
+  const {data} = useAppSettingData(privacyOptionsRequired);
 
   const handlePressRow = React.useCallback(
     (actionKey: string) => {

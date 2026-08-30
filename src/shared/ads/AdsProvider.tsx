@@ -15,6 +15,7 @@ interface AdsContextValue {
   activateAds: () => void;
   adsReady: boolean;
   appActive: boolean;
+  privacyOptionsRequired: boolean;
   showPrivacyOptions: () => Promise<PrivacyOptionsResult>;
 }
 
@@ -22,11 +23,13 @@ const AdsContext = React.createContext<AdsContextValue | null>(null);
 
 export const AdsProvider = ({children}: PropsWithChildren) => {
   const {
+    authState,
     guardResult: {route},
   } = useAuthEntryGuard();
   const {checkingVersion, startupModalMode} = useAppBootstrap();
   const [activationRequested, setActivationRequested] = React.useState(false);
   const [adsReady, setAdsReady] = React.useState(false);
+  const [privacyOptionsRequired, setPrivacyOptionsRequired] = React.useState(false);
   const [appState, setAppState] = React.useState<AppStateStatus>(
     AppState.currentState,
   );
@@ -84,6 +87,7 @@ export const AdsProvider = ({children}: PropsWithChildren) => {
     activationRequested &&
     appState === 'active' &&
     route === 'main' &&
+    Boolean(authState.user?.termsAccepted) &&
     !checkingVersion &&
     startupModalMode === 'hidden';
 
@@ -95,7 +99,15 @@ export const AdsProvider = ({children}: PropsWithChildren) => {
     consentStartedRef.current = true;
 
     AdsConsent.gatherConsent()
-      .then(() => startMobileAds())
+      .then(consentInfo => {
+        if (mountedRef.current) {
+          setPrivacyOptionsRequired(
+            consentInfo.privacyOptionsRequirementStatus ===
+              AdsConsentPrivacyOptionsRequirementStatus.REQUIRED,
+          );
+        }
+        return startMobileAds();
+      })
       .catch(error => {
         consentStartedRef.current = false;
         console.warn('광고 개인정보 동의 수집에 실패했습니다.', error);
@@ -110,6 +122,12 @@ export const AdsProvider = ({children}: PropsWithChildren) => {
 
     try {
       consentInfo = await AdsConsent.requestInfoUpdate();
+      if (mountedRef.current) {
+        setPrivacyOptionsRequired(
+          consentInfo.privacyOptionsRequirementStatus ===
+            AdsConsentPrivacyOptionsRequirementStatus.REQUIRED,
+        );
+      }
     } catch (error) {
       console.warn('광고 개인정보 설정 상태를 확인하지 못했습니다.', error);
       return 'unavailable' as const;
@@ -145,9 +163,10 @@ export const AdsProvider = ({children}: PropsWithChildren) => {
       activateAds,
       adsReady,
       appActive: appState === 'active',
+      privacyOptionsRequired,
       showPrivacyOptions,
     }),
-    [activateAds, adsReady, appState, showPrivacyOptions],
+    [activateAds, adsReady, appState, privacyOptionsRequired, showPrivacyOptions],
   );
 
   return <AdsContext.Provider value={value}>{children}</AdsContext.Provider>;
