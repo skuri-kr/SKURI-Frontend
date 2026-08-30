@@ -111,9 +111,10 @@ export const CommunityChatSegment = ({
         renderItem={({item}) =>
           item.kind === 'ad' ? (
             <InlineBannerAd
-              active={active && visibleAdSlots.has(item.slotIndex)}
+              active={active}
               placement="communityChatList"
               slotIndex={item.slotIndex}
+              visible={visibleAdSlots.has(item.slotIndex)}
             />
           ) : (
             <CommunityChatRoomCard

@@ -24,22 +24,32 @@ interface InlineBannerAdProps {
   placement: AdPlacement;
   slotIndex?: number;
   style?: StyleProp<ViewStyle>;
+  visible?: boolean;
 }
+
+type BannerLoadState = 'idle' | 'loading' | 'loaded' | 'failed';
 
 export const InlineBannerAd = ({
   active = true,
   placement,
   slotIndex = 1,
   style,
+  visible = true,
 }: InlineBannerAdProps) => {
   const isFocused = useIsFocused();
   const {activateAds, adsReady, appActive} = useAds();
   const [containerWidth, setContainerWidth] = React.useState(0);
   const [hasActivated, setHasActivated] = React.useState(false);
-  const [shouldRenderAd, setShouldRenderAd] = React.useState(false);
+  const [loadState, setLoadState] =
+    React.useState<BannerLoadState>('idle');
   const slotKey = `${placement}:${slotIndex}`;
-  const canMountBanner = active && isFocused && appActive && adsReady;
-  const showAdSlot = shouldRenderAd && canMountBanner;
+  const canPrepareSlot = active && isFocused && appActive && adsReady;
+  const canRequestBanner = canPrepareSlot && visible;
+  const showAdSlot = canRequestBanner && loadState === 'loaded';
+  const shouldMountBanner =
+    canRequestBanner && (loadState === 'loading' || loadState === 'loaded');
+  const showViewabilityFootprint =
+    canPrepareSlot && loadState !== 'failed';
 
   React.useEffect(() => {
     if (!active || !isFocused || !appActive) {
@@ -51,16 +61,23 @@ export const InlineBannerAd = ({
   }, [activateAds, active, appActive, isFocused]);
 
   React.useEffect(() => {
-    if (!canMountBanner) {
-      setShouldRenderAd(false);
+    if (!canPrepareSlot) {
+      setLoadState('idle');
+      return;
     }
-  }, [canMountBanner]);
+
+    if (!visible) {
+      setLoadState(currentState =>
+        currentState === 'failed' ? currentState : 'idle',
+      );
+    }
+  }, [canPrepareSlot, visible]);
 
   React.useEffect(() => {
     if (
-      shouldRenderAd ||
+      loadState !== 'idle' ||
       !hasActivated ||
-      !canMountBanner ||
+      !canRequestBanner ||
       containerWidth <= 0
     ) {
       return;
@@ -68,7 +85,7 @@ export const InlineBannerAd = ({
 
     const renderAd = () => {
       recordAdRequest(slotKey);
-      setShouldRenderAd(true);
+      setLoadState('loading');
     };
     const delay = getAdRequestDelay(slotKey);
 
@@ -79,7 +96,25 @@ export const InlineBannerAd = ({
 
     const timer = setTimeout(renderAd, delay);
     return () => clearTimeout(timer);
-  }, [canMountBanner, containerWidth, hasActivated, shouldRenderAd, slotKey]);
+  }, [
+    canRequestBanner,
+    containerWidth,
+    hasActivated,
+    loadState,
+    slotKey,
+  ]);
+
+  const handleAdLoaded = React.useCallback(() => {
+    setLoadState(currentState =>
+      currentState === 'loading' ? 'loaded' : currentState,
+    );
+  }, []);
+
+  const handleAdFailedToLoad = React.useCallback(() => {
+    setLoadState(currentState =>
+      currentState === 'loading' ? 'failed' : currentState,
+    );
+  }, []);
 
   const handleLayout = React.useCallback((event: LayoutChangeEvent) => {
     const nextWidth = Math.floor(event.nativeEvent.layout.width);
@@ -92,14 +127,27 @@ export const InlineBannerAd = ({
     <View
       accessibilityLabel={showAdSlot ? '광고' : undefined}
       onLayout={handleLayout}
-      style={showAdSlot ? [styles.container, style] : [style, styles.measurement]}
+      style={
+        showAdSlot
+          ? [styles.container, style]
+          : showViewabilityFootprint
+            ? [styles.viewabilityFootprint, style]
+            : [style, styles.collapsed]
+      }
       testID="inline-banner-ad">
-      {showAdSlot ? (
+      {shouldMountBanner ? (
         <>
-          <Text style={styles.label}>광고</Text>
-          <View style={styles.adSlot}>
+          {showAdSlot ? <Text style={styles.label}>광고</Text> : null}
+          <View
+            accessibilityElementsHidden={!showAdSlot}
+            importantForAccessibility={
+              showAdSlot ? 'auto' : 'no-hide-descendants'
+            }
+            style={showAdSlot ? styles.adSlot : styles.pendingAdSlot}>
             <BannerAd
               maxHeight={100}
+              onAdFailedToLoad={handleAdFailedToLoad}
+              onAdLoaded={handleAdLoaded}
               size={BannerAdSize.INLINE_ADAPTIVE_BANNER}
               unitId={getAdUnitId(placement)}
               width={containerWidth}
@@ -134,12 +182,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.sm,
     paddingTop: SPACING.xs,
   },
-  measurement: {
+  collapsed: {
     alignSelf: 'stretch',
-    height: 1,
+    height: 0,
     marginBottom: 0,
     marginTop: 0,
     minHeight: 0,
+    opacity: 0,
+    overflow: 'hidden',
+  },
+  pendingAdSlot: {
+    height: 100,
+    opacity: 0,
+    overflow: 'hidden',
+  },
+  viewabilityFootprint: {
+    alignSelf: 'stretch',
+    marginVertical: SPACING.md,
+    minHeight: 122,
     opacity: 0,
     overflow: 'hidden',
   },
