@@ -51,3 +51,36 @@
 7. 앱 종료, 화면 밖 렌더링, 열림 지연, 입력 또는 키보드 이상이 없을 때만 업데이트를 완료한다.
 
 새 버전에 공식 수정이 포함되지 않았다면 버전 업데이트를 중단하거나, upstream 변경에 맞춰 패치를 새로 생성하고 이 문서의 버전·커밋·검증 기록을 함께 갱신한다.
+
+## `@react-native-community/geolocation` 3.4.0
+
+### 적용 이유
+
+- Android에서 두 개 이상의 `getCurrentPosition()` 요청이 겹치면 `PlayServicesLocationManager`가 마지막 콜백만 `mSingleLocationCallback` 필드에 보관한다.
+- 앞선 요청이 완료되면서 이 필드를 `null`로 만들면 뒤에 완료된 요청이 `removeLocationUpdates(null)`을 호출해 `java.lang.NullPointerException: Listener must not be null`로 앱을 종료할 수 있다.
+- upstream 이슈 [#357](https://github.com/michalchudziak/react-native-geolocation/issues/357)에 같은 원인과 수정안이 보고되어 있으며, 여러 콜백을 목록으로 관리하는 관련 PR [#332](https://github.com/michalchudziak/react-native-geolocation/pull/332)은 아직 정식 배포에 포함되지 않았다.
+- `patches/@react-native-community+geolocation+3.4.0.patch`는 공유 필드를 제거하고 각 현재 위치 요청이 자기 `LocationCallback` 인스턴스를 사용하며 `removeLocationUpdates(this)`로 자기 자신만 해제하도록 수정한다.
+- 앱의 위치 요청 직렬화, 정확도 옵션, 재시도 정책 및 `watchPosition()` 수명주기는 변경하지 않는다.
+
+### 버전 고정
+
+패치가 적용되는 동안 `@react-native-community/geolocation`은 `package.json`에서 `3.4.0`으로 정확히 고정한다. 새 버전에 패치가 적용되지 않거나 일부만 적용되는 상태를 설치 단계에서 놓치지 않도록 버전 범위를 사용하지 않는다.
+
+### 제거 조건
+
+다음 조건을 모두 만족할 때만 이 패치를 제거한다.
+
+1. 새 정식 npm 배포 버전에 동시 `getCurrentPosition()` 요청의 콜백 덮어쓰기 문제가 해결됐음을 릴리스 노트와 배포된 Android 소스에서 확인한다. 이슈 또는 PR이 닫히거나 병합된 것만으로는 충분하지 않다.
+2. 배포된 코드가 각 단일 위치 요청의 콜백을 독립적으로 추적하고, 다른 요청의 콜백 또는 `null`을 `removeLocationUpdates()`에 전달하지 않는지 확인한다.
+3. 패치를 제거한 상태로 자동 검사, Android Release 빌드, 동시 위치 요청 스트레스 테스트와 실제 위치 흐름 검증을 모두 통과한다.
+
+### 업데이트 및 제거 절차
+
+1. upstream 이슈 #357, PR #332와 최신 npm 배포 버전의 Android 소스를 확인한다.
+2. 공식 수정이 배포됐다면 새 버전으로 업데이트하고 `patches/@react-native-community+geolocation+3.4.0.patch`를 삭제한다.
+3. `npm ci`에서 남아 있는 모든 패치가 `patch-package --error-on-fail`로 정상 적용되는지 확인한다.
+4. `npm test -- --runInBand`, `npm run lint -- --quiet`, `npx tsc --noEmit`, Android Release lint와 AAB 빌드를 실행한다.
+5. Android 실기기에서 위치 권한 허용·거절, 정확한 위치·대략적인 위치, 위치 서비스 ON·OFF, 택시 화면 진입·새로고침, 백그라운드 복귀를 확인한다.
+6. 둘 이상의 `getCurrentPosition()` 요청을 반복해서 겹치게 실행하고 logcat에 `Listener must not be null` 또는 `PlayServicesLocationManager.onLocationResult` 크래시가 없는지 확인한다.
+
+공식 수정이 배포되지 않았다면 현재 버전을 유지하거나, upstream 변경에 맞춰 패치를 다시 생성하고 이 문서의 버전과 검증 기록을 함께 갱신한다.
