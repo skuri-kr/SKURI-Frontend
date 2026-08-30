@@ -218,7 +218,7 @@ com.skuri.skuri_backend
 - [x] Firebase ID Token으로 인증 성공/실패 동작
 - [x] `@sungkyul.ac.kr` 이메일 도메인 제한 동작
 - [x] 회원 가입 → 프로필 조회 → 프로필 수정 플로우 동작
-- [x] 최초 프로필 완료 시 현재 이용약관 동의를 검증·기록하고, 기존 회원 이메일 동의는 가입 시각 cutoff 기준으로 멱등 백필
+- [x] 최초 프로필 완료 시 현재 이용약관 `SIGNUP` 동의를 자동 기록하고, 백필 기준 시각까지 생성된 기존 회원 전체를 동일 출처·백필 실행 시각으로 멱등 적재
 - [x] 인증 없이 보호된 API 호출 시 401 반환
 - [x] OpenAPI JSON(`/v3/api-docs`) + Swagger UI + Scalar 노출
 - [x] `local-emulator` 프로필에서만 Auth Emulator 사용 가능하고, 다른 프로필에서 emulator host 사용 시 기동 차단
