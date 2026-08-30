@@ -90,7 +90,7 @@ export const useCommunityBoardData = () => {
   const requestIdRef = React.useRef(0);
   const hasActiveSearch =
     Boolean(searchFilters.searchText) || Boolean(searchFilters.category);
-  const adsEnabled = !hasActiveSearch && !loading;
+  const adsEnabled = !hasActiveSearch && !loading && !refreshing;
 
   const fetchBoardPage = React.useCallback(
     async (
