@@ -39,6 +39,7 @@ export const InlineBannerAd = ({
   const [shouldRenderAd, setShouldRenderAd] = React.useState(false);
   const slotKey = `${placement}:${slotIndex}`;
   const canMountBanner = active && isFocused && appActive && adsReady;
+  const showAdSlot = shouldRenderAd && canMountBanner;
 
   React.useEffect(() => {
     if (!active || !isFocused || !appActive) {
@@ -89,20 +90,23 @@ export const InlineBannerAd = ({
 
   return (
     <View
-      accessibilityLabel="광고"
+      accessibilityLabel={showAdSlot ? '광고' : undefined}
       onLayout={handleLayout}
-      style={[styles.container, style]}>
-      <Text style={styles.label}>광고</Text>
-      <View style={styles.adSlot}>
-        {shouldRenderAd && canMountBanner ? (
-          <BannerAd
-            maxHeight={100}
-            size={BannerAdSize.INLINE_ADAPTIVE_BANNER}
-            unitId={getAdUnitId(placement)}
-            width={containerWidth}
-          />
-        ) : null}
-      </View>
+      style={showAdSlot ? [styles.container, style] : [style, styles.measurement]}
+      testID="inline-banner-ad">
+      {showAdSlot ? (
+        <>
+          <Text style={styles.label}>광고</Text>
+          <View style={styles.adSlot}>
+            <BannerAd
+              maxHeight={100}
+              size={BannerAdSize.INLINE_ADAPTIVE_BANNER}
+              unitId={getAdUnitId(placement)}
+              width={containerWidth}
+            />
+          </View>
+        </>
+      ) : null}
     </View>
   );
 };
@@ -129,5 +133,14 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     paddingHorizontal: SPACING.sm,
     paddingTop: SPACING.xs,
+  },
+  measurement: {
+    alignSelf: 'stretch',
+    height: 1,
+    marginBottom: 0,
+    marginTop: 0,
+    minHeight: 0,
+    opacity: 0,
+    overflow: 'hidden',
   },
 });

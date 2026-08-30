@@ -39,6 +39,9 @@ export const AdsProvider = ({children}: PropsWithChildren) => {
     AppState.currentState,
   );
   const [retrySequence, setRetrySequence] = React.useState(0);
+  const termsEligible = Boolean(authState.user?.termsAccepted);
+  const termsEligibleRef = React.useRef(termsEligible);
+  termsEligibleRef.current = termsEligible;
   const consentFlowCompletedRef = React.useRef(false);
   const consentFlowInFlightRef = React.useRef(false);
   const consentInfoRef = React.useRef<AdsConsentInfo | null>(null);
@@ -68,16 +71,17 @@ export const AdsProvider = ({children}: PropsWithChildren) => {
 
   const updateConsentState = React.useCallback(
     (consentInfo: AdsConsentInfo) => {
-      consentInfoRef.current = consentInfo;
-      if (!mountedRef.current) {
-        return;
+      if (!mountedRef.current || !termsEligibleRef.current) {
+        return false;
       }
 
+      consentInfoRef.current = consentInfo;
       setCanRequestAds(consentInfo.canRequestAds);
       setPrivacyOptionsRequired(
         consentInfo.privacyOptionsRequirementStatus ===
           AdsConsentPrivacyOptionsRequirementStatus.REQUIRED,
       );
+      return true;
     },
     [],
   );
@@ -134,11 +138,23 @@ export const AdsProvider = ({children}: PropsWithChildren) => {
     await initialization;
   }, []);
 
+  React.useEffect(() => {
+    if (termsEligible) {
+      return;
+    }
+
+    consentFlowCompletedRef.current = false;
+    consentInfoRef.current = null;
+    setCanRequestAds(false);
+    setPrivacyOptionsRequired(false);
+    resetRetry();
+  }, [resetRetry, termsEligible]);
+
   const canStartConsentFlow =
     activationRequested &&
     appState === 'active' &&
     route === 'main' &&
-    Boolean(authState.user?.termsAccepted) &&
+    termsEligible &&
     !checkingVersion &&
     startupModalMode === 'hidden';
 
@@ -157,16 +173,18 @@ export const AdsProvider = ({children}: PropsWithChildren) => {
           try {
             consentInfo = await AdsConsent.gatherConsent();
           } catch (error) {
-            if (mountedRef.current) {
+            if (mountedRef.current && termsEligibleRef.current) {
               setCanRequestAds(false);
+              console.warn('광고 개인정보 동의 수집에 실패했습니다.', error);
+              scheduleRetry();
             }
-            console.warn('광고 개인정보 동의 수집에 실패했습니다.', error);
-            scheduleRetry();
             return;
           }
 
+          if (!updateConsentState(consentInfo)) {
+            return;
+          }
           consentFlowCompletedRef.current = true;
-          updateConsentState(consentInfo);
         }
 
         if (!consentInfoRef.current?.canRequestAds) {
@@ -178,8 +196,10 @@ export const AdsProvider = ({children}: PropsWithChildren) => {
           await ensureMobileAdsInitialized();
           resetRetry();
         } catch (error) {
-          console.warn('Google Mobile Ads SDK 초기화에 실패했습니다.', error);
-          scheduleRetry();
+          if (termsEligibleRef.current) {
+            console.warn('Google Mobile Ads SDK 초기화에 실패했습니다.', error);
+            scheduleRetry();
+          }
         }
       } finally {
         consentFlowInFlightRef.current = false;
@@ -197,11 +217,17 @@ export const AdsProvider = ({children}: PropsWithChildren) => {
   ]);
 
   const showPrivacyOptions = React.useCallback(async () => {
+    if (!termsEligible) {
+      return 'unavailable' as const;
+    }
+
     let consentInfo: AdsConsentInfo;
 
     try {
       consentInfo = await AdsConsent.requestInfoUpdate();
-      updateConsentState(consentInfo);
+      if (!updateConsentState(consentInfo)) {
+        return 'unavailable' as const;
+      }
     } catch (error) {
       console.warn('광고 개인정보 설정 상태를 확인하지 못했습니다.', error);
       return 'unavailable' as const;
@@ -223,8 +249,10 @@ export const AdsProvider = ({children}: PropsWithChildren) => {
         setCanRequestAds(false);
       }
       const updatedConsentInfo = await AdsConsent.showPrivacyOptionsForm();
+      if (!updateConsentState(updatedConsentInfo)) {
+        return 'unavailable' as const;
+      }
       consentFlowCompletedRef.current = true;
-      updateConsentState(updatedConsentInfo);
 
       if (updatedConsentInfo.canRequestAds) {
         try {
@@ -239,6 +267,7 @@ export const AdsProvider = ({children}: PropsWithChildren) => {
       }
       return 'shown' as const;
     } catch (error) {
+      updateConsentState(consentInfo);
       console.warn('광고 개인정보 설정 화면을 열지 못했습니다.', error);
       return 'unavailable' as const;
     }
@@ -246,6 +275,7 @@ export const AdsProvider = ({children}: PropsWithChildren) => {
     ensureMobileAdsInitialized,
     resetRetry,
     scheduleRetry,
+    termsEligible,
     updateConsentState,
   ]);
 
@@ -253,7 +283,7 @@ export const AdsProvider = ({children}: PropsWithChildren) => {
     setActivationRequested(true);
   }, []);
 
-  const adsReady = canRequestAds && mobileAdsInitialized;
+  const adsReady = termsEligible && canRequestAds && mobileAdsInitialized;
 
   const value = React.useMemo<AdsContextValue>(
     () => ({
