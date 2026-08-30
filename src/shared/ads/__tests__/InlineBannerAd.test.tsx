@@ -177,4 +177,25 @@ describe('InlineBannerAd', () => {
       opacity: 0,
     });
   });
+
+  it('외부 viewport 가시성 계산에 내부 레이아웃을 전달한다', () => {
+    const onLayout = jest.fn();
+    const screen = render(
+      <InlineBannerAd
+        onLayout={onLayout}
+        placement="communityBoardDetail"
+        visible={false}
+      />,
+    );
+    const event = {
+      nativeEvent: {layout: {height: 122, width: 320, x: 0, y: 700}},
+    };
+
+    fireEvent(screen.getByTestId('inline-banner-ad'), 'layout', event);
+
+    expect(onLayout).toHaveBeenCalledWith(event);
+    expect(
+      screen.queryByTestId('native-banner-ad', hiddenElementsIncluded),
+    ).toBeNull();
+  });
 });
