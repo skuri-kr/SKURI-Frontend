@@ -27,7 +27,11 @@ import {
 } from '@/app/linking';
 import {useReportRepository} from '@/di';
 import type {ReportCategory} from '@/features/report';
-import {InlineBannerAd, isDetailAdEligible} from '@/shared/ads';
+import {
+  InlineBannerAd,
+  isDetailAdEligible,
+  useScrollViewAdVisibility,
+} from '@/shared/ads';
 import {
   ArticleDetailSkeleton,
   DetailBackHeader,
@@ -134,6 +138,12 @@ export const NoticeDetailScreen = () => {
   const pendingScrollCommentIdRef = React.useRef<string | null>(null);
   const lastAppliedInitialCommentIdRef = React.useRef<string | null>(null);
   const commentScrollAnimationDelay = Platform.OS === 'ios' ? 220 : 120;
+  const {
+    handleAdLayout,
+    handleScroll,
+    handleViewportLayout,
+    visible: isAdVisible,
+  } = useScrollViewAdVisibility();
 
   const handlePressBack = React.useCallback(() => {
     if (navigation.canGoBack()) {
@@ -557,6 +567,8 @@ export const NoticeDetailScreen = () => {
                 Platform.OS === 'ios' ? 'interactive' : 'on-drag'
               }
               keyboardShouldPersistTaps="handled"
+              onLayout={handleViewportLayout}
+              onScroll={handleScroll}
               refreshControl={
                 <RefreshControl
                   onRefresh={handleRefresh}
@@ -565,6 +577,7 @@ export const NoticeDetailScreen = () => {
                   progressViewOffset={headerOffset}
                 />
               }
+              scrollEventThrottle={16}
               showsVerticalScrollIndicator={false}>
               <DetailTitleHeader
                 authorLabel={data.authorLabel}
@@ -591,7 +604,11 @@ export const NoticeDetailScreen = () => {
               </View>
 
               {isDetailAdEligible(bodyContentHeight) ? (
-                <InlineBannerAd placement="noticeDetail" />
+                <InlineBannerAd
+                  onLayout={handleAdLayout}
+                  placement="noticeDetail"
+                  visible={isAdVisible}
+                />
               ) : null}
 
               <View style={styles.reactionsRow}>
