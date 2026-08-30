@@ -38,6 +38,7 @@ export const InlineBannerAd = ({
   const [hasActivated, setHasActivated] = React.useState(false);
   const [shouldRenderAd, setShouldRenderAd] = React.useState(false);
   const slotKey = `${placement}:${slotIndex}`;
+  const canMountBanner = active && isFocused && appActive && adsReady;
 
   React.useEffect(() => {
     if (!active || !isFocused || !appActive) {
@@ -49,13 +50,16 @@ export const InlineBannerAd = ({
   }, [activateAds, active, appActive, isFocused]);
 
   React.useEffect(() => {
+    if (!canMountBanner) {
+      setShouldRenderAd(false);
+    }
+  }, [canMountBanner]);
+
+  React.useEffect(() => {
     if (
       shouldRenderAd ||
       !hasActivated ||
-      !adsReady ||
-      !active ||
-      !isFocused ||
-      !appActive ||
+      !canMountBanner ||
       containerWidth <= 0
     ) {
       return;
@@ -74,16 +78,7 @@ export const InlineBannerAd = ({
 
     const timer = setTimeout(renderAd, delay);
     return () => clearTimeout(timer);
-  }, [
-    active,
-    adsReady,
-    appActive,
-    containerWidth,
-    hasActivated,
-    isFocused,
-    shouldRenderAd,
-    slotKey,
-  ]);
+  }, [canMountBanner, containerWidth, hasActivated, shouldRenderAd, slotKey]);
 
   const handleLayout = React.useCallback((event: LayoutChangeEvent) => {
     const nextWidth = Math.floor(event.nativeEvent.layout.width);
@@ -99,7 +94,7 @@ export const InlineBannerAd = ({
       style={[styles.container, style]}>
       <Text style={styles.label}>광고</Text>
       <View style={styles.adSlot}>
-        {shouldRenderAd ? (
+        {shouldRenderAd && canMountBanner ? (
           <BannerAd
             maxHeight={100}
             size={BannerAdSize.INLINE_ADAPTIVE_BANNER}
