@@ -1,6 +1,6 @@
 # SKURI 백엔드 구현 로드맵
 
-> 최종 수정일: 2026-04-02
+> 최종 수정일: 2026-08-30
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [ERD](./erd.md) | [API 명세](./api-specification.md) | [기술 전략](./tech-strategy.md) | [역할 정의](./role-definition.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 > 보조 참고: 채팅 Firestore → MySQL 이관 참고는 백엔드 레포 `docs/chat-firestore-to-mysql-migration-reference.md`, 마인크래프트 상세 설계/이력은 백엔드 레포 `docs/minecraft-spring-migration-plan.md`
 
@@ -184,6 +184,7 @@ com.skuri.skuri_backend
 |--------|--------|------|
 | `Member` | `members` | 회원 기본 정보 + `BankAccount`(Embedded) + `NotificationSetting`(Embedded) |
 | `LinkedAccount` | `linked_accounts` | 로그인 계정 연결 (`GOOGLE`/`PASSWORD`/`UNKNOWN`, 비소셜 provider 부가정보는 null 저장) |
+| `MemberTermsConsent` | `member_terms_consents` | 이용약관 버전별 동의 출처와 실제 동의 시각(알 수 있으면) |
 
 #### 1-2. 인프라 (Auth)
 
@@ -202,7 +203,7 @@ com.skuri.skuri_backend
 |--------|------|------|
 | `POST` | `/v1/members` | 회원 가입 (ID Token에서 정보 추출, 멱등) |
 | `GET` | `/v1/members/me` | 내 프로필 조회 (lastLogin 갱신) |
-| `PATCH` | `/v1/members/me` | 프로필 부분 수정 (닉네임, 학번, 학과, photoUrl) |
+| `PATCH` | `/v1/members/me` | 프로필 부분 수정 (닉네임, 학번, 학과, photoUrl, 최초 완료 시 현재 이용약관 동의) |
 | `DELETE` | `/v1/members/me/photo` | 프로필 사진 제거 (본인 소유 member-scoped PROFILE_IMAGE면 storage 원본/썸네일 정리) |
 | `PUT` | `/v1/members/me/bank-account` | 계좌 정보 수정 |
 | `PATCH` | `/v1/members/me/notification-settings` | 알림 설정 부분 수정 |
@@ -217,6 +218,7 @@ com.skuri.skuri_backend
 - [x] Firebase ID Token으로 인증 성공/실패 동작
 - [x] `@sungkyul.ac.kr` 이메일 도메인 제한 동작
 - [x] 회원 가입 → 프로필 조회 → 프로필 수정 플로우 동작
+- [x] 최초 프로필 완료 시 현재 이용약관 동의를 검증·기록하고, 기존 회원 이메일 동의는 가입 시각 cutoff 기준으로 멱등 백필
 - [x] 인증 없이 보호된 API 호출 시 401 반환
 - [x] OpenAPI JSON(`/v3/api-docs`) + Swagger UI + Scalar 노출
 - [x] `local-emulator` 프로필에서만 Auth Emulator 사용 가능하고, 다른 프로필에서 emulator host 사용 시 기동 차단
@@ -674,6 +676,7 @@ SSE 운영 제약:
 - `GET /v1/app-versions/{platform}`는 저장 데이터가 없으면 기본 `minimumVersion=1.0.0` 응답
 - `GET /v1/legal-documents/{documentKey}`는 `documentKey=termsOfUse|privacyPolicy` 고정 키만 허용하며, `isActive=false` 또는 미존재 문서는 `404 LEGAL_DOCUMENT_NOT_FOUND`
 - 초기 이용약관/개인정보 처리방침 2건은 1회성 seed migration으로 적재하고 이후에는 관리자 API로 관리
+- 2026-08-30 AdMob 처리·국외이전 조항은 별도 1회성 migration으로 해당 조항과 시행일만 갱신하여 다른 관리자 편집 섹션을 보존한다.
 - 문의 첨부 이미지는 `POST /v1/images?context=INQUIRY_IMAGE` 2단계 업로드 후 `POST /v1/inquiries` 본문의 `attachments[]`로 저장한다.
 - 문의는 첨부 이미지를 최대 3개까지 허용하며, 메타데이터 전체(`url`, `thumbUrl`, `width`, `height`, `size`, `mime`)를 JSON 컬럼으로 보존한다.
 - 문의 첨부는 모든 문의 유형에서 허용하며, 탈퇴 후에도 문의 기록과 함께 보존한다.

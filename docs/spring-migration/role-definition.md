@@ -1,7 +1,7 @@
 # 백엔드 역할 정의서 v1.0
 (Firebase Serverless → Spring Migration)
 
-> 최종 수정일: 2026-04-01
+> 최종 수정일: 2026-08-30
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [API 명세](./api-specification.md) | [구현 로드맵](./implementation-roadmap.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 > 참고: AS-IS 섹션은 migration kickoff 시점의 legacy Firebase 구조를 설명한다. 마인크래프트 상세 설계/이력은 백엔드 레포 `docs/minecraft-spring-migration-plan.md`를 본다.
 
@@ -72,6 +72,7 @@ Spring 백엔드는 모든 도메인 규칙의 최종 판단을 수행한다.
 
 - 데이터 생성/수정/삭제에 대한 유효성 검증
 - 도메인 상태 전이 규칙 관리
+- 최초 프로필 완료 시 현재 이용약관 동의 여부·버전을 검증하고 동의 출처를 서버 DB에 기록
 
 예:
 - 파티 생성 가능 조건
@@ -130,6 +131,8 @@ Spring 백엔드는 마인크래프트 기능도 예외 없이 최종 판단한�
 - 클라이언트는 사용자의 의도를 요청으로 전달한다.
 - 서버는 요청의 가능 여부를 판단한다.
 - 서버의 판단 결과가 항상 최종 결과이다.
+
+예를 들어 클라이언트가 이용약관 체크 상태를 표시하더라도, 최초 프로필 완료 허용 여부와 현재 약관 버전 동의 이력의 source of truth는 Spring 백엔드의 `member_terms_consents`다.
 
 이는 “클라이언트에는 화면만 있다”는 의미는 아니다.
 

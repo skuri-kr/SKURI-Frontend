@@ -1,6 +1,6 @@
 # Spring 백엔드 API 명세
 
-> 최종 수정일: 2026-03-30
+> 최종 수정일: 2026-08-30
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [ERD](./erd.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 
 ---
@@ -328,6 +328,8 @@ Spring 서버 처리:
         "scholarship": false
       }
     },
+    "termsAccepted": true,
+    "termsVersion": "2026-08-30",
     "joinedAt": "2024-03-01T00:00:00Z",
     "lastLogin": "2026-03-02T09:10:11Z"
   }
@@ -341,6 +343,8 @@ Spring 서버 처리:
 - 요청 본문에 포함되지 않은 필드는 기존 값을 유지합니다.
 - JSON `null`도 런타임에서는 "변경 없음"으로 해석합니다. 특히 `photoUrl: null`은 삭제가 아니라 기존 값을 유지합니다.
 - `nickname`은 `members.nickname`을 수정합니다.
+- 최초 프로필 완료 시 광고 관련 개인정보 처리·국외이전 조항을 포함한 현재 이용약관 동의가 필수입니다. `termsAccepted=true`와 현재 버전 `termsVersion=2026-08-30`을 함께 보내지 않으면 `422 VALIDATION_ERROR`를 반환합니다.
+- 이미 프로필을 완료한 회원의 일반 부분 수정은 약관 필드를 생략할 수 있습니다. 응답의 `termsAccepted`/`termsVersion`은 현재 약관 버전 동의 기록을 기준으로 반환합니다.
 - `department`는 서버가 지원하는 학과 카탈로그 기준으로만 허용합니다.
   - legacy 표기(예: `소프트웨어학과`)는 canonical 값으로 정규화해 저장합니다.
   - 지원하지 않는 값은 `422 VALIDATION_ERROR`를 반환합니다.
@@ -356,9 +360,13 @@ Spring 서버 처리:
   "nickname": "새닉네임",
   "studentId": "20201234",
   "department": "컴퓨터공학과",
-  "photoUrl": "https://cdn.skuri.app/uploads/profiles/dw9rPtuticbjnaYPkeiF3RGPpqk1/2026/04/06/photo.jpg"
+  "photoUrl": "https://cdn.skuri.app/uploads/profiles/dw9rPtuticbjnaYPkeiF3RGPpqk1/2026/04/06/photo.jpg",
+  "termsAccepted": true,
+  "termsVersion": "2026-08-30"
 }
 ```
+
+> 기존 회원 이메일 동의 백필: `2026-08-30 10:13:09`(Asia/Seoul) 이전에 가입한 ACTIVE 회원 중 현재 버전 동의 기록이 없는 회원만 `EMAIL_BACKFILL` 출처로 1회 적재합니다. 실제 이메일 동의 시각을 임의 생성하지 않기 위해 `accepted_at`은 `null`, 백필 실행 시각은 공통 생성 시각 컬럼에 기록합니다.
 
 #### DELETE /v1/members/me/photo
 내 프로필 사진 삭제
