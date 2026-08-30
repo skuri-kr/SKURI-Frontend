@@ -1,6 +1,6 @@
 # Spring 백엔드 도메인 분석
 
-> 최종 수정일: 2026-04-01
+> 최종 수정일: 2026-08-30
 > 분석 기준: 레거시 Firestore/Cloud Functions 구조 + 현재 RN repository/transport 구조 + 현재 Spring 구현
 
 본 문서는 SKURI Taxi의 레거시 Firebase 구조와 현재 Spring Boot + MySQL 구현을 함께 대조해 정리한 **도메인 분석 결과**입니다.
@@ -78,7 +78,7 @@
 ### 3.1 Member (회원)
 
 ```
-책임: 사용자 인증 후 프로필 관리, 계좌 정보, 알림 설정
+책임: 사용자 인증 후 프로필 관리, 계좌 정보, 알림 설정, 이용약관 버전별 동의 이력
 
 Firestore 컬렉션:
   - users/{uid}
@@ -102,6 +102,8 @@ Hooks:
     - noticeNotificationsDetail (카테고리별 상세 설정)
   - LinkedAccount
     - provider, providerId, email, providerDisplayName, photoURL
+  - MemberTermsConsent
+    - member, termsVersion, source(SIGNUP/EMAIL_BACKFILL), acceptedAt
   - BankAccount
     - bankName, accountNumber, accountHolder, hideName
 
@@ -113,6 +115,8 @@ Hooks:
   - 회원 생성 시 `nickname`은 기본값 `스쿠리 유저`로 저장
   - 회원 생성 시 `realname`은 provider 프로필 이름(`linked_accounts.provider_display_name`)으로 초기화
   - 회원 생성 시 `members.photo_url`은 `null`, 소셜 프로필 이미지(`picture`)는 `linked_accounts.photo_url`에만 저장
+  - 최초 프로필 완료 시 광고 관련 개인정보 처리·국외이전 조항을 포함한 현재 이용약관 동의가 필수이며, 서버가 현재 버전과 `termsAccepted=true`를 검증한다.
+  - 약관 동의는 `member_terms_consents`에 회원·버전별 1건만 저장한다. 가입 화면 동의는 `SIGNUP`과 실제 동의 시각을 기록하고, 기존 회원 이메일 동의 백필은 `EMAIL_BACKFILL`과 백필 실행 시각을 기록하되 알 수 없는 실제 동의 시각은 만들지 않는다.
   - `linked_accounts.provider`는 `GOOGLE`, `PASSWORD`, `UNKNOWN`을 사용
   - 소셜 로그인(`GOOGLE`)이 아닌 경우 `linked_accounts`는 `provider`를 제외한 provider 부가 컬럼을 `null`로 저장
   - `linked_accounts.providerId`는 provider 계정 식별자(예: `firebase.identities[<sign_in_provider>][0]`)를 저장하며, 비소셜 로그인에서는 `null`
