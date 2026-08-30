@@ -44,12 +44,14 @@ export const InlineBannerAd = ({
   const [hasActivated, setHasActivated] = React.useState(false);
   const [loadState, setLoadState] =
     React.useState<BannerLoadState>('idle');
+  const wasRequestEligibleRef = React.useRef(false);
   const slotKey = `${placement}:${slotIndex}`;
   const canPrepareSlot = active && isFocused && appActive && adsReady;
   const canRequestBanner = canPrepareSlot && visible;
-  const showAdSlot = canRequestBanner && loadState === 'loaded';
+  const showAdSlot = canPrepareSlot && loadState === 'loaded';
   const shouldMountBanner =
-    canRequestBanner && (loadState === 'loading' || loadState === 'loaded');
+    adsReady && (loadState === 'loading' || loadState === 'loaded');
+  const hideRetainedBanner = shouldMountBanner && !canPrepareSlot;
   const showViewabilityFootprint =
     canPrepareSlot && loadState !== 'failed';
 
@@ -63,17 +65,21 @@ export const InlineBannerAd = ({
   }, [activateAds, active, appActive, isFocused]);
 
   React.useEffect(() => {
-    if (!canPrepareSlot) {
+    const becameRequestEligible =
+      canRequestBanner && !wasRequestEligibleRef.current;
+    wasRequestEligibleRef.current = canRequestBanner;
+
+    if (!adsReady) {
       setLoadState('idle');
       return;
     }
 
-    if (!visible) {
+    if (becameRequestEligible) {
       setLoadState(currentState =>
-        currentState === 'failed' ? currentState : 'idle',
+        currentState === 'failed' ? 'idle' : currentState,
       );
     }
-  }, [canPrepareSlot, visible]);
+  }, [adsReady, canRequestBanner]);
 
   React.useEffect(() => {
     if (
@@ -149,7 +155,13 @@ export const InlineBannerAd = ({
             importantForAccessibility={
               showAdSlot ? 'auto' : 'no-hide-descendants'
             }
-            style={showAdSlot ? styles.adSlot : styles.pendingAdSlot}>
+            style={
+              showAdSlot
+                ? styles.adSlot
+                : hideRetainedBanner
+                  ? styles.retainedAdSlot
+                  : styles.pendingAdSlot
+            }>
             <BannerAd
               maxHeight={100}
               onAdFailedToLoad={handleAdFailedToLoad}
@@ -201,6 +213,9 @@ const styles = StyleSheet.create({
     height: 100,
     opacity: 0,
     overflow: 'hidden',
+  },
+  retainedAdSlot: {
+    display: 'none',
   },
   viewabilityFootprint: {
     alignSelf: 'stretch',
