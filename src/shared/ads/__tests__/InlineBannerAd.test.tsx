@@ -212,6 +212,69 @@ describe('InlineBannerAd', () => {
     ).toBeTruthy();
   });
 
+  it('ScrollView 슬롯이 실패로 접혀도 요청 간격 후 측정 영역을 복원한다', () => {
+    const screen = render(
+      <InlineBannerAd active placement="campusHome" visible />,
+    );
+
+    fireEvent(screen.getByTestId('inline-banner-ad'), 'layout', {
+      nativeEvent: {layout: {width: 320}},
+    });
+    fireEvent(
+      screen.getByTestId('native-banner-ad', hiddenElementsIncluded),
+      'adFailedToLoad',
+    );
+    screen.rerender(
+      <InlineBannerAd active placement="campusHome" visible={false} />,
+    );
+
+    expect(StyleSheet.flatten(screen.getByTestId('inline-banner-ad').props.style))
+      .toMatchObject({height: 0, opacity: 0});
+
+    act(() => {
+      jest.advanceTimersByTime(MIN_AD_REQUEST_INTERVAL_MS);
+    });
+
+    expect(StyleSheet.flatten(screen.getByTestId('inline-banner-ad').props.style))
+      .toMatchObject({minHeight: 122, opacity: 0});
+    expect(
+      screen.queryByTestId('native-banner-ad', hiddenElementsIncluded),
+    ).toBeNull();
+
+    screen.rerender(<InlineBannerAd active placement="campusHome" visible />);
+
+    expect(
+      screen.getByTestId('native-banner-ad', hiddenElementsIncluded),
+    ).toBeTruthy();
+  });
+
+  it('비활성 화면에서는 실패한 배너의 측정 영역을 복원하지 않는다', () => {
+    const screen = render(
+      <InlineBannerAd active placement="noticeDetail" visible />,
+    );
+
+    fireEvent(screen.getByTestId('inline-banner-ad'), 'layout', {
+      nativeEvent: {layout: {width: 320}},
+    });
+    fireEvent(
+      screen.getByTestId('native-banner-ad', hiddenElementsIncluded),
+      'adFailedToLoad',
+    );
+    screen.rerender(
+      <InlineBannerAd active={false} placement="noticeDetail" visible={false} />,
+    );
+
+    act(() => {
+      jest.advanceTimersByTime(MIN_AD_REQUEST_INTERVAL_MS);
+    });
+
+    expect(StyleSheet.flatten(screen.getByTestId('inline-banner-ad').props.style))
+      .toMatchObject({height: 0, opacity: 0});
+    expect(
+      screen.queryByTestId('native-banner-ad', hiddenElementsIncluded),
+    ).toBeNull();
+  });
+
   it('광고 요청 준비 전에는 시각적 슬롯을 접어둔다', () => {
     mockedUseAds.mockReturnValue({
       activateAds: jest.fn(),
