@@ -26,7 +26,11 @@ import {
 } from '@/app/linking';
 import {useReportRepository} from '@/di';
 import type {ReportCategory} from '@/features/report';
-import {InlineBannerAd, isDetailAdEligible} from '@/shared/ads';
+import {
+  InlineBannerAd,
+  isDetailAdEligible,
+  useScrollViewAdVisibility,
+} from '@/shared/ads';
 import {
   DetailBackHeader,
   DetailBodyBlocks,
@@ -140,6 +144,12 @@ export const BoardDetailScreen = () => {
   const pendingScrollCommentIdRef = React.useRef<string | null>(null);
   const lastAppliedInitialCommentIdRef = React.useRef<string | null>(null);
   const commentScrollAnimationDelay = Platform.OS === 'ios' ? 220 : 120;
+  const {
+    handleAdLayout,
+    handleScroll,
+    handleViewportLayout,
+    visible: isAdVisible,
+  } = useScrollViewAdVisibility();
 
   const handlePressBack = React.useCallback(() => {
     if (navigation.canGoBack()) {
@@ -617,11 +627,14 @@ export const BoardDetailScreen = () => {
                 Platform.OS === 'ios' ? 'interactive' : 'on-drag'
               }
               keyboardShouldPersistTaps="handled"
+              onLayout={handleViewportLayout}
+              onScroll={handleScroll}
               onScrollBeginDrag={() => {
                 if (isMenuVisible) {
                   setIsMenuVisible(false);
                 }
               }}
+              scrollEventThrottle={16}
               refreshControl={
                 <RefreshControl
                   onRefresh={handleRefresh}
@@ -649,7 +662,11 @@ export const BoardDetailScreen = () => {
               </View>
 
               {isDetailAdEligible(bodyContentHeight) && !post?.isDeleted ? (
-                <InlineBannerAd placement="communityBoardDetail" />
+                <InlineBannerAd
+                  onLayout={handleAdLayout}
+                  placement="communityBoardDetail"
+                  visible={isAdVisible}
+                />
               ) : null}
 
               <View style={styles.reactionsRow}>

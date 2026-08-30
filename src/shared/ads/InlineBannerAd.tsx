@@ -21,6 +21,7 @@ import {useAds} from './AdsProvider';
 
 interface InlineBannerAdProps {
   active?: boolean;
+  onLayout?: (event: LayoutChangeEvent) => void;
   placement: AdPlacement;
   slotIndex?: number;
   style?: StyleProp<ViewStyle>;
@@ -31,6 +32,7 @@ type BannerLoadState = 'idle' | 'loading' | 'loaded' | 'failed';
 
 export const InlineBannerAd = ({
   active = true,
+  onLayout,
   placement,
   slotIndex = 1,
   style,
@@ -116,12 +118,16 @@ export const InlineBannerAd = ({
     );
   }, []);
 
-  const handleLayout = React.useCallback((event: LayoutChangeEvent) => {
-    const nextWidth = Math.floor(event.nativeEvent.layout.width);
-    setContainerWidth(currentWidth =>
-      currentWidth === nextWidth ? currentWidth : nextWidth,
-    );
-  }, []);
+  const handleLayout = React.useCallback(
+    (event: LayoutChangeEvent) => {
+      const nextWidth = Math.floor(event.nativeEvent.layout.width);
+      setContainerWidth(currentWidth =>
+        currentWidth === nextWidth ? currentWidth : nextWidth,
+      );
+      onLayout?.(event);
+    },
+    [onLayout],
+  );
 
   return (
     <View

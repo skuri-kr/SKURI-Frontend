@@ -27,7 +27,7 @@ import {
 } from '@/app/data-freshness/invalidationKeys';
 import {createCampusEntryNavigation} from '@/app/navigation/services/campusEntryNavigation';
 import {BOTTOM_TAB_BAR_HEIGHT} from '@/shared/constants/layout';
-import {InlineBannerAd} from '@/shared/ads';
+import {InlineBannerAd, useScrollViewAdVisibility} from '@/shared/ads';
 import {StateCard} from '@/shared/design-system/components';
 import {COLORS, SPACING} from '@/shared/design-system/tokens';
 import {useScreenEnterAnimation} from '@/shared/hooks/useScreenEnterAnimation';
@@ -79,6 +79,12 @@ export const CampusScreen = () => {
     React.useState(false);
   const notificationBadgeCount =
     notificationUnreadCount + appNoticeUnreadCount;
+  const {
+    handleAdLayout,
+    handleScroll,
+    handleViewportLayout,
+    visible: isAdVisible,
+  } = useScrollViewAdVisibility();
 
   const contentContainerStyle = React.useMemo(
     () => ({
@@ -163,11 +169,14 @@ export const CampusScreen = () => {
 
         <ScrollView
           contentContainerStyle={contentContainerStyle}
+          onLayout={handleViewportLayout}
+          onScroll={handleScroll}
           onScrollBeginDrag={() => {
             if (isImportantNoticeInfoVisible) {
               setIsImportantNoticeInfoVisible(false);
             }
           }}
+          scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}>
           <CampusHomeBannerCarousel
             items={bannerItems}
@@ -284,8 +293,10 @@ export const CampusScreen = () => {
               </View>
 
               <InlineBannerAd
+                onLayout={handleAdLayout}
                 placement="campusHome"
                 style={styles.adSection}
+                visible={isAdVisible}
               />
 
               <View style={styles.section}>
