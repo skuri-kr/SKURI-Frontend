@@ -41,7 +41,10 @@ export const CommunityChatSegment = ({
   const [visibleAdSlots, setVisibleAdSlots] = React.useState<Set<number>>(
     () => new Set(),
   );
-  const listItems = React.useMemo(() => interleaveAds(rooms), [rooms]);
+  const listItems = React.useMemo(
+    () => interleaveAds(rooms, {enabled: !loading}),
+    [loading, rooms],
+  );
   const handleViewableItemsChanged = React.useRef(
     ({viewableItems}: {viewableItems: ViewToken[]}) => {
       const nextVisibleAdSlots = new Set(
