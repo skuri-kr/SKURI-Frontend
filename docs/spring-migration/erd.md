@@ -69,8 +69,8 @@ erDiagram
         varchar(36) id PK "UUID"
         varchar(36) member_id FK "NOT NULL"
         varchar(32) terms_version "NOT NULL"
-        varchar(24) source "SIGNUP/EMAIL_BACKFILL"
-        datetime accepted_at "nullable, 실제 동의 시각을 아는 경우"
+        varchar(24) source "SIGNUP"
+        datetime accepted_at "NOT NULL"
         datetime created_at
         datetime updated_at
     }
@@ -760,12 +760,12 @@ erDiagram
 | id | VARCHAR(36) | PK | 동의 이력 UUID |
 | member_id | VARCHAR(36) | FK, NOT NULL | 회원 ID (`members.id`) |
 | terms_version | VARCHAR(32) | NOT NULL | 동의한 이용약관 버전 |
-| source | VARCHAR(24) | NOT NULL | `SIGNUP` 또는 `EMAIL_BACKFILL` |
-| accepted_at | DATETIME | nullable | 실제 동의 시각. 이메일 백필처럼 실제 시각을 특정할 수 없으면 `NULL` |
+| source | VARCHAR(24) | NOT NULL | `SIGNUP` |
+| accepted_at | DATETIME | NOT NULL | 신규 회원은 최초 프로필 완료 시각, 기존 회원 일괄 적재는 백필 실행 시각 |
 | created_at | DATETIME | NOT NULL | 동의 기록 생성 또는 백필 실행 시각 |
 | updated_at | DATETIME | NOT NULL | 수정일 |
 
-> `(member_id, terms_version)`을 유일 키로 사용합니다. `2026-08-30 10:13:09`(Asia/Seoul) 이전 가입 ACTIVE 회원의 이메일 동의는 현재 버전 기록이 없을 때만 `EMAIL_BACKFILL`로 1회 적재합니다.
+> `(member_id, terms_version)`을 유일 키로 사용합니다. 새 서버 최초 기동 시 캡처한 백필 시각까지 생성된 `members` 전체를 상태·프로필 완료 여부와 관계없이 현재 버전 `SIGNUP`으로 1회 적재하고, 동일한 백필 실행 시각을 `accepted_at`에 기록합니다. 기준 시각 이후 생성된 회원은 제외하며, 동시 가입 완료와 백필이 겹치면 더 이른 시각을 보존합니다.
 
 ### 2.2 TaxiParty 도메인
 
