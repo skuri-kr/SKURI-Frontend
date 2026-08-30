@@ -3,7 +3,6 @@ import {
   containsReservedNicknameKeyword,
   RESERVED_NICKNAME_MESSAGE,
 } from '@/features/member/services/memberNicknamePolicy';
-import {CURRENT_TERMS_VERSION} from '@/features/settings/constants/legalDocumentVersions';
 import {setUserProperties} from '@/shared/lib/analytics';
 import type {User} from '@/shared/types/user';
 
@@ -56,8 +55,6 @@ export const saveCompleteProfile = async ({
     nickname: displayName,
     studentId,
     department,
-    termsAccepted: true,
-    termsVersion: CURRENT_TERMS_VERSION,
   });
 
   await setUserProperties({

@@ -7,8 +7,6 @@ export interface UpdateMemberProfileInput {
   studentId?: string | null;
   department?: string | null;
   photoUrl?: string | null;
-  termsAccepted?: boolean;
-  termsVersion?: string;
 }
 
 export interface UpdateMemberBankAccountInput {
