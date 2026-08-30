@@ -1,0 +1,44 @@
+diff --git a/node_modules/@react-native-community/geolocation/android/src/main/java/com/reactnativecommunity/geolocation/PlayServicesLocationManager.java b/node_modules/@react-native-community/geolocation/android/src/main/java/com/reactnativecommunity/geolocation/PlayServicesLocationManager.java
+index 423f7a5..97ae0d3 100644
+--- a/node_modules/@react-native-community/geolocation/android/src/main/java/com/reactnativecommunity/geolocation/PlayServicesLocationManager.java
++++ b/node_modules/@react-native-community/geolocation/android/src/main/java/com/reactnativecommunity/geolocation/PlayServicesLocationManager.java
+@@ -30,7 +30,6 @@ import com.google.android.gms.location.SettingsClient;
+ public class PlayServicesLocationManager extends BaseLocationManager {
+     private FusedLocationProviderClient mFusedLocationClient;
+     private LocationCallback mLocationCallback;
+-    private LocationCallback mSingleLocationCallback;
+     private SettingsClient mLocationServicesSettingsClient;
+ 
+     protected PlayServicesLocationManager(ReactApplicationContext reactContext) {
+@@ -46,8 +45,8 @@ public class PlayServicesLocationManager extends BaseLocationManager {
+         Activity currentActivity = mReactContext.getCurrentActivity();
+ 
+         if (currentActivity == null) {
+-            mSingleLocationCallback = createSingleLocationCallback(success, error);
+-            checkLocationSettings(options, mSingleLocationCallback, error);
++            LocationCallback singleLocationCallback = createSingleLocationCallback(success, error);
++            checkLocationSettings(options, singleLocationCallback, error);
+ 			return;
+         }
+ 
+@@ -57,8 +56,8 @@ public class PlayServicesLocationManager extends BaseLocationManager {
+                         if (location != null && (SystemClock.currentTimeMillis() - location.getTime()) < locationOptions.maximumAge) {
+                             success.invoke(locationToMap(location));
+                         } else {
+-                            mSingleLocationCallback = createSingleLocationCallback(success, error);
+-                            checkLocationSettings(options, mSingleLocationCallback, error);
++                            LocationCallback singleLocationCallback = createSingleLocationCallback(success, error);
++                            checkLocationSettings(options, singleLocationCallback, error);
+                         }
+                     });
+         } catch (SecurityException e) {
+@@ -167,8 +166,7 @@ public class PlayServicesLocationManager extends BaseLocationManager {
+ 
+                 callbackHolder.success(location);
+ 
+-                mFusedLocationClient.removeLocationUpdates(mSingleLocationCallback);
+-                mSingleLocationCallback = null;
++                mFusedLocationClient.removeLocationUpdates(this);
+             }
+ 
+             @Override
