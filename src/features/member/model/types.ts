@@ -7,6 +7,8 @@ export interface UpdateMemberProfileInput {
   studentId?: string | null;
   department?: string | null;
   photoUrl?: string | null;
+  termsAccepted?: boolean;
+  termsVersion?: string;
 }
 
 export interface UpdateMemberBankAccountInput {
@@ -64,6 +66,8 @@ export interface MemberProfile {
   isAdmin: boolean;
   bankAccount: UserAccountInfo | null;
   notificationSetting: MemberNotificationSetting | null;
+  termsAccepted: boolean;
+  termsVersion: string | null;
   joinedAt: string;
   lastLogin: string | null;
 }

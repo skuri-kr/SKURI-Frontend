@@ -105,14 +105,17 @@ const APP_SETTING_SECTIONS_BASE: AppSettingSectionConfig[] = [
 
 const buildAppSettingSections = (
   appVersion: string,
+  showAdPrivacy: boolean,
 ): AppSettingSectionConfig[] => {
   return APP_SETTING_SECTIONS_BASE.map(section => ({
     ...section,
-    items: section.items.map(item =>
-      item.actionKey === 'appVersion'
-        ? {...item, value: `v${appVersion}`}
-        : {...item},
-    ),
+    items: section.items
+      .filter(item => showAdPrivacy || item.actionKey !== 'adPrivacy')
+      .map(item =>
+        item.actionKey === 'appVersion'
+          ? {...item, value: `v${appVersion}`}
+          : {...item},
+      ),
   }));
 };
 
@@ -193,10 +196,15 @@ const mapScreen = (
   };
 };
 
-export const useAppSettingData = () => {
+export const buildAppSettingScreenData = (
+  appVersion: string,
+  showAdPrivacy: boolean,
+) => mapScreen(buildAppSettingSections(appVersion, showAdPrivacy));
+
+export const useAppSettingData = (showAdPrivacy = false) => {
   const data = React.useMemo<AppSettingScreenViewData>(() => {
-    return mapScreen(buildAppSettingSections(getCurrentAppVersion()));
-  }, []);
+    return buildAppSettingScreenData(getCurrentAppVersion(), showAdPrivacy);
+  }, [showAdPrivacy]);
 
   return {data};
 };

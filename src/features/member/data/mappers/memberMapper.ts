@@ -72,6 +72,8 @@ export const mapMemberResponseDto = (
     isAdmin: Boolean(member.isAdmin),
     bankAccount: mapBankAccountDto(member.bankAccount),
     notificationSetting: mapNotificationSettingDto(member.notificationSetting),
+    termsAccepted: Boolean(member.termsAccepted),
+    termsVersion: member.termsVersion ?? null,
     joinedAt: member.joinedAt,
     lastLogin: member.lastLogin ?? null,
   };

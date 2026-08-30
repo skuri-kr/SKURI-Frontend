@@ -66,6 +66,8 @@ export const buildAuthenticatedUser = ({
   currentVersion: getCurrentAppVersion(),
   lastLogin: memberProfile.lastLogin,
   isAdmin: memberProfile.isAdmin,
+  termsAccepted: memberProfile.termsAccepted,
+  termsVersion: memberProfile.termsVersion,
 });
 
 export const bootstrapAuthenticatedMember = async ({

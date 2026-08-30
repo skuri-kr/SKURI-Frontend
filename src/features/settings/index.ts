@@ -22,6 +22,7 @@ export type {
 } from './data/repositories/IInquiryRepository';
 
 export {useAppSettingData} from './hooks/useAppSettingData';
+export {CURRENT_TERMS_VERSION} from './constants/legalDocumentVersions';
 export {useAppNoticeFeedData} from './hooks/useAppNoticeFeedData';
 export {useLegalDocumentData} from './hooks/useLegalDocumentData';
 export {useInquiryFormData} from './hooks/useInquiryFormData';

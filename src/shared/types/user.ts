@@ -31,4 +31,6 @@ export interface User {
   currentVersion?: string;
   lastLogin?: unknown;
   isAdmin?: boolean;
+  termsAccepted?: boolean;
+  termsVersion?: string | null;
 }
