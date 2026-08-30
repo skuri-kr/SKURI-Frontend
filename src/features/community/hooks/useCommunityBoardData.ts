@@ -90,6 +90,7 @@ export const useCommunityBoardData = () => {
   const requestIdRef = React.useRef(0);
   const hasActiveSearch =
     Boolean(searchFilters.searchText) || Boolean(searchFilters.category);
+  const adsEnabled = !hasActiveSearch && !loading;
 
   const fetchBoardPage = React.useCallback(
     async (
@@ -183,16 +184,32 @@ export const useCommunityBoardData = () => {
     navigation.navigate('BoardWrite');
   }, [navigation]);
 
-  const handleClearSearch = React.useCallback(() => {
-    setSearchFilters(DEFAULT_FILTERS);
+  const resetForFilterTransition = React.useCallback(() => {
+    requestIdRef.current += 1;
+    setItems([]);
+    setFeaturedPost(undefined);
+    setError(null);
+    setLoading(true);
+    setLoadingMore(false);
+    setNextCursor(undefined);
+    setRefreshing(false);
   }, []);
 
-  const handleApplyRouteSearch = React.useCallback((searchText: string) => {
-    setSearchFilters({
-      searchText,
-      sortBy: 'latest',
-    });
-  }, []);
+  const handleClearSearch = React.useCallback(() => {
+    resetForFilterTransition();
+    setSearchFilters(DEFAULT_FILTERS);
+  }, [resetForFilterTransition]);
+
+  const handleApplyRouteSearch = React.useCallback(
+    (searchText: string) => {
+      resetForFilterTransition();
+      setSearchFilters({
+        searchText,
+        sortBy: 'latest',
+      });
+    },
+    [resetForFilterTransition],
+  );
 
   const loadMore = React.useCallback(async () => {
     if (loading || loadingMore || !nextCursor) {
@@ -203,6 +220,7 @@ export const useCommunityBoardData = () => {
   }, [fetchBoardPage, loading, loadingMore, nextCursor]);
 
   return {
+    adsEnabled,
     error,
     featuredPost,
     filters: searchFilters,

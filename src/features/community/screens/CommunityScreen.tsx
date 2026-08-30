@@ -57,6 +57,7 @@ export const CommunityScreen = () => {
   const pagerTranslateX = useSharedValue(0);
   const pagerDragStartX = useSharedValue(0);
   const {
+    adsEnabled: boardAdsEnabled,
     error: boardError,
     filters: boardFilters,
     handleApplyRouteSearch,
@@ -223,6 +224,7 @@ export const CommunityScreen = () => {
                   <CommunityBoardSegment
                     active={selectedSegment === 'board'}
                     activeSearchLabel={activeSearchLabel}
+                    adsEnabled={boardAdsEnabled}
                     error={boardError}
                     hasMore={hasMore}
                     items={boardItems}

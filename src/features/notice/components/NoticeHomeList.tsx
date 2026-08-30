@@ -33,6 +33,7 @@ import {
 } from '@/shared/design-system/tokens';
 
 interface NoticeHomeListProps {
+  adsEnabled: boolean;
   emptyState: NoticeHomeEmptyStateViewData;
   error: string | null;
   hasMore: boolean;
@@ -46,6 +47,7 @@ interface NoticeHomeListProps {
 }
 
 export const NoticeHomeList = ({
+  adsEnabled,
   emptyState,
   error,
   hasMore,
@@ -62,8 +64,8 @@ export const NoticeHomeList = ({
     () => new Set(),
   );
   const listItems = React.useMemo(
-    () => interleaveAdGroups(items, {enabled: !error && !showLoadingState}),
-    [error, items, showLoadingState],
+    () => interleaveAdGroups(items, {enabled: adsEnabled && !error}),
+    [adsEnabled, error, items],
   );
   const handleViewableItemsChanged = React.useRef(
     ({viewableItems}: {viewableItems: ViewToken[]}) => {

@@ -142,6 +142,7 @@ export const useNoticeHomeData = () => {
 
   const isBannerReady =
     userJoinedAtLoaded && !loading && activeCategoryKey === selectedCategoryId;
+  const adsEnabled = !loading && activeCategoryKey === selectedCategoryId;
 
   const banner = React.useMemo(
     () =>
@@ -177,6 +178,7 @@ export const useNoticeHomeData = () => {
   );
 
   return {
+    adsEnabled,
     banner,
     bannerFirstUnreadNoticeId: banner ? firstUnreadNoticeId : undefined,
     data,
