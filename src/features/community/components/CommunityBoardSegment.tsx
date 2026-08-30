@@ -195,9 +195,10 @@ export const CommunityBoardSegment = ({
         renderItem={({item}) =>
           item.kind === 'ad' ? (
             <InlineBannerAd
-              active={active && visibleAdSlots.has(item.slotIndex)}
+              active={active}
               placement="communityBoardList"
               slotIndex={item.slotIndex}
+              visible={visibleAdSlots.has(item.slotIndex)}
             />
           ) : (
             <CommunityBoardPostCard

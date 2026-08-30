@@ -163,9 +163,9 @@ export const NoticeHomeList = ({
       renderItem={({item}) =>
         item.kind === 'ad' ? (
           <InlineBannerAd
-            active={visibleAdSlots.has(item.slotIndex)}
             placement="noticeList"
             slotIndex={item.slotIndex}
+            visible={visibleAdSlots.has(item.slotIndex)}
           />
         ) : (
           <View style={styles.card}>
