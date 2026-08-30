@@ -85,4 +85,37 @@ describe('useCommunityBoardData', () => {
     expect(result.current.adsEnabled).toBe(true);
     expect(result.current.items[0]?.id).toBe('restored-post');
   });
+
+  it('당겨서 새로고침하는 동안 기존 목록의 광고를 차단한다', async () => {
+    let resolveRefresh: (value: CommunityBoardPageResult) => void = () =>
+      undefined;
+    mockedLoadCommunityBoardPage
+      .mockResolvedValueOnce(page('initial-post'))
+      .mockReturnValueOnce(
+        new Promise(resolve => {
+          resolveRefresh = resolve;
+        }),
+      );
+
+    const {result} = renderHook(() => useCommunityBoardData());
+    await waitFor(() => expect(result.current.adsEnabled).toBe(true));
+
+    let refreshRequest!: ReturnType<typeof result.current.handleRefresh>;
+    act(() => {
+      refreshRequest = result.current.handleRefresh();
+    });
+
+    expect(result.current.refreshing).toBe(true);
+    expect(result.current.items[0]?.id).toBe('initial-post');
+    expect(result.current.adsEnabled).toBe(false);
+
+    await act(async () => {
+      resolveRefresh(page('refreshed-post'));
+      await refreshRequest;
+    });
+
+    expect(result.current.refreshing).toBe(false);
+    expect(result.current.adsEnabled).toBe(true);
+    expect(result.current.items[0]?.id).toBe('refreshed-post');
+  });
 });
