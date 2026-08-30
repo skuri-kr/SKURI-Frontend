@@ -35,7 +35,7 @@ describe('validateCompleteProfileForm', () => {
 });
 
 describe('saveCompleteProfile', () => {
-  it('현재 이용약관 버전 동의를 프로필 요청에 함께 기록한다', async () => {
+  it('프로필 입력값만 서버에 보내고 동의 이력은 서버가 자동 기록한다', async () => {
     const memberProfile = {id: 'member-1'};
     const updateMyProfile = jest.fn().mockResolvedValue(memberProfile);
 
@@ -51,8 +51,6 @@ describe('saveCompleteProfile', () => {
       department: '컴퓨터공학과',
       nickname: '가람',
       studentId: '20241234',
-      termsAccepted: true,
-      termsVersion: '2026-08-30',
     });
   });
 });
