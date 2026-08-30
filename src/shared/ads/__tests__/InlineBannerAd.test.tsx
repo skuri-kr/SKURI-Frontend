@@ -1,5 +1,6 @@
 import React from 'react';
 import {act, fireEvent, render} from '@testing-library/react-native';
+import {StyleSheet} from 'react-native';
 
 import {InlineBannerAd} from '../InlineBannerAd';
 import {
@@ -50,7 +51,7 @@ describe('InlineBannerAd', () => {
       <InlineBannerAd active placement="communityBoardList" />,
     );
 
-    fireEvent(screen.getByLabelText('광고'), 'layout', {
+    fireEvent(screen.getByTestId('inline-banner-ad'), 'layout', {
       nativeEvent: {layout: {width: 320}},
     });
     expect(screen.getByTestId('native-banner-ad')).toBeTruthy();
@@ -67,5 +68,27 @@ describe('InlineBannerAd', () => {
       jest.advanceTimersByTime(MIN_AD_REQUEST_INTERVAL_MS);
     });
     expect(screen.getByTestId('native-banner-ad')).toBeTruthy();
+  });
+
+  it('광고 요청 준비 전에는 시각적 슬롯을 접어둔다', () => {
+    mockedUseAds.mockReturnValue({
+      activateAds: jest.fn(),
+      adsReady: false,
+      appActive: true,
+      privacyOptionsRequired: false,
+      showPrivacyOptions: jest.fn(),
+    });
+
+    const screen = render(
+      <InlineBannerAd active placement="communityBoardList" />,
+    );
+    const measurement = screen.getByTestId('inline-banner-ad');
+
+    expect(screen.queryByLabelText('광고')).toBeNull();
+    expect(screen.queryByTestId('native-banner-ad')).toBeNull();
+    expect(StyleSheet.flatten(measurement.props.style)).toMatchObject({
+      height: 1,
+      opacity: 0,
+    });
   });
 });

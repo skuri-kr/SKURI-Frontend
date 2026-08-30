@@ -75,6 +75,13 @@ const renderProvider = () =>
     </AdsProvider>,
   );
 
+const mockTermsEligibility = (termsAccepted: boolean) => {
+  mockedUseAuthEntryGuard.mockReturnValue({
+    authState: {user: {termsAccepted}},
+    guardResult: {route: 'main'},
+  } as ReturnType<typeof useAuthEntryGuard>);
+};
+
 const flushAsyncWork = async () => {
   await act(async () => {
     await Promise.resolve();
@@ -90,10 +97,7 @@ describe('AdsProvider', () => {
       value: 'active',
     });
     jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-    mockedUseAuthEntryGuard.mockReturnValue({
-      authState: {user: {termsAccepted: true}},
-      guardResult: {route: 'main'},
-    } as ReturnType<typeof useAuthEntryGuard>);
+    mockTermsEligibility(true);
     mockedUseAppBootstrap.mockReturnValue({
       checkingVersion: false,
       dismissStartupModal: jest.fn(),
@@ -152,6 +156,58 @@ describe('AdsProvider', () => {
 
     expect(result!).toBe('shown');
     expect(latestAds.adsReady).toBe(false);
+  });
+
+  it('개인정보 설정 화면을 열지 못하면 직전에 확인한 광고 자격을 복원한다', async () => {
+    mockedGatherConsent.mockResolvedValue(consentInfo(true));
+    mockedRequestInfoUpdate.mockResolvedValue(
+      consentInfo(true, AdsConsentPrivacyOptionsRequirementStatus.REQUIRED),
+    );
+    mockedShowPrivacyOptionsForm.mockRejectedValue(new Error('native form'));
+
+    renderProvider();
+    await flushAsyncWork();
+    expect(latestAds.adsReady).toBe(true);
+
+    let result: Awaited<ReturnType<typeof latestAds.showPrivacyOptions>>;
+    await act(async () => {
+      result = await latestAds.showPrivacyOptions();
+    });
+
+    expect(result!).toBe('unavailable');
+    expect(latestAds.adsReady).toBe(true);
+    expect(mockInitialize).toHaveBeenCalledTimes(1);
+  });
+
+  it('현재 사용자의 약관 동의가 사라지면 광고를 차단하고 재동의 후 UMP를 다시 확인한다', async () => {
+    mockedGatherConsent.mockResolvedValue(consentInfo(true));
+
+    const screen = renderProvider();
+    await flushAsyncWork();
+    expect(latestAds.adsReady).toBe(true);
+
+    mockTermsEligibility(false);
+    screen.rerender(
+      <AdsProvider>
+        <AdsProbe />
+      </AdsProvider>,
+    );
+    await flushAsyncWork();
+
+    expect(latestAds.adsReady).toBe(false);
+    expect(mockedGatherConsent).toHaveBeenCalledTimes(1);
+
+    mockTermsEligibility(true);
+    screen.rerender(
+      <AdsProvider>
+        <AdsProbe />
+      </AdsProvider>,
+    );
+    await flushAsyncWork();
+
+    expect(mockedGatherConsent).toHaveBeenCalledTimes(2);
+    expect(mockInitialize).toHaveBeenCalledTimes(1);
+    expect(latestAds.adsReady).toBe(true);
   });
 
   it('동의 수집이 일시적으로 실패하면 지연 후 재시도한다', async () => {
