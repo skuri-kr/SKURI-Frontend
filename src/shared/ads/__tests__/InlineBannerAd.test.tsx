@@ -1,4 +1,5 @@
 import React from 'react';
+import {useIsFocused} from '@react-navigation/native';
 import {act, fireEvent, render} from '@testing-library/react-native';
 import {StyleSheet} from 'react-native';
 
@@ -28,7 +29,12 @@ jest.mock('../AdsProvider', () => ({
   useAds: jest.fn(),
 }));
 
+jest.mock('@react-navigation/native', () => ({
+  useIsFocused: jest.fn(),
+}));
+
 const mockedUseAds = jest.mocked(useAds);
+const mockedUseIsFocused = jest.mocked(useIsFocused);
 const hiddenElementsIncluded = {includeHiddenElements: true};
 
 describe('InlineBannerAd', () => {
@@ -36,6 +42,7 @@ describe('InlineBannerAd', () => {
     jest.useFakeTimers();
     jest.setSystemTime(1_000);
     resetAdRequestGateForTests();
+    mockedUseIsFocused.mockReturnValue(true);
     mockedUseAds.mockReturnValue({
       activateAds: jest.fn(),
       adsReady: true,
@@ -50,7 +57,7 @@ describe('InlineBannerAd', () => {
     jest.clearAllMocks();
   });
 
-  it('비활성 세그먼트에서 네이티브 배너를 언마운트하고 재요청 간격을 유지한다', () => {
+  it('비활성 세그먼트에서도 로드된 배너를 보존하고 복귀 즉시 재사용한다', () => {
     const screen = render(
       <InlineBannerAd active placement="communityBoardList" />,
     );
@@ -58,28 +65,55 @@ describe('InlineBannerAd', () => {
     fireEvent(screen.getByTestId('inline-banner-ad'), 'layout', {
       nativeEvent: {layout: {width: 320}},
     });
-    expect(
-      screen.getByTestId('native-banner-ad', hiddenElementsIncluded),
-    ).toBeTruthy();
+    const nativeBanner = screen.getByTestId(
+      'native-banner-ad',
+      hiddenElementsIncluded,
+    );
+    fireEvent(nativeBanner, 'adLoaded');
+    expect(screen.getByLabelText('광고')).toBeTruthy();
 
     screen.rerender(
       <InlineBannerAd active={false} placement="communityBoardList" />,
     );
     expect(
-      screen.queryByTestId('native-banner-ad', hiddenElementsIncluded),
-    ).toBeNull();
+      screen.getByTestId('native-banner-ad', hiddenElementsIncluded),
+    ).toBe(nativeBanner);
+    expect(screen.queryByLabelText('광고')).toBeNull();
 
     screen.rerender(<InlineBannerAd active placement="communityBoardList" />);
     expect(
-      screen.queryByTestId('native-banner-ad', hiddenElementsIncluded),
-    ).toBeNull();
+      screen.getByTestId('native-banner-ad', hiddenElementsIncluded),
+    ).toBe(nativeBanner);
+    expect(screen.getByLabelText('광고')).toBeTruthy();
+  });
 
-    act(() => {
-      jest.advanceTimersByTime(MIN_AD_REQUEST_INTERVAL_MS);
+  it('다른 하단 탭으로 이동해도 로드된 배너를 보존한다', () => {
+    const screen = render(
+      <InlineBannerAd active placement="noticeList" />,
+    );
+
+    fireEvent(screen.getByTestId('inline-banner-ad'), 'layout', {
+      nativeEvent: {layout: {width: 320}},
     });
+    const nativeBanner = screen.getByTestId(
+      'native-banner-ad',
+      hiddenElementsIncluded,
+    );
+    fireEvent(nativeBanner, 'adLoaded');
+
+    mockedUseIsFocused.mockReturnValue(false);
+    screen.rerender(<InlineBannerAd active placement="noticeList" />);
     expect(
       screen.getByTestId('native-banner-ad', hiddenElementsIncluded),
-    ).toBeTruthy();
+    ).toBe(nativeBanner);
+    expect(screen.queryByLabelText('광고')).toBeNull();
+
+    mockedUseIsFocused.mockReturnValue(true);
+    screen.rerender(<InlineBannerAd active placement="noticeList" />);
+    expect(
+      screen.getByTestId('native-banner-ad', hiddenElementsIncluded),
+    ).toBe(nativeBanner);
+    expect(screen.getByLabelText('광고')).toBeTruthy();
   });
 
   it('실제 배너 높이의 노출 영역이 보일 때만 요청하고 로드 후 카드를 표시한다', () => {
@@ -113,6 +147,30 @@ describe('InlineBannerAd', () => {
 
     fireEvent(nativeBanner, 'adLoaded');
 
+    expect(screen.getByLabelText('광고')).toBeTruthy();
+  });
+
+  it('한 번 로드된 배너는 viewport 경계에서 숨기지 않고 스크롤에 맡긴다', () => {
+    const screen = render(
+      <InlineBannerAd active placement="noticeList" visible />,
+    );
+
+    fireEvent(screen.getByTestId('inline-banner-ad'), 'layout', {
+      nativeEvent: {layout: {width: 320}},
+    });
+    const nativeBanner = screen.getByTestId(
+      'native-banner-ad',
+      hiddenElementsIncluded,
+    );
+    fireEvent(nativeBanner, 'adLoaded');
+
+    screen.rerender(
+      <InlineBannerAd active placement="noticeList" visible={false} />,
+    );
+
+    expect(
+      screen.getByTestId('native-banner-ad', hiddenElementsIncluded),
+    ).toBe(nativeBanner);
     expect(screen.getByLabelText('광고')).toBeTruthy();
   });
 
@@ -176,6 +234,46 @@ describe('InlineBannerAd', () => {
       height: 0,
       opacity: 0,
     });
+  });
+
+  it('광고 개인정보 처리 가능 상태가 사라지면 로드된 배너를 제거한다', () => {
+    const activateAds = jest.fn();
+    const showPrivacyOptions = jest.fn();
+    mockedUseAds.mockReturnValue({
+      activateAds,
+      adsReady: true,
+      appActive: true,
+      privacyOptionsRequired: false,
+      showPrivacyOptions,
+    });
+    const screen = render(
+      <InlineBannerAd active placement="noticeList" />,
+    );
+
+    fireEvent(screen.getByTestId('inline-banner-ad'), 'layout', {
+      nativeEvent: {layout: {width: 320}},
+    });
+    fireEvent(
+      screen.getByTestId('native-banner-ad', hiddenElementsIncluded),
+      'adLoaded',
+    );
+    expect(screen.getByLabelText('광고')).toBeTruthy();
+
+    mockedUseAds.mockReturnValue({
+      activateAds,
+      adsReady: false,
+      appActive: true,
+      privacyOptionsRequired: false,
+      showPrivacyOptions,
+    });
+    screen.rerender(<InlineBannerAd active placement="noticeList" />);
+
+    expect(
+      screen.queryByTestId('native-banner-ad', hiddenElementsIncluded),
+    ).toBeNull();
+    expect(screen.queryByLabelText('광고')).toBeNull();
+    expect(StyleSheet.flatten(screen.getByTestId('inline-banner-ad').props.style))
+      .toMatchObject({height: 0, opacity: 0});
   });
 
   it('외부 viewport 가시성 계산에 내부 레이아웃을 전달한다', () => {
