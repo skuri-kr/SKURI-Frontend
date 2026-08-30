@@ -74,6 +74,7 @@ src/
 └── ...
 
 docs/
+├── admob-store-privacy-submission-checklist.md AdMob 앱 버전 제출 전 스토어 개인정보 공개 체크리스트
 ├── project/          프로젝트 개요 문서
 ├── spring-migration/ Spring 전환/계약/운영 문서
 ├── references/legacy 레거시 Firebase 구조/운영 스크립트 참고자료
