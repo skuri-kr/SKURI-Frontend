@@ -32,6 +32,7 @@ import type {CommunityBoardPostViewData} from '../model/communityViewData';
 interface CommunityBoardSegmentProps {
   active: boolean;
   activeSearchLabel?: string;
+  adsEnabled: boolean;
   error: string | null;
   hasMore: boolean;
   items: CommunityBoardPostViewData[];
@@ -48,6 +49,7 @@ interface CommunityBoardSegmentProps {
 export const CommunityBoardSegment = ({
   active,
   activeSearchLabel,
+  adsEnabled,
   error,
   hasMore,
   items,
@@ -68,9 +70,9 @@ export const CommunityBoardSegment = ({
   const listItems = React.useMemo(
     () =>
       interleaveAds(items, {
-        enabled: !activeSearchLabel && !error && !showInitialLoading,
+        enabled: adsEnabled && !error,
       }),
-    [activeSearchLabel, error, items, showInitialLoading],
+    [adsEnabled, error, items],
   );
   const handleViewableItemsChanged = React.useRef(
     ({viewableItems}: {viewableItems: ViewToken[]}) => {

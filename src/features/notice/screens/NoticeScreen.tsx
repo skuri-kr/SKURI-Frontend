@@ -28,6 +28,7 @@ export const NoticeScreen = () => {
   const screenAnimatedStyle = useScreenEnterAnimation();
 
   const {
+    adsEnabled,
     data,
     error,
     hasMore,
@@ -125,6 +126,7 @@ export const NoticeScreen = () => {
 
         <View style={styles.listSection}>
           <NoticeHomeList
+            adsEnabled={adsEnabled}
             emptyState={data.emptyState}
             error={error}
             hasMore={hasMore}
