@@ -45,6 +45,9 @@ export const AdsProvider = ({children}: PropsWithChildren) => {
   const consentFlowCompletedRef = React.useRef(false);
   const consentFlowInFlightRef = React.useRef(false);
   const consentInfoRef = React.useRef<AdsConsentInfo | null>(null);
+  const privacyOptionsRequestRef = React.useRef<
+    Promise<PrivacyOptionsResult> | null
+  >(null);
   const mobileAdsInitializedRef = React.useRef(false);
   const mobileAdsInitializationRef = React.useRef<Promise<void> | null>(null);
   const retryAttemptRef = React.useRef(0);
@@ -216,61 +219,76 @@ export const AdsProvider = ({children}: PropsWithChildren) => {
     updateConsentState,
   ]);
 
-  const showPrivacyOptions = React.useCallback(async () => {
+  const showPrivacyOptions = React.useCallback(() => {
     if (!termsEligible) {
-      return 'unavailable' as const;
+      return Promise.resolve<PrivacyOptionsResult>('unavailable');
     }
 
-    let consentInfo: AdsConsentInfo;
-
-    try {
-      consentInfo = await AdsConsent.requestInfoUpdate();
-      if (!updateConsentState(consentInfo)) {
-        return 'unavailable' as const;
-      }
-    } catch (error) {
-      console.warn('광고 개인정보 설정 상태를 확인하지 못했습니다.', error);
-      return 'unavailable' as const;
+    if (privacyOptionsRequestRef.current) {
+      return privacyOptionsRequestRef.current;
     }
 
-    if (
-      consentInfo.privacyOptionsRequirementStatus !==
-      AdsConsentPrivacyOptionsRequirementStatus.REQUIRED
-    ) {
-      return 'notRequired' as const;
-    }
+    const request = (async (): Promise<PrivacyOptionsResult> => {
+      let consentInfo: AdsConsentInfo;
 
-    if (!consentInfo.isConsentFormAvailable) {
-      return 'unavailable' as const;
-    }
-
-    try {
-      if (mountedRef.current) {
-        setCanRequestAds(false);
-      }
-      const updatedConsentInfo = await AdsConsent.showPrivacyOptionsForm();
-      if (!updateConsentState(updatedConsentInfo)) {
-        return 'unavailable' as const;
-      }
-      consentFlowCompletedRef.current = true;
-
-      if (updatedConsentInfo.canRequestAds) {
-        try {
-          await ensureMobileAdsInitialized();
-          resetRetry();
-        } catch (error) {
-          console.warn('Google Mobile Ads SDK 초기화에 실패했습니다.', error);
-          scheduleRetry();
+      try {
+        consentInfo = await AdsConsent.requestInfoUpdate();
+        if (!updateConsentState(consentInfo)) {
+          return 'unavailable';
         }
-      } else {
-        resetRetry();
+      } catch (error) {
+        console.warn('광고 개인정보 설정 상태를 확인하지 못했습니다.', error);
+        return 'unavailable' as const;
       }
-      return 'shown' as const;
-    } catch (error) {
-      updateConsentState(consentInfo);
-      console.warn('광고 개인정보 설정 화면을 열지 못했습니다.', error);
-      return 'unavailable' as const;
-    }
+
+      if (
+        consentInfo.privacyOptionsRequirementStatus !==
+        AdsConsentPrivacyOptionsRequirementStatus.REQUIRED
+      ) {
+        return 'notRequired';
+      }
+
+      if (!consentInfo.isConsentFormAvailable) {
+        return 'unavailable';
+      }
+
+      try {
+        if (mountedRef.current) {
+          setCanRequestAds(false);
+        }
+        const updatedConsentInfo = await AdsConsent.showPrivacyOptionsForm();
+        if (!updateConsentState(updatedConsentInfo)) {
+          return 'unavailable';
+        }
+        consentFlowCompletedRef.current = true;
+
+        if (updatedConsentInfo.canRequestAds) {
+          try {
+            await ensureMobileAdsInitialized();
+            resetRetry();
+          } catch (error) {
+            console.warn('Google Mobile Ads SDK 초기화에 실패했습니다.', error);
+            scheduleRetry();
+          }
+        } else {
+          resetRetry();
+        }
+        return 'shown';
+      } catch (error) {
+        updateConsentState(consentInfo);
+        console.warn('광고 개인정보 설정 화면을 열지 못했습니다.', error);
+        return 'unavailable' as const;
+      }
+    })();
+
+    privacyOptionsRequestRef.current = request;
+    const clearRequest = () => {
+      if (privacyOptionsRequestRef.current === request) {
+        privacyOptionsRequestRef.current = null;
+      }
+    };
+    request.then(clearRequest, clearRequest).catch(() => undefined);
+    return request;
   }, [
     ensureMobileAdsInitialized,
     resetRetry,
