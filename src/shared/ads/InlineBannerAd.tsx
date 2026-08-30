@@ -112,6 +112,27 @@ export const InlineBannerAd = ({
     slotKey,
   ]);
 
+  React.useEffect(() => {
+    if (loadState !== 'failed' || !canPrepareSlot) {
+      return;
+    }
+
+    const restoreRequestEligibility = () => {
+      setLoadState(currentState =>
+        currentState === 'failed' ? 'idle' : currentState,
+      );
+    };
+    const delay = getAdRequestDelay(slotKey);
+
+    if (delay === 0) {
+      restoreRequestEligibility();
+      return;
+    }
+
+    const timer = setTimeout(restoreRequestEligibility, delay);
+    return () => clearTimeout(timer);
+  }, [canPrepareSlot, loadState, slotKey]);
+
   const handleAdLoaded = React.useCallback(() => {
     setLoadState(currentState =>
       currentState === 'loading' ? 'loaded' : currentState,
