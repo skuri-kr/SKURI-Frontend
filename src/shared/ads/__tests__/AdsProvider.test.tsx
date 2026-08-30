@@ -179,6 +179,50 @@ describe('AdsProvider', () => {
     expect(mockInitialize).toHaveBeenCalledTimes(1);
   });
 
+  it('개인정보 설정을 연속 요청해도 진행 중인 네이티브 화면을 공유한다', async () => {
+    let resolvePrivacyOptions: (value: AdsConsentInfo) => void = () =>
+      undefined;
+    mockedGatherConsent.mockResolvedValue(consentInfo(true));
+    mockedRequestInfoUpdate.mockResolvedValue(
+      consentInfo(true, AdsConsentPrivacyOptionsRequirementStatus.REQUIRED),
+    );
+    mockedShowPrivacyOptionsForm.mockReturnValue(
+      new Promise(resolve => {
+        resolvePrivacyOptions = resolve;
+      }),
+    );
+
+    renderProvider();
+    await flushAsyncWork();
+    expect(latestAds.adsReady).toBe(true);
+
+    let firstRequest!: ReturnType<typeof latestAds.showPrivacyOptions>;
+    let secondRequest!: ReturnType<typeof latestAds.showPrivacyOptions>;
+    await act(async () => {
+      firstRequest = latestAds.showPrivacyOptions();
+      secondRequest = latestAds.showPrivacyOptions();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(firstRequest).toBe(secondRequest);
+    expect(mockedRequestInfoUpdate).toHaveBeenCalledTimes(1);
+    expect(mockedShowPrivacyOptionsForm).toHaveBeenCalledTimes(1);
+    expect(latestAds.adsReady).toBe(false);
+
+    await act(async () => {
+      resolvePrivacyOptions(
+        consentInfo(
+          false,
+          AdsConsentPrivacyOptionsRequirementStatus.REQUIRED,
+        ),
+      );
+      await Promise.all([firstRequest, secondRequest]);
+    });
+
+    expect(latestAds.adsReady).toBe(false);
+  });
+
   it('현재 사용자의 약관 동의가 사라지면 광고를 차단하고 재동의 후 UMP를 다시 확인한다', async () => {
     mockedGatherConsent.mockResolvedValue(consentInfo(true));
 
