@@ -236,6 +236,15 @@ describe('NoticeDetailScreen 콘텐츠 차단 wiring', () => {
     });
   });
 
+  it('다른 공지를 불러오는 동안 이전 공지 댓글의 차단 액션을 숨긴다', () => {
+    mockRouteParams = {noticeId: 'notice-2'};
+    const screen = render(<NoticeDetailScreen />);
+
+    expect(
+      screen.queryByTestId('notice-comment-block-notice-comment-1'),
+    ).toBeNull();
+  });
+
   it('본인과 삭제된 학교 공지 댓글에는 차단 액션을 노출하지 않는다', () => {
     detailData = {
       ...detailData,

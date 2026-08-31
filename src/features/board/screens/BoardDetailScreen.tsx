@@ -139,6 +139,7 @@ export const BoardDetailScreen = () => {
     togglingBookmark,
     togglingLike,
   } = useBoardDetailData(route.params?.postId);
+  const isCurrentPost = post?.id === route.params?.postId;
 
   useRefetchOnFocus({
     invalidationKey: CONTENT_BLOCKS_INVALIDATION_KEY,
@@ -200,19 +201,27 @@ export const BoardDetailScreen = () => {
   });
 
   const handlePressBlockPost = React.useCallback(() => {
-    if (!post || post.isDeleted || canManageActions) {
+    if (!isCurrentPost || !post || post.isDeleted || canManageActions) {
       return;
     }
 
     setIsMenuVisible(false);
     requestContentBlock({targetId: post.id, targetType: 'POST'});
-  }, [canManageActions, post, requestContentBlock]);
+  }, [canManageActions, isCurrentPost, post, requestContentBlock]);
 
   const handlePressBlockComment = React.useCallback(
-    (commentId: string) => {
-      requestContentBlock({targetId: commentId, targetType: 'COMMENT'});
+    (commentId: string, isPostAuthor: boolean) => {
+      if (!isCurrentPost || !post) {
+        return;
+      }
+
+      requestContentBlock(
+        isPostAuthor
+          ? {targetId: post.id, targetType: 'POST'}
+          : {targetId: commentId, targetType: 'COMMENT'},
+      );
     },
-    [requestContentBlock],
+    [isCurrentPost, post, requestContentBlock],
   );
 
   const handleCloseReportModal = React.useCallback(() => {
@@ -789,9 +798,13 @@ export const BoardDetailScreen = () => {
                             : () => handleOpenCommentReport(comment.id)
                         }
                         onPressBlock={
-                          comment.isDeleted || comment.isMine
+                          !isCurrentPost || comment.isDeleted || comment.isMine
                             ? undefined
-                            : () => handlePressBlockComment(comment.id)
+                            : () =>
+                                handlePressBlockComment(
+                                  comment.id,
+                                  comment.isPostAuthor,
+                                )
                         }
                       />
                     </View>
@@ -871,7 +884,7 @@ export const BoardDetailScreen = () => {
           onPressShare={handlePressShare}
           right={12}
           showBlockAction={Boolean(
-            post && !post.isDeleted && !canManageActions,
+            isCurrentPost && post && !post.isDeleted && !canManageActions,
           )}
           showManageActions={canManageActions}
           top={insets.top + 44}

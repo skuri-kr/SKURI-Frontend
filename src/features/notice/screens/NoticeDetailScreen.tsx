@@ -131,6 +131,7 @@ export const NoticeDetailScreen = () => {
     togglingBookmark,
     togglingLike,
   } = useNoticeDetailData(route.params?.noticeId);
+  const isCurrentNotice = notice?.id === route.params?.noticeId;
 
   useRefetchOnFocus({
     invalidationKey: CONTENT_BLOCKS_INVALIDATION_KEY,
@@ -183,12 +184,16 @@ export const NoticeDetailScreen = () => {
 
   const handlePressBlockComment = React.useCallback(
     (commentId: string) => {
+      if (!isCurrentNotice) {
+        return;
+      }
+
       requestContentBlock({
         targetId: commentId,
         targetType: 'NOTICE_COMMENT',
       });
     },
-    [requestContentBlock],
+    [isCurrentNotice, requestContentBlock],
   );
 
   const handlePressShare = React.useCallback(async () => {
@@ -732,7 +737,7 @@ export const NoticeDetailScreen = () => {
                             : () => handleOpenCommentReport(comment.id)
                         }
                         onPressBlock={
-                          comment.isDeleted || comment.isMine
+                          !isCurrentNotice || comment.isDeleted || comment.isMine
                             ? undefined
                             : () => handlePressBlockComment(comment.id)
                         }

@@ -137,6 +137,7 @@ const createComment = (
   overrides: Partial<{
     isDeleted: boolean;
     isMine: boolean;
+    isPostAuthor: boolean;
   }> = {},
 ) => ({
   authorLabel: '작성자',
@@ -282,6 +283,43 @@ describe('BoardDetailScreen 콘텐츠 차단 wiring', () => {
     expect(detailData.reload).toHaveBeenCalledTimes(1);
     expect(mockNavigation.goBack).not.toHaveBeenCalled();
     alertSpy.mockRestore();
+  });
+
+  it('게시글 작성자의 댓글을 차단하면 POST로 처리하고 상세에서 뒤로 간다', async () => {
+    detailData = {
+      ...detailData,
+      commentItems: [createComment('comment-1', {isPostAuthor: true})],
+    };
+    const alertSpy = confirmBlockAlerts();
+    const screen = render(<BoardDetailScreen />);
+
+    fireEvent.press(screen.getByTestId('board-comment-block-comment-1'));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockBlockContent).toHaveBeenCalledWith({
+      targetId: 'post-1',
+      targetType: 'POST',
+    });
+    expect(mockNavigation.goBack).toHaveBeenCalledTimes(1);
+    expect(detailData.reload).not.toHaveBeenCalled();
+    alertSpy.mockRestore();
+  });
+
+  it('다른 게시글을 불러오는 동안 이전 게시글과 댓글의 차단 액션을 숨긴다', () => {
+    mockRouteParams = {postId: 'post-2'};
+    detailData = {
+      ...detailData,
+      commentItems: [createComment('comment-1')],
+    };
+    const screen = render(<BoardDetailScreen />);
+
+    fireEvent.press(screen.getByLabelText('게시물 메뉴'));
+
+    expect(screen.queryByTestId('board-post-block')).toBeNull();
+    expect(screen.queryByTestId('board-comment-block-comment-1')).toBeNull();
   });
 
   it('본인과 삭제된 게시글·댓글에는 차단 액션을 노출하지 않는다', () => {
