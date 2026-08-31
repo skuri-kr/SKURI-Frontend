@@ -88,4 +88,30 @@ describe('useNoticeDetailData 콘텐츠 차단', () => {
     await waitFor(() => expect(result.current.isReplyingComment).toBe(false));
     expect(result.current.commentDraft).toBe('');
   });
+
+  it('재조회 실패를 오류 상태에 반영하고 호출자에게 전파한다', async () => {
+    const reloadError = new Error('network unavailable');
+    const repository = {
+      getComments: jest.fn().mockResolvedValue([comment(false)]),
+      getNotice: jest
+        .fn()
+        .mockResolvedValueOnce(notice)
+        .mockRejectedValueOnce(reloadError),
+      markAsRead: jest.fn().mockResolvedValue(undefined),
+    };
+    mockedUseNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useNoticeRepository>,
+    );
+
+    const {result} = renderHook(() => useNoticeDetailData('notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await expect(result.current.reload()).rejects.toBe(reloadError);
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe('network unavailable'),
+    );
+  });
 });

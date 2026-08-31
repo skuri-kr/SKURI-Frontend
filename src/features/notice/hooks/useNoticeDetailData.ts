@@ -280,6 +280,7 @@ export const useNoticeDetailData = (noticeId?: string) => {
 
       setError(getErrorMessage(loadError));
       setNotFound(false);
+      throw loadError;
     } finally {
       if (currentRequestId === requestIdRef.current) {
         setLoading(false);

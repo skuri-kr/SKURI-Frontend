@@ -280,6 +280,7 @@ export const useBoardDetailData = (postId?: string) => {
 
       setError(getErrorMessage(loadError));
       setNotFound(false);
+      throw loadError;
     } finally {
       if (currentRequestId === requestIdRef.current) {
         setLoading(false);

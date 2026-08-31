@@ -454,6 +454,8 @@ export const NoticeDetailScreen = () => {
 
     try {
       await reload();
+    } catch {
+      // reload가 설정한 오류 상태를 표시한다.
     } finally {
       setRefreshing(false);
     }
