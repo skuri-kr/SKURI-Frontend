@@ -6,6 +6,7 @@ export type {
 } from '@/features/campus';
 export type {IBoardRepository} from '@/features/board';
 export type {IChatRepository} from '@/features/chat';
+export type {IContentBlockRepository} from '@/features/content-block';
 export type {
   IFriendInvitationRepository,
   IFriendRepository,

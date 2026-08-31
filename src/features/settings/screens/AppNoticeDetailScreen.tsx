@@ -22,6 +22,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 
 import type {CampusStackParamList} from '@/app/navigation/types';
 import {useReportRepository} from '@/di';
+import {useContentBlockAction} from '@/features/content-block';
 import type {ReportCategory} from '@/features/report';
 import {
   ArticleDetailSkeleton,
@@ -121,6 +122,24 @@ export const AppNoticeDetailScreen = () => {
     toggleLike,
     togglingLike,
   } = useAppNoticeDetailData(route.params?.noticeId);
+
+  const handleContentBlocked = React.useCallback(async () => {
+    await reload();
+  }, [reload]);
+  const {requestContentBlock} = useContentBlockAction({
+    onBlocked: handleContentBlocked,
+    scopeId: route.params?.noticeId,
+  });
+
+  const handlePressBlockComment = React.useCallback(
+    (commentId: string) => {
+      requestContentBlock({
+        targetId: commentId,
+        targetType: 'APP_NOTICE_COMMENT',
+      });
+    },
+    [requestContentBlock],
+  );
 
   const showError = (caught: unknown, fallback: string) =>
     Alert.alert('오류', caught instanceof Error ? caught.message : fallback);
@@ -510,6 +529,9 @@ export const AppNoticeDetailScreen = () => {
                           setReportCategory(null);
                           setReportReason('');
                           setReportVisible(true);
+                        }}
+                        onPressBlock={comment.isDeleted || comment.isMine ? undefined : () => {
+                          handlePressBlockComment(comment.id);
                         }}
                       />
                     </View>

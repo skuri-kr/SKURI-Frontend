@@ -14,6 +14,7 @@ import type {
   ICampusBannerRepository,
   ICafeteriaRepository,
   IChatRepository,
+  IContentBlockRepository,
   IFriendRepository,
   IFriendInvitationRepository,
   IInquiryFormRepository,
@@ -59,6 +60,11 @@ export function usePartyRepository(): IPartyRepository {
 export function useChatRepository(): IChatRepository {
   const {chatRepository} = useRepositories();
   return chatRepository;
+}
+
+export function useContentBlockRepository(): IContentBlockRepository {
+  const {contentBlockRepository} = useRepositories();
+  return contentBlockRepository;
 }
 
 /**

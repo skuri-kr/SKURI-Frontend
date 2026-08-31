@@ -25,7 +25,10 @@ import {
   copyShareUrlToClipboard,
   createContentShareUrl,
 } from '@/app/linking';
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {NOTICE_DETAIL_WITH_CAMPUS_INVALIDATION_KEYS} from '@/app/data-freshness/invalidationKeys';
 import {useReportRepository} from '@/di';
+import {useContentBlockAction} from '@/features/content-block';
 import type {ReportCategory} from '@/features/report';
 import {
   InlineBannerAd,
@@ -157,6 +160,25 @@ export const NoticeDetailScreen = () => {
   const handlePressReturnToList = React.useCallback(() => {
     navigation.navigate('NoticeMain');
   }, [navigation]);
+
+  const handleContentBlocked = React.useCallback(async () => {
+    invalidateData(NOTICE_DETAIL_WITH_CAMPUS_INVALIDATION_KEYS);
+    await reload();
+  }, [reload]);
+  const {requestContentBlock} = useContentBlockAction({
+    onBlocked: handleContentBlocked,
+    scopeId: route.params?.noticeId,
+  });
+
+  const handlePressBlockComment = React.useCallback(
+    (commentId: string) => {
+      requestContentBlock({
+        targetId: commentId,
+        targetType: 'NOTICE_COMMENT',
+      });
+    },
+    [requestContentBlock],
+  );
 
   const handlePressShare = React.useCallback(async () => {
     const noticeId = route.params?.noticeId;
@@ -697,6 +719,11 @@ export const NoticeDetailScreen = () => {
                           comment.isDeleted || comment.isMine
                             ? undefined
                             : () => handleOpenCommentReport(comment.id)
+                        }
+                        onPressBlock={
+                          comment.isDeleted || comment.isMine
+                            ? undefined
+                            : () => handlePressBlockComment(comment.id)
                         }
                       />
                     </View>

@@ -24,7 +24,13 @@ import {
   copyShareUrlToClipboard,
   createContentShareUrl,
 } from '@/app/linking';
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {BOARD_DETAIL_READ_INVALIDATION_KEYS} from '@/app/data-freshness/invalidationKeys';
 import {useReportRepository} from '@/di';
+import {
+  useContentBlockAction,
+  type ContentBlockTarget,
+} from '@/features/content-block';
 import type {ReportCategory} from '@/features/report';
 import {
   InlineBannerAd,
@@ -163,6 +169,40 @@ export const BoardDetailScreen = () => {
   const handlePressReturnToList = React.useCallback(() => {
     navigation.navigate('BoardMain');
   }, [navigation]);
+
+  const handleContentBlocked = React.useCallback(
+    async (target: ContentBlockTarget) => {
+      invalidateData(BOARD_DETAIL_READ_INVALIDATION_KEYS);
+
+      if (target.targetType === 'POST') {
+        handlePressBack();
+        return;
+      }
+
+      await reload();
+    },
+    [handlePressBack, reload],
+  );
+  const {requestContentBlock} = useContentBlockAction({
+    onBlocked: handleContentBlocked,
+    scopeId: route.params?.postId,
+  });
+
+  const handlePressBlockPost = React.useCallback(() => {
+    if (!post || post.isDeleted || canManageActions) {
+      return;
+    }
+
+    setIsMenuVisible(false);
+    requestContentBlock({targetId: post.id, targetType: 'POST'});
+  }, [canManageActions, post, requestContentBlock]);
+
+  const handlePressBlockComment = React.useCallback(
+    (commentId: string) => {
+      requestContentBlock({targetId: commentId, targetType: 'COMMENT'});
+    },
+    [requestContentBlock],
+  );
 
   const handleCloseReportModal = React.useCallback(() => {
     if (isReportSubmitting) {
@@ -737,6 +777,11 @@ export const BoardDetailScreen = () => {
                             ? undefined
                             : () => handleOpenCommentReport(comment.id)
                         }
+                        onPressBlock={
+                          comment.isDeleted || comment.isMine
+                            ? undefined
+                            : () => handlePressBlockComment(comment.id)
+                        }
                       />
                     </View>
                   ))}
@@ -808,11 +853,15 @@ export const BoardDetailScreen = () => {
           onClose={() => {
             setIsMenuVisible(false);
           }}
+          onPressBlock={handlePressBlockPost}
           onPressDelete={handlePressDelete}
           onPressEdit={handlePressEdit}
           onPressReport={handleOpenPostReport}
           onPressShare={handlePressShare}
           right={12}
+          showBlockAction={Boolean(
+            post && !post.isDeleted && !canManageActions,
+          )}
           showManageActions={canManageActions}
           top={insets.top + 44}
           visible={isMenuVisible && !deletingPost}
