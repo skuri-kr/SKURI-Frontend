@@ -28,10 +28,11 @@ export const BOARD_DETAIL_READ_INVALIDATION_KEYS = [
 
 /**
  * 콘텐츠 차단은 작성자 단위로 적용된다. 댓글 화면에서 차단했더라도
- * 해당 작성자의 게시글이 남아 있을 수 있는 커뮤니티 목록을 함께 갱신한다.
+ * 해당 작성자의 게시글이 남아 있을 수 있는 커뮤니티 목록과 저장 목록을 함께 갱신한다.
  */
 export const CONTENT_BLOCK_AUTHOR_INVALIDATION_KEYS = [
   COMMUNITY_BOARD_LIST_INVALIDATION_KEY,
+  PROFILE_BOARD_BOOKMARKS_INVALIDATION_KEY,
 ] as const satisfies readonly DataInvalidationKey[];
 
 export const BOARD_MUTATION_INVALIDATION_KEYS = [

@@ -221,6 +221,7 @@ describe('NoticeDetailScreen 콘텐츠 차단 wiring', () => {
       'notice.list',
       'campus.home',
       'community.board.list',
+      'profile.boardBookmarks',
     ]);
     expect(detailData.reload).toHaveBeenCalledTimes(1);
     alertSpy.mockRestore();

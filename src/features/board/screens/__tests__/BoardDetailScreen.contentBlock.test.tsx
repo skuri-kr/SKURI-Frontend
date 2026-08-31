@@ -241,6 +241,7 @@ describe('BoardDetailScreen 콘텐츠 차단 wiring', () => {
     });
     expect(mockedInvalidateData).toHaveBeenCalledWith([
       'community.board.list',
+      'profile.boardBookmarks',
     ]);
     expect(mockNavigation.goBack).toHaveBeenCalledTimes(1);
     expect(detailData.reload).not.toHaveBeenCalled();
@@ -276,6 +277,7 @@ describe('BoardDetailScreen 콘텐츠 차단 wiring', () => {
     });
     expect(mockedInvalidateData).toHaveBeenCalledWith([
       'community.board.list',
+      'profile.boardBookmarks',
     ]);
     expect(detailData.reload).toHaveBeenCalledTimes(1);
     expect(mockNavigation.goBack).not.toHaveBeenCalled();

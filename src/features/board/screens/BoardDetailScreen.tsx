@@ -29,7 +29,7 @@ import {
   useRefetchOnFocus,
 } from '@/app/data-freshness/dataInvalidation';
 import {
-  BOARD_DETAIL_READ_INVALIDATION_KEYS,
+  CONTENT_BLOCK_AUTHOR_INVALIDATION_KEYS,
   CONTENT_BLOCKS_INVALIDATION_KEY,
 } from '@/app/data-freshness/invalidationKeys';
 import {useReportRepository} from '@/di';
@@ -183,7 +183,7 @@ export const BoardDetailScreen = () => {
 
   const handleContentBlocked = React.useCallback(
     async (target: ContentBlockTarget) => {
-      invalidateData(BOARD_DETAIL_READ_INVALIDATION_KEYS);
+      invalidateData(CONTENT_BLOCK_AUTHOR_INVALIDATION_KEYS);
 
       if (target.targetType === 'POST') {
         handlePressBack();

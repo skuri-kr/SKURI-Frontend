@@ -373,7 +373,10 @@ describe('AppNoticeDetailScreen', () => {
       targetId: 'app-comment-1',
       targetType: 'APP_NOTICE_COMMENT',
     });
-    expect(invalidateData).toHaveBeenCalledWith(['community.board.list']);
+    expect(invalidateData).toHaveBeenCalledWith([
+      'community.board.list',
+      'profile.boardBookmarks',
+    ]);
     expect(mockDetailData.reload).toHaveBeenCalledTimes(1);
     expect(
       screen.queryByTestId('app-notice-comment-block-app-comment-2'),
