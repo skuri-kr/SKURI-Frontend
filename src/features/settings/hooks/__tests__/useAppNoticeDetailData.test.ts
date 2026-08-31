@@ -430,6 +430,26 @@ describe('useAppNoticeDetailData', () => {
     expect(result.current.commentError).toBe(reloadError.message);
   });
 
+  it('공지 본문 재조회 실패를 reload 호출자에게 전파한다', async () => {
+    const repository = createRepository();
+    const reloadError = new Error('공지 네트워크 오류');
+    repository.getAppNotice
+      .mockResolvedValueOnce(notice)
+      .mockRejectedValueOnce(reloadError);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await expect(result.current.reload()).rejects.toThrow(reloadError);
+    });
+
+    expect(result.current.error).toBe(reloadError.message);
+  });
+
   it('댓글 조회 실패 뒤 재로드 중에는 새 댓글 전송을 잠근다', async () => {
     const repository = createRepository();
     const deferredComments = createDeferred<NoticeCommentTreeNode[]>();

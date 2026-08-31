@@ -411,17 +411,15 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         await loadComments();
       }
     } catch (loadError) {
-      if (
+      const isCurrentLoad =
         requestId === requestIdRef.current &&
         latestUserIdRef.current === requestedUserId &&
-        noticeRevision === noticeRevisionRef.current
-      ) {
+        noticeRevision === noticeRevisionRef.current;
+      if (isCurrentLoad) {
         if (!didLoadNotice) {
           setError(getErrorMessage(loadError));
         }
         setCommentsLoading(false);
-      }
-      if (didLoadNotice) {
         throw loadError;
       }
     } finally {
