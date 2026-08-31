@@ -805,7 +805,7 @@ export const BoardDetailScreen = () => {
                             : () =>
                                 handlePressBlockComment(
                                   comment.id,
-                                  comment.isPostAuthor,
+                                  Boolean(comment.isPostAuthor),
                                 )
                         }
                       />
