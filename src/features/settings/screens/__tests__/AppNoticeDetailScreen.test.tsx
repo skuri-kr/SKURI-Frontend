@@ -7,6 +7,7 @@ import {submitAppNoticeCommentReport} from '../../services/appNoticeReportServic
 import {AppNoticeDetailScreen} from '../AppNoticeDetailScreen';
 
 let mockRouteParams = {initialCommentId: 'app-comment-1', noticeId: 'app-notice-1'};
+const mockBlockContent = jest.fn();
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({goBack: jest.fn()}),
@@ -22,7 +23,12 @@ jest.mock('react-native-safe-area-context', () => {
 
 jest.mock('react-native-vector-icons/Ionicons', () => 'Icon');
 
-jest.mock('@/di', () => ({useReportRepository: () => ({})}));
+jest.mock('@/di', () => ({
+  useContentBlockRepository: () => ({
+    blockContent: mockBlockContent,
+  }),
+  useReportRepository: () => ({}),
+}));
 jest.mock('@/shared/hooks/useScreenView', () => ({useScreenView: jest.fn()}));
 jest.mock('@/shared/ui/ReportReasonModal', () => {
   const {TouchableOpacity, View} = require('react-native');
@@ -69,6 +75,7 @@ jest.mock('@/shared/design-system/components', () => {
       comment,
       deleteDisabled,
       likeDisabled,
+      onPressBlock,
       onPressEdit,
       onPressReport,
       replyDisabled,
@@ -77,19 +84,30 @@ jest.mock('@/shared/design-system/components', () => {
       deleteDisabled?: boolean;
       likeDisabled?: boolean;
       onPressEdit?: () => void;
+      onPressBlock?: () => void;
       onPressReport?: () => void;
       replyDisabled?: boolean;
-    }) => ReactModule.createElement(require('react-native').TouchableOpacity, {
-      accessibilityLabel: [
-        deleteDisabled ? '삭제 비활성화' : '삭제 활성화',
-        likeDisabled ? '좋아요 비활성화' : '좋아요 활성화',
-        onPressEdit ? '수정 활성화' : '수정 비활성화',
-        replyDisabled ? '답글 비활성화' : '답글 활성화',
-      ].join(', '),
-      disabled: !onPressReport,
-      onPress: onPressReport,
-      testID: `app-notice-comment-card-${comment.id}`,
-    }),
+    }) => ReactModule.createElement(
+      require('react-native').View,
+      undefined,
+      ReactModule.createElement(require('react-native').TouchableOpacity, {
+        accessibilityLabel: [
+          deleteDisabled ? '삭제 비활성화' : '삭제 활성화',
+          likeDisabled ? '좋아요 비활성화' : '좋아요 활성화',
+          onPressEdit ? '수정 활성화' : '수정 비활성화',
+          replyDisabled ? '답글 비활성화' : '답글 활성화',
+        ].join(', '),
+        disabled: !onPressReport,
+        onPress: onPressReport,
+        testID: `app-notice-comment-card-${comment.id}`,
+      }),
+      onPressBlock
+        ? ReactModule.createElement(require('react-native').TouchableOpacity, {
+            onPress: onPressBlock,
+            testID: `app-notice-comment-block-${comment.id}`,
+          })
+        : null,
+    ),
     DetailComposer: ReactModule.forwardRef(({
       editable,
       onSend,
@@ -123,6 +141,11 @@ describe('AppNoticeDetailScreen', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     jest.clearAllMocks();
+    mockBlockContent.mockResolvedValue({
+      blockedAt: new Date('2026-08-31T00:00:00Z'),
+      id: 'block-1',
+      label: '차단한 사용자',
+    });
     mockedSubmitAppNoticeCommentReport.mockResolvedValue({
       createdAt: '2026-08-29T00:00:00',
       id: 'report-1',
@@ -320,6 +343,32 @@ describe('AppNoticeDetailScreen', () => {
     screen.rerender(<AppNoticeDetailScreen />);
 
     expect(screen.queryByTestId('app-notice-report-modal')).toBeNull();
+  });
+
+  it('다른 사용자의 앱 공지 댓글 작성자를 차단하고 상세를 다시 불러온다', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((...args) => {
+      const action = args[2]?.find(button => button.text === '차단');
+      action?.onPress?.();
+    });
+    const screen = render(<AppNoticeDetailScreen />);
+
+    fireEvent.press(
+      screen.getByTestId('app-notice-comment-block-app-comment-1'),
+    );
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockBlockContent).toHaveBeenCalledWith({
+      targetId: 'app-comment-1',
+      targetType: 'APP_NOTICE_COMMENT',
+    });
+    expect(mockDetailData.reload).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByTestId('app-notice-comment-block-app-comment-2'),
+    ).toBeNull();
+    alertSpy.mockRestore();
   });
 
   it('화면 이탈 뒤 이전 신고 완료는 알림을 표시하지 않는다', async () => {
