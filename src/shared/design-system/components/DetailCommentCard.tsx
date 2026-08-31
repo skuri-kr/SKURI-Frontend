@@ -23,6 +23,7 @@ interface DetailCommentCardProps {
   comment: ContentDetailCommentViewData;
   deleteDisabled?: boolean;
   likeDisabled?: boolean;
+  onPressBlock?: () => void;
   onPressDelete?: () => void;
   onPressEdit?: () => void;
   onPressLike?: () => void;
@@ -35,6 +36,7 @@ export const DetailCommentCard = ({
   comment,
   deleteDisabled = false,
   likeDisabled = false,
+  onPressBlock,
   onPressDelete,
   onPressEdit,
   onPressLike,
@@ -46,6 +48,7 @@ export const DetailCommentCard = ({
     comment.isMine && (onPressEdit || onPressDelete),
   );
   const showReportAction = Boolean(!comment.isMine && onPressReport);
+  const showBlockAction = Boolean(!comment.isMine && onPressBlock);
 
   return (
     <View style={[styles.card, comment.isReply ? styles.replyCard : null]}>
@@ -134,7 +137,7 @@ export const DetailCommentCard = ({
             </TouchableOpacity>
           </View>
 
-          {showManageActions || showReportAction ? (
+          {showManageActions || showReportAction || showBlockAction ? (
             <View style={styles.trailingActionsRow}>
               {showManageActions && onPressEdit ? (
                 <TouchableOpacity
@@ -160,6 +163,15 @@ export const DetailCommentCard = ({
                   onPress={onPressReport}
                   style={styles.reportButton}>
                   <Text style={styles.reportButtonLabel}>신고</Text>
+                </TouchableOpacity>
+              ) : null}
+              {showBlockAction && onPressBlock ? (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  activeOpacity={0.8}
+                  onPress={onPressBlock}
+                  style={styles.blockButton}>
+                  <Text style={styles.blockButtonLabel}>차단</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -300,6 +312,16 @@ const styles = StyleSheet.create({
   },
   reportButtonLabel: {
     color: COLORS.text.muted,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
+  },
+  blockButton: {
+    paddingHorizontal: 2,
+    paddingVertical: 2,
+  },
+  blockButtonLabel: {
+    color: COLORS.status.danger,
     fontSize: 12,
     fontWeight: '600',
     lineHeight: 16,

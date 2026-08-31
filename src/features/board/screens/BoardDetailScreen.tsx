@@ -24,7 +24,19 @@ import {
   copyShareUrlToClipboard,
   createContentShareUrl,
 } from '@/app/linking';
+import {
+  invalidateData,
+  useRefetchOnFocus,
+} from '@/app/data-freshness/dataInvalidation';
+import {
+  CONTENT_BLOCK_AUTHOR_INVALIDATION_KEYS,
+  CONTENT_BLOCKS_INVALIDATION_KEY,
+} from '@/app/data-freshness/invalidationKeys';
 import {useReportRepository} from '@/di';
+import {
+  useContentBlockAction,
+  type ContentBlockTarget,
+} from '@/features/content-block';
 import type {ReportCategory} from '@/features/report';
 import {
   InlineBannerAd,
@@ -127,6 +139,12 @@ export const BoardDetailScreen = () => {
     togglingBookmark,
     togglingLike,
   } = useBoardDetailData(route.params?.postId);
+  const isCurrentPost = post?.id === route.params?.postId;
+
+  useRefetchOnFocus({
+    invalidationKey: CONTENT_BLOCKS_INVALIDATION_KEY,
+    refetch: reload,
+  });
 
   React.useEffect(() => {
     setBodyContentHeight(0);
@@ -163,6 +181,48 @@ export const BoardDetailScreen = () => {
   const handlePressReturnToList = React.useCallback(() => {
     navigation.navigate('BoardMain');
   }, [navigation]);
+
+  const handleContentBlocked = React.useCallback(
+    async (target: ContentBlockTarget) => {
+      invalidateData(CONTENT_BLOCK_AUTHOR_INVALIDATION_KEYS);
+
+      if (target.targetType === 'POST') {
+        handlePressBack();
+        return;
+      }
+
+      await reload();
+    },
+    [handlePressBack, reload],
+  );
+  const {requestContentBlock} = useContentBlockAction({
+    onBlocked: handleContentBlocked,
+    scopeId: route.params?.postId,
+  });
+
+  const handlePressBlockPost = React.useCallback(() => {
+    if (!isCurrentPost || !post || post.isDeleted || canManageActions) {
+      return;
+    }
+
+    setIsMenuVisible(false);
+    requestContentBlock({targetId: post.id, targetType: 'POST'});
+  }, [canManageActions, isCurrentPost, post, requestContentBlock]);
+
+  const handlePressBlockComment = React.useCallback(
+    (commentId: string, isPostAuthor: boolean) => {
+      if (!isCurrentPost || !post) {
+        return;
+      }
+
+      requestContentBlock(
+        isPostAuthor
+          ? {targetId: post.id, targetType: 'POST'}
+          : {targetId: commentId, targetType: 'COMMENT'},
+      );
+    },
+    [isCurrentPost, post, requestContentBlock],
+  );
 
   const handleCloseReportModal = React.useCallback(() => {
     if (isReportSubmitting) {
@@ -480,6 +540,8 @@ export const BoardDetailScreen = () => {
 
     try {
       await reload();
+    } catch {
+      // reload가 설정한 오류 상태를 표시한다.
     } finally {
       setRefreshing(false);
     }
@@ -737,6 +799,15 @@ export const BoardDetailScreen = () => {
                             ? undefined
                             : () => handleOpenCommentReport(comment.id)
                         }
+                        onPressBlock={
+                          !isCurrentPost || comment.isDeleted || comment.isMine
+                            ? undefined
+                            : () =>
+                                handlePressBlockComment(
+                                  comment.id,
+                                  Boolean(comment.isPostAuthor),
+                                )
+                        }
                       />
                     </View>
                   ))}
@@ -808,11 +879,15 @@ export const BoardDetailScreen = () => {
           onClose={() => {
             setIsMenuVisible(false);
           }}
+          onPressBlock={handlePressBlockPost}
           onPressDelete={handlePressDelete}
           onPressEdit={handlePressEdit}
           onPressReport={handleOpenPostReport}
           onPressShare={handlePressShare}
           right={12}
+          showBlockAction={Boolean(
+            isCurrentPost && post && !post.isDeleted && !canManageActions,
+          )}
           showManageActions={canManageActions}
           top={insets.top + 44}
           visible={isMenuVisible && !deletingPost}

@@ -21,7 +21,16 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 import type {CampusStackParamList} from '@/app/navigation/types';
+import {
+  invalidateData,
+  useRefetchOnFocus,
+} from '@/app/data-freshness/dataInvalidation';
+import {
+  CONTENT_BLOCK_AUTHOR_INVALIDATION_KEYS,
+  CONTENT_BLOCKS_INVALIDATION_KEY,
+} from '@/app/data-freshness/invalidationKeys';
 import {useReportRepository} from '@/di';
+import {useContentBlockAction} from '@/features/content-block';
 import type {ReportCategory} from '@/features/report';
 import {
   ArticleDetailSkeleton,
@@ -122,13 +131,37 @@ export const AppNoticeDetailScreen = () => {
     togglingLike,
   } = useAppNoticeDetailData(route.params?.noticeId);
 
+  useRefetchOnFocus({
+    invalidationKey: CONTENT_BLOCKS_INVALIDATION_KEY,
+    refetch: reload,
+  });
+
+  const handleContentBlocked = React.useCallback(async () => {
+    invalidateData(CONTENT_BLOCK_AUTHOR_INVALIDATION_KEYS);
+    await reload();
+  }, [reload]);
+  const {requestContentBlock} = useContentBlockAction({
+    onBlocked: handleContentBlocked,
+    scopeId: route.params?.noticeId,
+  });
+
+  const handlePressBlockComment = React.useCallback(
+    (commentId: string) => {
+      requestContentBlock({
+        targetId: commentId,
+        targetType: 'APP_NOTICE_COMMENT',
+      });
+    },
+    [requestContentBlock],
+  );
+
   const showError = (caught: unknown, fallback: string) =>
     Alert.alert('오류', caught instanceof Error ? caught.message : fallback);
 
   const handleRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
-      await reload();
+      await reload().catch(() => undefined);
     } finally {
       setRefreshing(false);
     }
@@ -510,6 +543,9 @@ export const AppNoticeDetailScreen = () => {
                           setReportCategory(null);
                           setReportReason('');
                           setReportVisible(true);
+                        }}
+                        onPressBlock={comment.isDeleted || comment.isMine ? undefined : () => {
+                          handlePressBlockComment(comment.id);
                         }}
                       />
                     </View>

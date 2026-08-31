@@ -280,6 +280,7 @@ export const useNoticeDetailData = (noticeId?: string) => {
 
       setError(getErrorMessage(loadError));
       setNotFound(false);
+      throw loadError;
     } finally {
       if (currentRequestId === requestIdRef.current) {
         setLoading(false);
@@ -310,6 +311,17 @@ export const useNoticeDetailData = (noticeId?: string) => {
     setReplyTargetCommentId(null);
     setCommentAnonymousDraft(null);
   }, [noticeId]);
+
+  React.useEffect(() => {
+    if (
+      replyTargetCommentId &&
+      (!replyTargetComment || replyTargetComment.isDeleted)
+    ) {
+      setReplyTargetCommentId(null);
+      setCommentDraft('');
+      setCommentAnonymousDraft(null);
+    }
+  }, [replyTargetComment, replyTargetCommentId]);
 
   React.useEffect(() => {
     if (!noticeId || !user?.uid || !notice || notice.isRead) {

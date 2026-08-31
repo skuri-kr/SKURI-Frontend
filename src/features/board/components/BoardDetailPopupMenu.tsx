@@ -4,11 +4,13 @@ import {PopupMenu} from '@/shared/ui/PopupMenu';
 
 interface BoardDetailPopupMenuProps {
   onClose: () => void;
+  onPressBlock: () => void;
   onPressDelete: () => void;
   onPressEdit: () => void;
   onPressReport: () => void;
   onPressShare: () => void;
   right?: number;
+  showBlockAction?: boolean;
   showManageActions?: boolean;
   top: number;
   visible: boolean;
@@ -16,11 +18,13 @@ interface BoardDetailPopupMenuProps {
 
 export const BoardDetailPopupMenu = ({
   onClose,
+  onPressBlock,
   onPressDelete,
   onPressEdit,
   onPressReport,
   onPressShare,
   right = 12,
+  showBlockAction = false,
   showManageActions = true,
   top,
   visible,
@@ -40,6 +44,18 @@ export const BoardDetailPopupMenu = ({
       onPress: onPressReport,
       type: 'action' as const,
     },
+    ...(showBlockAction
+      ? [
+          {
+            iconName: 'ban-outline',
+            id: 'block',
+            label: '사용자 차단',
+            onPress: onPressBlock,
+            tone: 'danger' as const,
+            type: 'action' as const,
+          },
+        ]
+      : []),
     ...(showManageActions
       ? [
           {

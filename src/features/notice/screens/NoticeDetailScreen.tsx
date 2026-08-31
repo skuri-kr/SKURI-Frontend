@@ -25,7 +25,16 @@ import {
   copyShareUrlToClipboard,
   createContentShareUrl,
 } from '@/app/linking';
+import {
+  invalidateData,
+  useRefetchOnFocus,
+} from '@/app/data-freshness/dataInvalidation';
+import {
+  CONTENT_BLOCKS_INVALIDATION_KEY,
+  NOTICE_CONTENT_BLOCK_INVALIDATION_KEYS,
+} from '@/app/data-freshness/invalidationKeys';
 import {useReportRepository} from '@/di';
+import {useContentBlockAction} from '@/features/content-block';
 import type {ReportCategory} from '@/features/report';
 import {
   InlineBannerAd,
@@ -122,6 +131,12 @@ export const NoticeDetailScreen = () => {
     togglingBookmark,
     togglingLike,
   } = useNoticeDetailData(route.params?.noticeId);
+  const isCurrentNotice = notice?.id === route.params?.noticeId;
+
+  useRefetchOnFocus({
+    invalidationKey: CONTENT_BLOCKS_INVALIDATION_KEY,
+    refetch: reload,
+  });
 
   React.useEffect(() => {
     setBodyContentHeight(0);
@@ -157,6 +172,29 @@ export const NoticeDetailScreen = () => {
   const handlePressReturnToList = React.useCallback(() => {
     navigation.navigate('NoticeMain');
   }, [navigation]);
+
+  const handleContentBlocked = React.useCallback(async () => {
+    invalidateData(NOTICE_CONTENT_BLOCK_INVALIDATION_KEYS);
+    await reload();
+  }, [reload]);
+  const {requestContentBlock} = useContentBlockAction({
+    onBlocked: handleContentBlocked,
+    scopeId: route.params?.noticeId,
+  });
+
+  const handlePressBlockComment = React.useCallback(
+    (commentId: string) => {
+      if (!isCurrentNotice) {
+        return;
+      }
+
+      requestContentBlock({
+        targetId: commentId,
+        targetType: 'NOTICE_COMMENT',
+      });
+    },
+    [isCurrentNotice, requestContentBlock],
+  );
 
   const handlePressShare = React.useCallback(async () => {
     const noticeId = route.params?.noticeId;
@@ -416,6 +454,8 @@ export const NoticeDetailScreen = () => {
 
     try {
       await reload();
+    } catch {
+      // reload가 설정한 오류 상태를 표시한다.
     } finally {
       setRefreshing(false);
     }
@@ -697,6 +737,11 @@ export const NoticeDetailScreen = () => {
                           comment.isDeleted || comment.isMine
                             ? undefined
                             : () => handleOpenCommentReport(comment.id)
+                        }
+                        onPressBlock={
+                          !isCurrentNotice || comment.isDeleted || comment.isMine
+                            ? undefined
+                            : () => handlePressBlockComment(comment.id)
                         }
                       />
                     </View>

@@ -15,6 +15,17 @@ import Icon from 'react-native-vector-icons/Ionicons';
 
 import {type CampusStackParamList} from '@/app/navigation/types';
 import {
+  invalidateData,
+  useRefetchOnFocus,
+} from '@/app/data-freshness/dataInvalidation';
+import {
+  BOARD_DETAIL_READ_INVALIDATION_KEYS,
+  CONTENT_BLOCKS_INVALIDATION_KEY,
+  NOTICE_DETAIL_WITH_CAMPUS_INVALIDATION_KEYS,
+  PROFILE_BOARD_BOOKMARKS_INVALIDATION_KEY,
+} from '@/app/data-freshness/invalidationKeys';
+import {useContentBlockSettingsData} from '@/features/content-block';
+import {
   SettingsRow,
   SettingsSection,
   StackHeader,
@@ -22,6 +33,7 @@ import {
 } from '@/shared/design-system/components';
 import {COLORS, RADIUS, SHADOWS, SPACING} from '@/shared/design-system/tokens';
 import {useScreenView} from '@/shared/hooks/useScreenView';
+import {formatKoreanAbsoluteDate} from '@/shared/lib/date';
 
 import {FriendAvatar} from '../components/FriendAvatar';
 import {FriendDataErrorBanner} from '../components/FriendDataErrorBanner';
@@ -70,6 +82,15 @@ export const FriendSettingsScreen = () => {
     updateNicknameSearchable,
   } = useFriendSettingsData();
   const {
+    blocks: contentBlocks,
+    error: contentBlocksError,
+    hasLoaded: hasLoadedContentBlocks,
+    loading: loadingContentBlocks,
+    reload: reloadContentBlocks,
+    unblockContent,
+    unblockingIds: unblockingContentIds,
+  } = useContentBlockSettingsData();
+  const {
     friends: sharingFriends,
     friendsError: sharingFriendsError,
     getFriendScope,
@@ -91,6 +112,11 @@ export const FriendSettingsScreen = () => {
     [sharingFriends],
   );
 
+  useRefetchOnFocus({
+    invalidationKey: CONTENT_BLOCKS_INVALIDATION_KEY,
+    refetch: reloadContentBlocks,
+  });
+
   const handleUnblock = React.useCallback(
     (friendId: string, nickname: string) => {
       Alert.alert('차단 해제', `${nickname}님의 차단을 해제할까요? 차단을 해제해도 이전 친구 관계는 복원되지 않습니다.`, [
@@ -108,6 +134,43 @@ export const FriendSettingsScreen = () => {
       ]);
     },
     [navigation, unblockMember],
+  );
+
+  const handleUnblockContent = React.useCallback(
+    (blockId: string) => {
+      Alert.alert(
+        '콘텐츠 차단 해제',
+        '차단을 해제하면 이 사용자의 게시글과 댓글이 다시 표시될 수 있어요.',
+        [
+          {text: '취소', style: 'cancel'},
+          {
+            onPress: () => {
+              unblockContent(blockId)
+                .then(() => {
+                  invalidateData([
+                    ...BOARD_DETAIL_READ_INVALIDATION_KEYS,
+                    ...NOTICE_DETAIL_WITH_CAMPUS_INVALIDATION_KEYS,
+                    PROFILE_BOARD_BOOKMARKS_INVALIDATION_KEY,
+                  ]);
+                })
+                .catch(actionError => {
+                  if (navigation.isFocused()) {
+                    Alert.alert(
+                      '오류',
+                      getErrorMessage(
+                        actionError,
+                        '콘텐츠 차단을 해제하지 못했습니다.',
+                      ),
+                    );
+                  }
+                });
+            },
+            text: '차단 해제',
+          },
+        ],
+      );
+    },
+    [navigation, unblockContent],
   );
 
   const handleSelectTimetableScope = React.useCallback(
@@ -301,7 +364,7 @@ export const FriendSettingsScreen = () => {
           </>
         ) : null}
 
-        <Text style={styles.sectionTitle}>차단한 사용자</Text>
+        <Text style={styles.sectionTitle}>친구 차단</Text>
         {loadingBlocks && !hasLoadedBlocks ? (
           <StateCard
             description="차단 목록을 준비하고 있습니다."
@@ -368,9 +431,92 @@ export const FriendSettingsScreen = () => {
               </View>
             ) : (
               <StateCard
-                description="차단한 사용자가 없어요."
+                description="친구 기능에서 차단한 사용자가 없어요."
                 icon={<Icon color={COLORS.text.muted} name="shield-checkmark-outline" size={28} />}
-                title="차단 목록이 비어 있어요"
+                title="친구 차단 목록이 비어 있어요"
+              />
+            )}
+          </>
+        ) : null}
+
+        <Text style={styles.sectionTitle}>콘텐츠 차단</Text>
+        {loadingContentBlocks && !hasLoadedContentBlocks ? (
+          <StateCard
+            description="게시글과 댓글에서 차단한 사용자를 확인하고 있습니다."
+            icon={<ActivityIndicator color={COLORS.brand.primary} />}
+            title="콘텐츠 차단 목록을 불러오는 중"
+          />
+        ) : null}
+        {contentBlocksError && !hasLoadedContentBlocks ? (
+          <StateCard
+            actionLabel="다시 시도"
+            description={contentBlocksError}
+            icon={<Icon color={COLORS.accent.orange} name="alert-circle-outline" size={28} />}
+            onPressAction={() => {
+              reloadContentBlocks().catch(() => undefined);
+            }}
+            title="콘텐츠 차단 목록을 불러오지 못했습니다"
+          />
+        ) : null}
+        {hasLoadedContentBlocks ? (
+          <>
+            {contentBlocksError ? (
+              <FriendDataErrorBanner
+                error={contentBlocksError}
+                onRetry={() => {
+                  reloadContentBlocks().catch(() => undefined);
+                }}
+              />
+            ) : null}
+            {contentBlocks.length > 0 ? (
+              <View style={styles.blockCard}>
+                {contentBlocks.map((block, index) => (
+                  <View
+                    key={block.id}
+                    style={[
+                      styles.blockRow,
+                      index < contentBlocks.length - 1
+                        ? styles.rowDivider
+                        : null,
+                    ]}>
+                    <View style={styles.contentBlockIcon}>
+                      <Icon
+                        color={COLORS.text.secondary}
+                        name="person-outline"
+                        size={20}
+                      />
+                    </View>
+                    <View style={styles.blockContent}>
+                      <Text style={styles.blockName}>{block.label}</Text>
+                      <Text style={styles.blockDepartment}>
+                        게시글·댓글 작성자 ·{' '}
+                        {formatKoreanAbsoluteDate(block.blockedAt)} 차단
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      accessibilityLabel="콘텐츠 차단 해제"
+                      accessibilityRole="button"
+                      activeOpacity={0.82}
+                      disabled={unblockingContentIds.has(block.id)}
+                      onPress={() => handleUnblockContent(block.id)}
+                      style={styles.unblockButton}>
+                      {unblockingContentIds.has(block.id) ? (
+                        <ActivityIndicator
+                          color={COLORS.text.secondary}
+                          size="small"
+                        />
+                      ) : (
+                        <Text style={styles.unblockText}>차단 해제</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <StateCard
+                description="게시글이나 댓글에서 차단한 사용자가 없어요."
+                icon={<Icon color={COLORS.text.muted} name="shield-checkmark-outline" size={28} />}
+                title="콘텐츠 차단 목록이 비어 있어요"
               />
             )}
           </>
@@ -424,6 +570,14 @@ const styles = StyleSheet.create({
   blockName: {color: COLORS.text.primary, fontSize: 15, fontWeight: '700', lineHeight: 22},
   blockDepartment: {color: COLORS.text.muted, fontSize: 12, lineHeight: 18, marginTop: 2},
   blockIdentifier: {color: COLORS.text.tertiary, fontSize: 11, lineHeight: 16, marginTop: 2},
+  contentBlockIcon: {
+    alignItems: 'center',
+    backgroundColor: COLORS.background.subtle,
+    borderRadius: RADIUS.pill,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+  },
   unblockButton: {
     alignItems: 'center',
     backgroundColor: COLORS.background.subtle,

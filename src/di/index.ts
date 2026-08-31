@@ -9,6 +9,7 @@ export {
   useRepository,
   usePartyRepository,
   useChatRepository,
+  useContentBlockRepository,
   useFriendRepository,
   useFriendInvitationRepository,
   useBoardRepository,

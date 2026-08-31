@@ -12,6 +12,7 @@ import type {
   ICampusBannerRepository,
   ICafeteriaRepository,
   IChatRepository,
+  IContentBlockRepository,
   IFriendInvitationRepository,
   IInquiryFormRepository,
   ILegalDocumentRepository,
@@ -36,6 +37,7 @@ import type {
 export interface RepositoryContainer {
   partyRepository: IPartyRepository;
   chatRepository: IChatRepository;
+  contentBlockRepository: IContentBlockRepository;
   friendRepository: IFriendInvitationRepository;
   boardRepository: IBoardRepository;
   noticeRepository: INoticeRepository;
