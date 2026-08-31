@@ -409,6 +409,27 @@ describe('useAppNoticeDetailData', () => {
     expect(repository.createComment).not.toHaveBeenCalled();
   });
 
+  it('댓글 재조회 실패를 reload 호출자에게 전파한다', async () => {
+    const repository = createRepository();
+    const reloadError = new Error('댓글 네트워크 오류');
+    repository.getComments
+      .mockResolvedValueOnce([{...comment, replies: []}])
+      .mockRejectedValueOnce(reloadError);
+    mockedUseAppNoticeRepository.mockReturnValue(
+      repository as unknown as ReturnType<typeof useAppNoticeRepository>,
+    );
+
+    const {result} = renderHook(() => useAppNoticeDetailData('app-notice-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await expect(result.current.reload()).rejects.toThrow(reloadError);
+    });
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.commentError).toBe(reloadError.message);
+  });
+
   it('댓글 조회 실패 뒤 재로드 중에는 새 댓글 전송을 잠근다', async () => {
     const repository = createRepository();
     const deferredComments = createDeferred<NoticeCommentTreeNode[]>();
@@ -425,9 +446,6 @@ describe('useAppNoticeDetailData', () => {
     act(() => {
       reloadPromise = result.current.reload();
     });
-    await act(async () => {
-      await reloadPromise;
-    });
     await waitFor(() => expect(result.current.commentsLoading).toBe(true));
 
     act(() => result.current.setCommentDraft('새 댓글'));
@@ -438,7 +456,7 @@ describe('useAppNoticeDetailData', () => {
 
     await act(async () => {
       deferredComments.resolve([{...comment, replies: []}]);
-      await Promise.resolve();
+      await reloadPromise;
     });
     await waitFor(() => expect(result.current.commentsLoading).toBe(false));
     expect(result.current.commentItems).toHaveLength(1);
@@ -487,18 +505,18 @@ describe('useAppNoticeDetailData', () => {
     act(() => {
       reloadPromise = result.current.reload();
     });
-    await waitFor(() => expect(repository.getComments).toHaveBeenCalledTimes(2));
 
     await act(async () => {
       await result.current.toggleLike();
     });
     await act(async () => {
       deferredNotice.resolve(notice);
-      await reloadPromise;
+      await Promise.resolve();
     });
+    await waitFor(() => expect(repository.getComments).toHaveBeenCalledTimes(2));
     await act(async () => {
       deferredComments.resolve([{...comment, replies: []}]);
-      await Promise.resolve();
+      await reloadPromise;
     });
 
     await waitFor(() => expect(result.current.commentsLoading).toBe(false));

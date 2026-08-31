@@ -68,6 +68,7 @@ export const useContentBlockSettingsData = () => {
       }
 
       setError(getErrorMessage(loadError));
+      throw loadError;
     } finally {
       if (mountedRef.current && loadVersionRef.current === loadVersion) {
         setLoading(false);

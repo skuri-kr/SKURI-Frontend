@@ -310,6 +310,7 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
     const authChanged = activeUserIdRef.current !== requestedUserId;
     const retryFailedComments =
       !routeChanged && !authChanged && commentLoadFailedRef.current && Boolean(requestedUserId);
+    let didLoadNotice = false;
     setLoading(true);
     if (routeChanged || authChanged || commentLoadFailedRef.current) {
       setCommentsLoading(Boolean(requestedUserId));
@@ -320,9 +321,12 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
       setComments([]);
       setCommentError(null);
     }
-    if (retryFailedComments) {
-      refreshComments().catch(() => undefined);
-    }
+    const retryFailedCommentsTask = retryFailedComments
+      ? refreshComments().then(
+        () => ({ok: true} as const),
+        refreshError => ({error: refreshError, ok: false} as const),
+      )
+      : null;
     try {
       if (!noticeId) {
         setNotice(null);
@@ -345,6 +349,8 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         return;
       }
       setNotice(nextNotice);
+      didLoadNotice = true;
+      setLoading(false);
       activeNoticeIdRef.current = noticeId;
       activeUserIdRef.current = requestedUserId;
       if (requestedUserId) {
@@ -393,10 +399,16 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
           setCommentError(getErrorMessage(commentsLoadError));
           commentLoadFailedRef.current = true;
           setCommentsLoading(false);
+          throw commentsLoadError;
         }
       };
-      if (!retryFailedComments) {
-        loadComments().catch(() => undefined);
+      if (retryFailedCommentsTask) {
+        const retryResult = await retryFailedCommentsTask;
+        if (!retryResult.ok) {
+          throw retryResult.error;
+        }
+      } else {
+        await loadComments();
       }
     } catch (loadError) {
       if (
@@ -404,8 +416,13 @@ export const useAppNoticeDetailData = (noticeId?: string) => {
         latestUserIdRef.current === requestedUserId &&
         noticeRevision === noticeRevisionRef.current
       ) {
-        setError(getErrorMessage(loadError));
+        if (!didLoadNotice) {
+          setError(getErrorMessage(loadError));
+        }
         setCommentsLoading(false);
+      }
+      if (didLoadNotice) {
+        throw loadError;
       }
     } finally {
       if (

@@ -161,7 +161,7 @@ export const AppNoticeDetailScreen = () => {
   const handleRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
-      await reload();
+      await reload().catch(() => undefined);
     } finally {
       setRefreshing(false);
     }

@@ -48,6 +48,22 @@ describe('useContentBlockSettingsData', () => {
     expect(result.current.blocks).toEqual(blocks);
   });
 
+  it('현재 차단 목록 재조회 실패를 호출자에게 전파한다', async () => {
+    const reloadError = new Error('차단 목록 네트워크 오류');
+    mockedUseContentBlockRepository.mockReturnValue({
+      blockContent: jest.fn(),
+      getContentBlocks: jest.fn().mockRejectedValue(reloadError),
+      unblockContent: jest.fn(),
+    } as ReturnType<typeof useContentBlockRepository>);
+
+    const {result} = renderHook(() => useContentBlockSettingsData());
+    await waitFor(() => expect(result.current.error).toBe(reloadError.message));
+
+    await act(async () => {
+      await expect(result.current.reload()).rejects.toThrow(reloadError);
+    });
+  });
+
   it('해제보다 먼저 시작한 목록 재조회가 해제된 항목을 되돌리지 않는다', async () => {
     const block = {
       blockedAt: new Date('2026-08-31T00:00:00Z'),
