@@ -1,6 +1,8 @@
 import React from 'react';
 import {Alert} from 'react-native';
 
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {CONTENT_BLOCKS_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {useContentBlockRepository} from '@/di';
 
 import type {ContentBlockTarget} from '../model/contentBlock';
@@ -81,6 +83,8 @@ export const useContentBlockAction = ({
               repository
                 .blockContent(target)
                 .then(async () => {
+                  invalidateData(CONTENT_BLOCKS_INVALIDATION_KEY);
+
                   if (
                     !isCurrentInteraction(
                       interactionSession,

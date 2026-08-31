@@ -1,5 +1,7 @@
 import React from 'react';
 
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {CONTENT_BLOCKS_INVALIDATION_KEY} from '@/app/data-freshness/invalidationKeys';
 import {useContentBlockRepository} from '@/di';
 
 import type {ContentBlock} from '../model/contentBlock';
@@ -90,6 +92,7 @@ export const useContentBlockSettingsData = () => {
 
       try {
         await repository.unblockContent(blockId);
+        invalidateData(CONTENT_BLOCKS_INVALIDATION_KEY);
         if (!mountedRef.current) {
           return;
         }

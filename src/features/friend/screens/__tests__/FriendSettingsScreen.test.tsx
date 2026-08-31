@@ -4,6 +4,7 @@ import {act, fireEvent, render} from '@testing-library/react-native';
 
 import {useNavigation} from '@react-navigation/native';
 
+import {useRefetchOnFocus} from '@/app/data-freshness/dataInvalidation';
 import {useContentBlockSettingsData} from '@/features/content-block';
 
 import {useFriendSettingsData} from '../../hooks/useFriendSettingsData';
@@ -56,6 +57,10 @@ jest.mock('@/shared/design-system/components', () => ({
   StateCard: () => null,
 }));
 jest.mock('@/shared/hooks/useScreenView', () => ({useScreenView: jest.fn()}));
+jest.mock('@/app/data-freshness/dataInvalidation', () => ({
+  invalidateData: jest.fn(),
+  useRefetchOnFocus: jest.fn(),
+}));
 jest.mock('@/features/content-block', () => ({
   useContentBlockSettingsData: jest.fn(),
 }));
@@ -71,6 +76,7 @@ jest.mock('@/features/timetable/components/TimetableSharingScopeSheet', () => ({
 }));
 
 const mockedUseNavigation = jest.mocked(useNavigation);
+const mockedUseRefetchOnFocus = jest.mocked(useRefetchOnFocus);
 const mockedUseContentBlockSettingsData = jest.mocked(
   useContentBlockSettingsData,
 );
@@ -142,6 +148,43 @@ describe('FriendSettingsScreen', () => {
     expect(view.getByText('식별 코드 · ABC123')).toBeTruthy();
     expect(view.getByText('식별 코드 · DEF456')).toBeTruthy();
     expect(view.queryByText('식별 코드 · GHI789')).toBeNull();
+  });
+
+  it('콘텐츠 차단 관계가 바뀐 뒤 화면에 복귀하면 목록을 다시 불러온다', () => {
+    const reloadContentBlocks = jest.fn();
+    mockedUseNavigation.mockReturnValue({goBack: jest.fn()} as ReturnType<typeof useNavigation>);
+    mockedUseContentBlockSettingsData.mockReturnValue({
+      blocks: [],
+      error: undefined,
+      hasLoaded: true,
+      loading: false,
+      reload: reloadContentBlocks,
+      unblockContent: jest.fn(),
+      unblockingIds: new Set(),
+    });
+    mockedUseFriendSettingsData.mockReturnValue({
+      blocks: [],
+      blocksError: undefined,
+      hasLoadedBlocks: true,
+      loadingBlocks: false,
+      loadingPrivacy: false,
+      privacy: undefined,
+      privacyError: undefined,
+      reload: jest.fn(),
+      reloadBlocks: jest.fn(),
+      reloadPrivacy: jest.fn(),
+      savingPrivacy: false,
+      unblockMember: jest.fn(),
+      unblockingIds: new Set(),
+      updateNicknameSearchable: jest.fn(),
+    } as ReturnType<typeof useFriendSettingsData>);
+
+    render(<FriendSettingsScreen />);
+
+    expect(mockedUseRefetchOnFocus).toHaveBeenCalledWith({
+      invalidationKey: 'content.blocks',
+      refetch: reloadContentBlocks,
+    });
   });
 
   it('동일 프로필 친구의 시간표 공개 범위 행에만 식별 코드를 표시한다', () => {

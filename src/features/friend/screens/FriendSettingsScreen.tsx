@@ -14,9 +14,13 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 import {type CampusStackParamList} from '@/app/navigation/types';
-import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {
+  invalidateData,
+  useRefetchOnFocus,
+} from '@/app/data-freshness/dataInvalidation';
 import {
   BOARD_DETAIL_READ_INVALIDATION_KEYS,
+  CONTENT_BLOCKS_INVALIDATION_KEY,
   NOTICE_DETAIL_WITH_CAMPUS_INVALIDATION_KEYS,
 } from '@/app/data-freshness/invalidationKeys';
 import {useContentBlockSettingsData} from '@/features/content-block';
@@ -106,6 +110,11 @@ export const FriendSettingsScreen = () => {
     () => getDuplicateFriendProfileIds(sharingFriends),
     [sharingFriends],
   );
+
+  useRefetchOnFocus({
+    invalidationKey: CONTENT_BLOCKS_INVALIDATION_KEY,
+    refetch: reloadContentBlocks,
+  });
 
   const handleUnblock = React.useCallback(
     (friendId: string, nickname: string) => {

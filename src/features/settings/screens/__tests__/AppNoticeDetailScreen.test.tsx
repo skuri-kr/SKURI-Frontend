@@ -2,7 +2,10 @@ import React from 'react';
 import {Alert, Keyboard, ScrollView} from 'react-native';
 import {act, fireEvent, render} from '@testing-library/react-native';
 
-import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {
+  invalidateData,
+  useRefetchOnFocus,
+} from '@/app/data-freshness/dataInvalidation';
 import {useAppNoticeDetailData} from '../../hooks/useAppNoticeDetailData';
 import {submitAppNoticeCommentReport} from '../../services/appNoticeReportService';
 import {AppNoticeDetailScreen} from '../AppNoticeDetailScreen';
@@ -32,6 +35,7 @@ jest.mock('@/di', () => ({
 }));
 jest.mock('@/app/data-freshness/dataInvalidation', () => ({
   invalidateData: jest.fn(),
+  useRefetchOnFocus: jest.fn(),
 }));
 jest.mock('@/shared/hooks/useScreenView', () => ({useScreenView: jest.fn()}));
 jest.mock('@/shared/ui/ReportReasonModal', () => {
@@ -137,6 +141,7 @@ jest.mock('@/shared/design-system/components', () => {
 
 const mockedUseAppNoticeDetailData = jest.mocked(useAppNoticeDetailData);
 const mockedSubmitAppNoticeCommentReport = jest.mocked(submitAppNoticeCommentReport);
+const mockedUseRefetchOnFocus = jest.mocked(useRefetchOnFocus);
 
 describe('AppNoticeDetailScreen', () => {
   let scrollToSpy: jest.SpyInstance;
@@ -374,6 +379,15 @@ describe('AppNoticeDetailScreen', () => {
       screen.queryByTestId('app-notice-comment-block-app-comment-2'),
     ).toBeNull();
     alertSpy.mockRestore();
+  });
+
+  it('콘텐츠 차단 관계가 바뀐 뒤 화면에 복귀하면 상세를 다시 불러온다', () => {
+    render(<AppNoticeDetailScreen />);
+
+    expect(mockedUseRefetchOnFocus).toHaveBeenCalledWith({
+      invalidationKey: 'content.blocks',
+      refetch: mockDetailData.reload,
+    });
   });
 
   it('화면 이탈 뒤 이전 신고 완료는 알림을 표시하지 않는다', async () => {

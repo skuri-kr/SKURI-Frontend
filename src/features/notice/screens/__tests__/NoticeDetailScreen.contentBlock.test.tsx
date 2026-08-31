@@ -2,7 +2,10 @@ import React from 'react';
 import {Alert} from 'react-native';
 import {act, fireEvent, render} from '@testing-library/react-native';
 
-import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {
+  invalidateData,
+  useRefetchOnFocus,
+} from '@/app/data-freshness/dataInvalidation';
 
 import {useNoticeDetailData} from '../../hooks/useNoticeDetailData';
 import {NoticeDetailScreen} from '../NoticeDetailScreen';
@@ -24,6 +27,7 @@ jest.mock('react-native-vector-icons/Ionicons', () => 'Icon');
 
 jest.mock('@/app/data-freshness/dataInvalidation', () => ({
   invalidateData: jest.fn(),
+  useRefetchOnFocus: jest.fn(),
 }));
 
 jest.mock('@/app/linking', () => ({
@@ -105,6 +109,7 @@ jest.mock('../../services/noticeReportService', () => ({
 }));
 
 const mockedInvalidateData = jest.mocked(invalidateData);
+const mockedUseRefetchOnFocus = jest.mocked(useRefetchOnFocus);
 const mockedUseNoticeDetailData = jest.mocked(useNoticeDetailData);
 
 const createComment = (
@@ -219,6 +224,15 @@ describe('NoticeDetailScreen 콘텐츠 차단 wiring', () => {
     ]);
     expect(detailData.reload).toHaveBeenCalledTimes(1);
     alertSpy.mockRestore();
+  });
+
+  it('콘텐츠 차단 관계가 바뀐 뒤 화면에 복귀하면 상세를 다시 불러온다', () => {
+    render(<NoticeDetailScreen />);
+
+    expect(mockedUseRefetchOnFocus).toHaveBeenCalledWith({
+      invalidationKey: 'content.blocks',
+      refetch: detailData.reload,
+    });
   });
 
   it('본인과 삭제된 학교 공지 댓글에는 차단 액션을 노출하지 않는다', () => {

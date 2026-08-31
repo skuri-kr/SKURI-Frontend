@@ -24,8 +24,14 @@ import {
   copyShareUrlToClipboard,
   createContentShareUrl,
 } from '@/app/linking';
-import {invalidateData} from '@/app/data-freshness/dataInvalidation';
-import {BOARD_DETAIL_READ_INVALIDATION_KEYS} from '@/app/data-freshness/invalidationKeys';
+import {
+  invalidateData,
+  useRefetchOnFocus,
+} from '@/app/data-freshness/dataInvalidation';
+import {
+  BOARD_DETAIL_READ_INVALIDATION_KEYS,
+  CONTENT_BLOCKS_INVALIDATION_KEY,
+} from '@/app/data-freshness/invalidationKeys';
 import {useReportRepository} from '@/di';
 import {
   useContentBlockAction,
@@ -133,6 +139,11 @@ export const BoardDetailScreen = () => {
     togglingBookmark,
     togglingLike,
   } = useBoardDetailData(route.params?.postId);
+
+  useRefetchOnFocus({
+    invalidationKey: CONTENT_BLOCKS_INVALIDATION_KEY,
+    refetch: reload,
+  });
 
   React.useEffect(() => {
     setBodyContentHeight(0);

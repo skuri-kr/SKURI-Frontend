@@ -25,8 +25,14 @@ import {
   copyShareUrlToClipboard,
   createContentShareUrl,
 } from '@/app/linking';
-import {invalidateData} from '@/app/data-freshness/dataInvalidation';
-import {NOTICE_CONTENT_BLOCK_INVALIDATION_KEYS} from '@/app/data-freshness/invalidationKeys';
+import {
+  invalidateData,
+  useRefetchOnFocus,
+} from '@/app/data-freshness/dataInvalidation';
+import {
+  CONTENT_BLOCKS_INVALIDATION_KEY,
+  NOTICE_CONTENT_BLOCK_INVALIDATION_KEYS,
+} from '@/app/data-freshness/invalidationKeys';
 import {useReportRepository} from '@/di';
 import {useContentBlockAction} from '@/features/content-block';
 import type {ReportCategory} from '@/features/report';
@@ -125,6 +131,11 @@ export const NoticeDetailScreen = () => {
     togglingBookmark,
     togglingLike,
   } = useNoticeDetailData(route.params?.noticeId);
+
+  useRefetchOnFocus({
+    invalidationKey: CONTENT_BLOCKS_INVALIDATION_KEY,
+    refetch: reload,
+  });
 
   React.useEffect(() => {
     setBodyContentHeight(0);

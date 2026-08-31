@@ -1,5 +1,6 @@
 import {act, renderHook, waitFor} from '@testing-library/react-native';
 
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
 import {useContentBlockRepository} from '@/di';
 
 import {useContentBlockSettingsData} from '../useContentBlockSettingsData';
@@ -7,8 +8,12 @@ import {useContentBlockSettingsData} from '../useContentBlockSettingsData';
 jest.mock('@/di', () => ({
   useContentBlockRepository: jest.fn(),
 }));
+jest.mock('@/app/data-freshness/dataInvalidation', () => ({
+  invalidateData: jest.fn(),
+}));
 
 const mockedUseContentBlockRepository = jest.mocked(useContentBlockRepository);
+const mockedInvalidateData = jest.mocked(invalidateData);
 
 const createDeferred = <T,>() => {
   let resolve!: (value: T) => void;
@@ -73,5 +78,6 @@ describe('useContentBlockSettingsData', () => {
     });
 
     expect(result.current.blocks).toEqual([]);
+    expect(mockedInvalidateData).toHaveBeenCalledWith('content.blocks');
   });
 });

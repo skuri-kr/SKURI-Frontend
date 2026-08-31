@@ -1,6 +1,7 @@
 import {Alert} from 'react-native';
 import {act, renderHook} from '@testing-library/react-native';
 
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
 import {useContentBlockRepository} from '@/di';
 
 import {useContentBlockAction} from '../useContentBlockAction';
@@ -8,8 +9,12 @@ import {useContentBlockAction} from '../useContentBlockAction';
 jest.mock('@/di', () => ({
   useContentBlockRepository: jest.fn(),
 }));
+jest.mock('@/app/data-freshness/dataInvalidation', () => ({
+  invalidateData: jest.fn(),
+}));
 
 const mockedUseContentBlockRepository = jest.mocked(useContentBlockRepository);
+const mockedInvalidateData = jest.mocked(invalidateData);
 
 const createRepository = (blockContent: jest.Mock) => ({
   blockContent,
@@ -78,6 +83,7 @@ describe('useContentBlockAction', () => {
       targetId: 'comment-1',
       targetType: 'COMMENT',
     });
+    expect(mockedInvalidateData).toHaveBeenCalledWith('content.blocks');
     alertSpy.mockRestore();
   });
 

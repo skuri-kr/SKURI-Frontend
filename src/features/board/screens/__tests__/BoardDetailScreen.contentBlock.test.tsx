@@ -2,7 +2,10 @@ import React from 'react';
 import {Alert} from 'react-native';
 import {act, fireEvent, render} from '@testing-library/react-native';
 
-import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {
+  invalidateData,
+  useRefetchOnFocus,
+} from '@/app/data-freshness/dataInvalidation';
 
 import {useBoardDetailData} from '../../hooks/useBoardDetailData';
 import {BoardDetailScreen} from '../BoardDetailScreen';
@@ -24,6 +27,7 @@ jest.mock('react-native-vector-icons/Ionicons', () => 'Icon');
 
 jest.mock('@/app/data-freshness/dataInvalidation', () => ({
   invalidateData: jest.fn(),
+  useRefetchOnFocus: jest.fn(),
 }));
 
 jest.mock('@/app/linking', () => ({
@@ -125,6 +129,7 @@ jest.mock('../../services/boardReportService', () => ({
 }));
 
 const mockedInvalidateData = jest.mocked(invalidateData);
+const mockedUseRefetchOnFocus = jest.mocked(useRefetchOnFocus);
 const mockedUseBoardDetailData = jest.mocked(useBoardDetailData);
 
 const createComment = (
@@ -240,6 +245,15 @@ describe('BoardDetailScreen 콘텐츠 차단 wiring', () => {
     expect(mockNavigation.goBack).toHaveBeenCalledTimes(1);
     expect(detailData.reload).not.toHaveBeenCalled();
     alertSpy.mockRestore();
+  });
+
+  it('콘텐츠 차단 관계가 바뀐 뒤 화면에 복귀하면 상세를 다시 불러온다', () => {
+    render(<BoardDetailScreen />);
+
+    expect(mockedUseRefetchOnFocus).toHaveBeenCalledWith({
+      invalidationKey: 'content.blocks',
+      refetch: detailData.reload,
+    });
   });
 
   it('타인 게시판 댓글에서 COMMENT를 차단하고 목록 무효화 후 상세를 새로고침한다', async () => {
