@@ -22,6 +22,7 @@ import {
   BOARD_DETAIL_READ_INVALIDATION_KEYS,
   CONTENT_BLOCKS_INVALIDATION_KEY,
   NOTICE_DETAIL_WITH_CAMPUS_INVALIDATION_KEYS,
+  PROFILE_BOARD_BOOKMARKS_INVALIDATION_KEY,
 } from '@/app/data-freshness/invalidationKeys';
 import {useContentBlockSettingsData} from '@/features/content-block';
 import {
@@ -149,6 +150,7 @@ export const FriendSettingsScreen = () => {
                   invalidateData([
                     ...BOARD_DETAIL_READ_INVALIDATION_KEYS,
                     ...NOTICE_DETAIL_WITH_CAMPUS_INVALIDATION_KEYS,
+                    PROFILE_BOARD_BOOKMARKS_INVALIDATION_KEY,
                   ]);
                 })
                 .catch(actionError => {

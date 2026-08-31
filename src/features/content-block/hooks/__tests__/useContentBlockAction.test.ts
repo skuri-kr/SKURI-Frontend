@@ -83,7 +83,57 @@ describe('useContentBlockAction', () => {
       targetId: 'comment-1',
       targetType: 'COMMENT',
     });
-    expect(mockedInvalidateData).toHaveBeenCalledWith('content.blocks');
+    expect(mockedInvalidateData).toHaveBeenCalledWith([
+      'content.blocks',
+      'community.board.list',
+      'profile.boardBookmarks',
+    ]);
+    alertSpy.mockRestore();
+  });
+
+  it('차단 성공 후 화면을 떠나도 작성자 목록을 무효화하고 화면 콜백은 건너뛴다', async () => {
+    const deferred = createDeferred<{
+      blockedAt: Date;
+      id: string;
+      label: '차단한 사용자';
+    }>();
+    const repository = createRepository(
+      jest.fn().mockReturnValue(deferred.promise),
+    );
+    mockedUseContentBlockRepository.mockReturnValue(
+      repository as ReturnType<typeof useContentBlockRepository>,
+    );
+    const onBlocked = jest.fn();
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const {result, unmount} = renderHook(() =>
+      useContentBlockAction({onBlocked, scopeId: 'post-1'}),
+    );
+
+    act(() => {
+      result.current.requestContentBlock({
+        targetId: 'comment-1',
+        targetType: 'COMMENT',
+      });
+      confirmLatestAlert(alertSpy);
+    });
+    unmount();
+
+    await act(async () => {
+      deferred.resolve({
+        blockedAt: new Date('2026-08-31T00:00:00Z'),
+        id: 'block-1',
+        label: '차단한 사용자',
+      });
+      await deferred.promise;
+      await Promise.resolve();
+    });
+
+    expect(mockedInvalidateData).toHaveBeenCalledWith([
+      'content.blocks',
+      'community.board.list',
+      'profile.boardBookmarks',
+    ]);
+    expect(onBlocked).not.toHaveBeenCalled();
     alertSpy.mockRestore();
   });
 

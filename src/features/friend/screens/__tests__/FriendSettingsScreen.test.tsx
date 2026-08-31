@@ -4,7 +4,10 @@ import {act, fireEvent, render} from '@testing-library/react-native';
 
 import {useNavigation} from '@react-navigation/native';
 
-import {useRefetchOnFocus} from '@/app/data-freshness/dataInvalidation';
+import {
+  invalidateData,
+  useRefetchOnFocus,
+} from '@/app/data-freshness/dataInvalidation';
 import {useContentBlockSettingsData} from '@/features/content-block';
 
 import {useFriendSettingsData} from '../../hooks/useFriendSettingsData';
@@ -76,6 +79,7 @@ jest.mock('@/features/timetable/components/TimetableSharingScopeSheet', () => ({
 }));
 
 const mockedUseNavigation = jest.mocked(useNavigation);
+const mockedInvalidateData = jest.mocked(invalidateData);
 const mockedUseRefetchOnFocus = jest.mocked(useRefetchOnFocus);
 const mockedUseContentBlockSettingsData = jest.mocked(
   useContentBlockSettingsData,
@@ -307,5 +311,65 @@ describe('FriendSettingsScreen', () => {
     expect(view.getByText('콘텐츠 차단')).toBeTruthy();
     expect(view.getByText('차단한 사용자')).toBeTruthy();
     expect(view.queryByText(/opaque-block-id/)).toBeNull();
+  });
+
+  it('콘텐츠 차단을 해제하면 저장한 게시글 목록도 무효화한다', async () => {
+    const unblockContent = jest.fn().mockResolvedValue(undefined);
+    mockedUseNavigation.mockReturnValue({
+      goBack: jest.fn(),
+      isFocused: jest.fn().mockReturnValue(true),
+    } as ReturnType<typeof useNavigation>);
+    mockedUseFriendSettingsData.mockReturnValue({
+      blocks: [],
+      blocksError: undefined,
+      hasLoadedBlocks: true,
+      loadingBlocks: false,
+      loadingPrivacy: false,
+      privacy: undefined,
+      privacyError: undefined,
+      reload: jest.fn(),
+      reloadBlocks: jest.fn(),
+      reloadPrivacy: jest.fn(),
+      savingPrivacy: false,
+      unblockMember: jest.fn(),
+      unblockingIds: new Set(),
+      updateNicknameSearchable: jest.fn(),
+    } as ReturnType<typeof useFriendSettingsData>);
+    mockedUseContentBlockSettingsData.mockReturnValue({
+      blocks: [
+        {
+          blockedAt: new Date('2026-08-31T00:00:00Z'),
+          id: 'opaque-block-id',
+          label: '차단한 사용자',
+        },
+      ],
+      error: undefined,
+      hasLoaded: true,
+      loading: false,
+      reload: jest.fn(),
+      unblockContent,
+      unblockingIds: new Set(),
+    });
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((...args) => {
+      const action = args[2]?.find(button => button.text === '차단 해제');
+      action?.onPress?.();
+    });
+
+    const view = render(<FriendSettingsScreen />);
+    fireEvent.press(view.getByText('차단 해제'));
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(unblockContent).toHaveBeenCalledWith('opaque-block-id');
+    expect(mockedInvalidateData).toHaveBeenCalledWith([
+      'community.board.list',
+      'notice.list',
+      'campus.home',
+      'profile.boardBookmarks',
+    ]);
+    alertSpy.mockRestore();
   });
 });
