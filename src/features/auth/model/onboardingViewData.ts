@@ -45,7 +45,7 @@ export const ONBOARDING_STEP_VIEW_DATA: Record<
     title: '스쿠리에 오신 걸\n환영해요!',
   },
   notification: {
-    actionLabel: '알림 허용하기',
+    actionLabel: '계속',
     buttonColors: AUTH_ONBOARDING_STEP_COLORS.notification.buttonColors,
     features: [
       {iconName: 'megaphone', label: '학교 공지사항 실시간 알림'},
@@ -53,7 +53,10 @@ export const ONBOARDING_STEP_VIEW_DATA: Record<
       {iconName: 'car-sport', label: '동승 요청 승인/거절 알림'},
       {iconName: 'chatbubble', label: '파티 채팅 메시지 알림'},
     ],
-    footerLines: ['세부 알림 설정은 앱 내에서 제어할 수 있어요'],
+    footerLines: [
+      '알림을 허용하고 스쿠리의 모든 기능을 활용해보세요',
+      '세부 알림 설정은 앱 내에서 제어할 수 있어요',
+    ],
     heroColor: AUTH_ONBOARDING_STEP_COLORS.notification.heroColor,
     heroIconName: 'notifications',
     id: 'notification',
@@ -61,7 +64,7 @@ export const ONBOARDING_STEP_VIEW_DATA: Record<
     title: '알림 허용이\n필요해요',
   },
   att: {
-    actionLabel: '허용하기',
+    actionLabel: '계속',
     buttonColors: AUTH_ONBOARDING_STEP_COLORS.att.buttonColors,
     features: [
       {iconName: 'sparkles', label: '맞춤형 콘텐츠 제공'},
@@ -69,27 +72,26 @@ export const ONBOARDING_STEP_VIEW_DATA: Record<
       {iconName: 'person', label: '사용자 경험 최적화'},
     ],
     footerLines: [
-      '거부하셔도 앱의 모든 기능을 사용할 수 있어요',
+      '허용하지 않아도 앱의 모든 기능을 사용할 수 있어요',
       '설정에서 언제든지 변경할 수 있습니다',
     ],
     heroColor: AUTH_ONBOARDING_STEP_COLORS.att.heroColor,
     heroIconName: 'shield-checkmark',
     id: 'att',
     kicker: '개인정보 보호를 위해',
-    title: '광고 추적 권한\n설정이 필요해요',
+    title: '앱 추적 권한\n설정이 필요해요',
   },
   location: {
-    actionLabel: '위치 허용하기',
+    actionLabel: '계속',
     buttonColors: AUTH_ONBOARDING_STEP_COLORS.location.buttonColors,
     features: [
       {iconName: 'locate', label: '현재 위치 기반 가까운 파티 찾기'},
       {iconName: 'car-sport', label: '파티 모임장소까지의 거리 계산'},
-      {iconName: 'navigate', label: '택시 동승 요청시 출발지/도착지 설정'},
+      {iconName: 'navigate', label: '출발지/도착지 빠른 설정'},
       {iconName: 'shield-checkmark', label: '안전한 동승 파티'},
     ],
     footerLines: [
       '내 위치 정보는 단말기 내에서만 활용되며 서버에 저장되지 않아요',
-      '위치정보 권한 거절 시 택시 동승 파티 찾기 기능이 불가능해요',
     ],
     heroColor: AUTH_ONBOARDING_STEP_COLORS.location.heroColor,
     heroIconName: 'location',

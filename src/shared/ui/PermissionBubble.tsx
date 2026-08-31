@@ -82,12 +82,12 @@ export const PermissionBubble = ({
         >
           <Icon name="close" size={16} color={COLORS.text.inverse} />
         </TouchableOpacity>
-        <Text style={styles.title}>알림 허용이 꺼져있어요</Text>
+        <Text style={styles.title}>알림 설정 안내</Text>
         <Text style={styles.desc}>
-          원활한 택시 동승/공지 알림을 위해 알림을 허용해 주세요!
+          공지와 동승 관련 알림은 iOS 알림 설정에서 선택할 수 있어요.
         </Text>
         <TouchableOpacity style={styles.cta} onPress={onAllowNotification}>
-          <Text style={styles.ctaText}>알림 허용하기</Text>
+          <Text style={styles.ctaText}>설정 확인</Text>
         </TouchableOpacity>
         <View style={styles.tail} />
       </View>

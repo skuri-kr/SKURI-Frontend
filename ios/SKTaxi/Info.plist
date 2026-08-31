@@ -81,7 +81,7 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>앱에서 사진을 선택해 커뮤니티 글/채팅 또는 프로필 사진으로 첨부하는 데 사용합니다. 예: 탑승 위치 안내 사진 첨부</string>
 	<key>NSUserTrackingUsageDescription</key>
-	<string>서비스 개선을 위한 사용자 행동 분석과 앱 성능 최적화를 위해 기기 식별자를 사용합니다.</string>
+	<string>맞춤형 광고 제공과 광고 성과 측정을 위해 기기 식별자를 사용합니다.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIAppFonts</key>
