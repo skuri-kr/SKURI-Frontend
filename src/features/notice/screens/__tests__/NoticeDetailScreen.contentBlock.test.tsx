@@ -215,6 +215,7 @@ describe('NoticeDetailScreen 콘텐츠 차단 wiring', () => {
     expect(mockedInvalidateData).toHaveBeenCalledWith([
       'notice.list',
       'campus.home',
+      'community.board.list',
     ]);
     expect(detailData.reload).toHaveBeenCalledTimes(1);
     alertSpy.mockRestore();

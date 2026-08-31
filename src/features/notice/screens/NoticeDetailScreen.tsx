@@ -26,7 +26,7 @@ import {
   createContentShareUrl,
 } from '@/app/linking';
 import {invalidateData} from '@/app/data-freshness/dataInvalidation';
-import {NOTICE_DETAIL_WITH_CAMPUS_INVALIDATION_KEYS} from '@/app/data-freshness/invalidationKeys';
+import {NOTICE_CONTENT_BLOCK_INVALIDATION_KEYS} from '@/app/data-freshness/invalidationKeys';
 import {useReportRepository} from '@/di';
 import {useContentBlockAction} from '@/features/content-block';
 import type {ReportCategory} from '@/features/report';
@@ -162,7 +162,7 @@ export const NoticeDetailScreen = () => {
   }, [navigation]);
 
   const handleContentBlocked = React.useCallback(async () => {
-    invalidateData(NOTICE_DETAIL_WITH_CAMPUS_INVALIDATION_KEYS);
+    invalidateData(NOTICE_CONTENT_BLOCK_INVALIDATION_KEYS);
     await reload();
   }, [reload]);
   const {requestContentBlock} = useContentBlockAction({

@@ -312,6 +312,17 @@ export const useNoticeDetailData = (noticeId?: string) => {
   }, [noticeId]);
 
   React.useEffect(() => {
+    if (
+      replyTargetCommentId &&
+      (!replyTargetComment || replyTargetComment.isDeleted)
+    ) {
+      setReplyTargetCommentId(null);
+      setCommentDraft('');
+      setCommentAnonymousDraft(null);
+    }
+  }, [replyTargetComment, replyTargetCommentId]);
+
+  React.useEffect(() => {
     if (!noticeId || !user?.uid || !notice || notice.isRead) {
       return;
     }

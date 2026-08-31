@@ -307,6 +307,17 @@ export const useBoardDetailData = (postId?: string) => {
     setCommentAnonymousDraft(null);
   }, [postId]);
 
+  React.useEffect(() => {
+    if (
+      replyTargetCommentId &&
+      (!replyTargetComment || replyTargetComment.isDeleted)
+    ) {
+      setReplyTargetCommentId(null);
+      setCommentDraft('');
+      setCommentAnonymousDraft(null);
+    }
+  }, [replyTargetComment, replyTargetCommentId]);
+
   const canManageActions = React.useMemo(() => {
     if (!post) {
       return false;

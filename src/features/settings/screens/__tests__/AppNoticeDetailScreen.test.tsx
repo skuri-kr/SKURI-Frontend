@@ -2,6 +2,7 @@ import React from 'react';
 import {Alert, Keyboard, ScrollView} from 'react-native';
 import {act, fireEvent, render} from '@testing-library/react-native';
 
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
 import {useAppNoticeDetailData} from '../../hooks/useAppNoticeDetailData';
 import {submitAppNoticeCommentReport} from '../../services/appNoticeReportService';
 import {AppNoticeDetailScreen} from '../AppNoticeDetailScreen';
@@ -28,6 +29,9 @@ jest.mock('@/di', () => ({
     blockContent: mockBlockContent,
   }),
   useReportRepository: () => ({}),
+}));
+jest.mock('@/app/data-freshness/dataInvalidation', () => ({
+  invalidateData: jest.fn(),
 }));
 jest.mock('@/shared/hooks/useScreenView', () => ({useScreenView: jest.fn()}));
 jest.mock('@/shared/ui/ReportReasonModal', () => {
@@ -364,6 +368,7 @@ describe('AppNoticeDetailScreen', () => {
       targetId: 'app-comment-1',
       targetType: 'APP_NOTICE_COMMENT',
     });
+    expect(invalidateData).toHaveBeenCalledWith(['community.board.list']);
     expect(mockDetailData.reload).toHaveBeenCalledTimes(1);
     expect(
       screen.queryByTestId('app-notice-comment-block-app-comment-2'),

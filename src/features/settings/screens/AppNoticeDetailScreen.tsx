@@ -21,6 +21,8 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 import type {CampusStackParamList} from '@/app/navigation/types';
+import {invalidateData} from '@/app/data-freshness/dataInvalidation';
+import {CONTENT_BLOCK_AUTHOR_INVALIDATION_KEYS} from '@/app/data-freshness/invalidationKeys';
 import {useReportRepository} from '@/di';
 import {useContentBlockAction} from '@/features/content-block';
 import type {ReportCategory} from '@/features/report';
@@ -124,6 +126,7 @@ export const AppNoticeDetailScreen = () => {
   } = useAppNoticeDetailData(route.params?.noticeId);
 
   const handleContentBlocked = React.useCallback(async () => {
+    invalidateData(CONTENT_BLOCK_AUTHOR_INVALIDATION_KEYS);
     await reload();
   }, [reload]);
   const {requestContentBlock} = useContentBlockAction({
