@@ -56,6 +56,18 @@ react {
     autolinkLibrariesWithApp()
 }
 
+def verifyAndroidGeolocationPatch = tasks.register("verifyAndroidGeolocationPatch", Exec) {
+    group = "verification"
+    description = "Verifies the patched Android geolocation source before compilation"
+    workingDir rootDir.parentFile
+
+    doFirst {
+        def reactExtension = project.extensions.getByName("react")
+        def verificationScript = rootProject.file("../scripts/verify-android-geolocation-patch.js")
+        commandLine(reactExtension.nodeExecutableAndArgs.get() + [verificationScript.absolutePath])
+    }
+}
+
 /**
  * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
  */
@@ -120,3 +132,7 @@ dependencies {
     // 하지만 다른 라이브러리에서 사용할 수 있으므로 유지
 }
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
+
+tasks.named("preBuild").configure {
+    dependsOn(verifyAndroidGeolocationPatch)
+}

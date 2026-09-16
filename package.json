@@ -8,7 +8,8 @@
     "lint": "eslint .",
     "postinstall": "patch-package --error-on-fail",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "verify:android-geolocation-patch": "node scripts/verify-android-geolocation-patch.js"
   },
   "dependencies": {
     "@gorhom/bottom-sheet": "5.2.14",
