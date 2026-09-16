@@ -66,6 +66,31 @@
 
 패치가 적용되는 동안 `@react-native-community/geolocation`은 `package.json`에서 `3.4.0`으로 정확히 고정한다. 새 버전에 패치가 적용되지 않거나 일부만 적용되는 상태를 설치 단계에서 놓치지 않도록 버전 범위를 사용하지 않는다.
 
+### 빌드 전 자동 검증
+
+- `npm run verify:android-geolocation-patch`는 설치된 패키지 버전, 추적 중인 패치 파일, 패치 적용 후 `PlayServicesLocationManager.java`의 SHA-256을 검사한다.
+- Android 앱의 모든 `preBuild`는 같은 검증을 먼저 실행한다. 따라서 Android Studio와 `gradlew` 모두 패치가 없거나 일부만 적용된 상태에서 컴파일을 시작하지 않는다.
+- 검증기는 줄바꿈을 LF로 정규화한 뒤 소스 전체의 SHA-256을 비교하며, 설치나 패치 적용을 자동으로 수행하지 않는다.
+- 검증에 실패하면 `node_modules`를 직접 수정하지 말고 저장소 루트에서 `npm ci`를 실행한다. 추적 중인 패치 파일이 없다는 오류라면 먼저 Git에서 해당 파일을 복원한 뒤 `npm ci`를 실행한다.
+- 패치 또는 라이브러리 버전을 의도적으로 변경할 때는 정확한 npm 배포 tarball에 새 패치를 적용하고, 줄바꿈을 LF로 정규화해 구한 SHA-256으로 `scripts/verify-android-geolocation-patch.js`의 기준값을 갱신한다. fixture 테스트와 Android 네이티브 회귀 테스트를 함께 통과하기 전에는 기준값만 바꾸지 않는다.
+
+검증 명령은 다음과 같다.
+
+```bash
+npm ci
+npm run verify:android-geolocation-patch
+npm run test:android-geolocation-patch-guard
+./android/gradlew -p android :app:testDebugUnitTest --tests com.reactnativecommunity.geolocation.PlayServicesLocationManagerTest
+```
+
+### 검증 증거 구분
+
+1. **설치 소스 검증**: 버전과 SHA-256 일치는 현재 `node_modules`에 기대한 패치가 적용됐음을 확인한다.
+2. **컴파일 결과 검증**: Android 네이티브 회귀 테스트와 컴파일된 클래스 검사는 요청별 콜백이 자기 자신을 해제하는지 확인한다.
+3. **최종 산출물 검증**: Release AAB의 버전·SHA-256과 R8 결과를 확인해 실제 배포 후보에도 수정 코드가 포함됐는지 확인한다.
+
+각 단계는 다음 단계를 대신하지 않는다. 자동 검사가 통과해도 실기기 동작이나 Play 배포 후 크래시 감소가 증명된 것은 아니다.
+
 ### 제거 조건
 
 다음 조건을 모두 만족할 때만 이 패치를 제거한다.
@@ -84,3 +109,13 @@
 6. 둘 이상의 `getCurrentPosition()` 요청을 반복해서 겹치게 실행하고 logcat에 `Listener must not be null` 또는 `PlayServicesLocationManager.onLocationResult` 크래시가 없는지 확인한다.
 
 공식 수정이 배포되지 않았다면 현재 버전을 유지하거나, upstream 변경에 맞춰 패치를 다시 생성하고 이 문서의 버전과 검증 기록을 함께 갱신한다.
+
+### Android 실기기 후속 체크리스트
+
+- Android 13과 Android 16 Samsung 기기에서 각각 Release 빌드를 사용한다.
+- 위치 권한 허용·거절, 정확한 위치·대략적인 위치를 각각 확인한다.
+- 위치 서비스가 켜진 상태와 꺼진 상태에서 앱이 오류를 처리하고 종료되지 않는지 확인한다.
+- 택시 화면과 채팅 화면을 반복해서 전환하고, 위치 요청 중 화면 이탈과 백그라운드 복귀를 반복한다.
+- 둘 이상의 현재 위치 요청을 의도적으로 겹치게 실행하고 완료 순서를 바꿔 반복한다.
+- 앱 종료 여부뿐 아니라 위치 결과가 정상 전달되는지, 반복 실행 뒤 요청이 멈추거나 남지 않는지도 확인한다.
+- 검증 중 logcat에서 `Listener must not be null`, `PlayServicesLocationManager.onLocationResult`, 위치 콜백 관련 예외를 확인한다.
