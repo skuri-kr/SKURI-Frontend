@@ -9,6 +9,7 @@
     "postinstall": "patch-package --error-on-fail",
     "start": "react-native start",
     "test": "jest",
+    "test:android-geolocation-patch-guard": "node --test scripts/__tests__/verify-android-geolocation-patch.test.js",
     "verify:android-geolocation-patch": "node scripts/verify-android-geolocation-patch.js"
   },
   "dependencies": {
