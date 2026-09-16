@@ -6,6 +6,7 @@ module.exports = {
     '<rootDir>/android/',
     '<rootDir>/ios/',
     '<rootDir>/docs/',
+    '<rootDir>/scripts/__tests__/',
   ],
   modulePathIgnorePatterns: [
     '<rootDir>/node_modules/',
